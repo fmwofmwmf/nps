@@ -1,0 +1,232 @@
+﻿# This is a sample Python script.
+import cProfile
+import io
+import json
+import os
+import pstats
+
+import numpy as np
+import torch
+from torch import optim
+from tqdm import tqdm
+
+from fem_model import FEMSystem
+
+import layers
+from layers import SubspaceMLP
+from Args import Args
+
+
+def train_system(args: Args, system, system_def, subspace_domain_dict, base_state, target_dim):
+
+    in_dim = args.subspace_dim + system.cond_dim
+    model_spec = {
+        "in_dim": in_dim,
+        "out_dim": target_dim,
+        "model_type": args.model_type,
+        "activation": args.activation,
+        "MLP_hidden_layers": args.MLP_hidden_layers,
+        "MLP_hidden_layer_width": args.MLP_hidden_layer_width,
+    }
+
+    model = SubspaceMLP(model_spec, base_output=base_state).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_every, gamma=args.lr_decay_frac)
+
+    def apply_subspace(x, cond_params, t_schedule):
+        z = torch.cat([x, cond_params], dim=-1)
+        return model(z, t_schedule)
+
+    def mollify_norm(x, eps=1e-20):
+        return torch.sqrt(torch.sum(x**2) + eps)
+
+    def sample_system_and_Epot(system_def, t_schedule):
+        cond_params = system.sample_conditional_params(system_def, None, rho=t_schedule)
+        system_def["cond_param"] = cond_params
+
+        z = torch.randn((args.subspace_dim,), device=device)
+        q = apply_subspace(z, cond_params, t_schedule)
+        # print(q.size(), z.size(), cond_params.size())
+        E_pot = system.potential_energy(system_def, q)
+        return z, cond_params, q, E_pot
+
+    def apply_subspace_batch(z_batch, cond_params, t_schedule):
+        """
+        Vectorized version for a batch of latent vectors.
+        z_batch: [B, latent_dim]
+        cond_params: [cond_dim] or [B, cond_dim]
+        Returns: q_batch [B, Q]
+        """
+        if cond_params.ndim == 1:
+            # expand cond_params for the batch
+            cond_params = cond_params.unsqueeze(0).expand(z_batch.size(0), -1)
+        # Concatenate along feature dim
+        z_cond = torch.cat([z_batch, cond_params], dim=-1)
+        return model(z_cond, t_schedule)
+
+    def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
+        # Sample conditional params once
+        cond_params = system.sample_conditional_params(system_def, None, rho=t_schedule).to(device)
+        system_def["cond_param"] = cond_params
+
+        # Sample batch of latent vectors
+        z_batch = torch.randn((batch_size, args.subspace_dim), device=device)
+
+        # Apply subspace in batch
+        q_batch = apply_subspace_batch(z_batch, cond_params, t_schedule)
+
+        # Compute batched potential energy
+        E_pots = system.potential_energy_batch(system_def, q_batch)
+
+        # Broadcast cond_params to batch
+        cond_batch = cond_params.unsqueeze(0).expand(batch_size, -1)
+
+        return z_batch, cond_batch, q_batch, E_pots
+
+    def batch_repulsion_neo(z_batch, q_batch, t_schedule):
+        DIST_EPS = 1e-8
+        B, Z = z_batch.shape
+        _, Q = q_batch.shape
+        stats = {}
+
+        q_diff = q_batch[:, None, :] - q_batch[None, :, :]  # [B, B, Q]
+
+        B = q_batch.shape[0]
+
+        q_diff_flat = q_diff.reshape(B * B, -1)  # [B*B, Q]
+
+        all_q_dists_flat = system.batched_kinetic_energy(system_def, q_diff_flat) + DIST_EPS
+
+        all_q_dists = all_q_dists_flat.view(B, B)
+
+        z_diff = z_batch[:, None, :] - z_batch[None, :, :]  # [B, B, Z]
+        all_z_dists = torch.sum(z_diff ** 2, dim=-1)  # [B, B]
+
+        if args.expand_type == 'iso':
+            factor = torch.log(t_schedule * args.sigma_scale * all_z_dists + DIST_EPS) - torch.log(all_q_dists)
+
+            #print(1, t_schedule * args.sigma_scale * all_z_dists + DIST_EPS)
+            #print(2, all_q_dists)
+
+            repel_term = torch.sum(0.25 * factor ** 2, dim=-1)  # [B]
+            stats['mean_scale_log'] = (-factor).mean()
+        else:
+            raise ValueError("expand type should be 'iso'")
+
+        return repel_term, stats
+
+    def batch_repulsion(z_batch, q_batch, t_schedule):
+        DIST_EPS = 1e-8
+        stats = {}
+        B = q_batch.shape[0]
+
+        all_z_dists = torch.cdist(z_batch, z_batch, p=2).square()
+
+        q_i = q_batch.unsqueeze(1).expand(B, B, -1).reshape(B * B, -1)
+        q_j = q_batch.unsqueeze(0).expand(B, B, -1).reshape(B * B, -1)
+        q_diffs = q_j - q_i
+        all_q_dists_flat = system.batched_kinetic_energy(system_def, q_i, q_diffs)
+        all_q_dists = all_q_dists_flat.reshape(B, B)
+
+        all_q_dists += DIST_EPS
+
+        factor = torch.log(t_schedule * args.sigma_scale * all_z_dists + DIST_EPS) - torch.log(all_q_dists)
+        repel_term = torch.sum((0.5 * factor) ** 2, dim=-1)
+
+
+
+        stats['mean_scale_log'] = torch.mean(-factor)
+
+        return repel_term, stats
+
+    pbar = tqdm(total=args.n_train_iters, desc="Training", unit="iter")
+
+    pr = cProfile.Profile()
+    pr.enable()
+
+    for i_train_iter in range(args.n_train_iters):
+
+        t_schedule = i_train_iter / float(args.n_train_iters)
+
+        optimizer.zero_grad()
+
+        z_batch, cond_batch, q_batch, E_pots = sample_system_and_Epot_batch(system_def, t_schedule, args.batch_size)
+
+        expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule)
+
+        E_pot = E_pots.mean()
+        E_exp = expand_loss.mean() * args.weight_expand
+        total_loss = E_pot + E_exp
+        total_loss.backward()
+
+        optimizer.step()
+        scheduler.step()
+
+        pbar.update(1)
+
+        if i_train_iter % args.report_every == 0:
+            # print(z_batch.mean(), torch.stack(z_batch1).mean())
+            # print(q_batch.mean(), torch.stack(q_batch1).mean())
+            # print(E_pots.mean(), torch.stack(E_pots1).mean())
+            pbar.set_postfix({
+                'loss': f"{total_loss.item():.6f}",
+                'E_pot': f"{E_pot.item():.6f}",
+                'E_exp': f"{E_exp.item():.6f}",
+                'stretch': f"{torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}",
+                't_sched': f"{t_schedule:.3f}"
+            })
+
+            pbar.write(
+                f"\n== iter {i_train_iter}/{args.n_train_iters}  ({100. * i_train_iter / args.n_train_iters:.2f}%)")
+            pbar.write(f"   loss: {total_loss.item():.6f}")
+            pbar.write(f"   E_pots: {E_pot.item():.6f}")
+            pbar.write(f"   E_exp: {E_exp.item():.6f}")
+            pbar.write(f"   mean metric stretch: {torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}")
+            E_pot = system.potential_energy(system_def, model(torch.zeros(args.subspace_dim), t_schedule))
+            pbar.write(f"   E_pots (0): {E_pot:.6f}")
+            save_model(model, model_spec, args, i_train_iter, t_schedule)
+
+            # pr.disable()
+            # s = io.StringIO()
+            # ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+            # ps.print_stats(20)  # Show top 20 functions
+            # print(s.getvalue())
+            # pr = cProfile.Profile()
+            # pr.enable()
+
+    save_model(model, model_spec, args, "_final", 1.0)
+
+
+def save_model(model, model_spec, args: Args, suffix, t_schedule):
+    filename = os.path.join(args.output_dir, f"{args.model_type}_{suffix}")
+    torch.save(model.state_dict(), filename + ".pt")
+    torch.set_default_dtype(torch.float32)
+    with open(filename + ".json", "w") as f:
+        json.dump(model_spec, f)
+    np.save(filename + "_info.npy", {
+        "system": args.system_name,
+        "problem_name": args.problem_name,
+        "subspace_domain_type": args.subspace_domain_type,
+        "subspace_dim": args.subspace_dim,
+        "t_schedule_final": t_schedule,
+    })
+    print(f"Saved model to {filename}.pt")
+
+
+
+if __name__ == '__main__':
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.set_default_device(device)
+
+    args = Args()
+
+    system, system_def = FEMSystem.construct("bistable")
+
+    target_dim = system.dim
+    base_state = system_def['interesting_states'][0, :]
+
+    # Construct the learned subspace operator
+    in_dim = args.subspace_dim + system.cond_dim
+    model_spec = layers.model_spec_from_args(args, in_dim, target_dim)
+
+    train_system(args, system, system_def, None, base_state, target_dim)
