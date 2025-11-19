@@ -50,7 +50,7 @@ def main():
         #
         # subspace_model_params = eqx.tree_deserialise_leaves(args.subspace_model + ".eqx",
         #                                                     subspace_model)
-
+        subspace_model.eval()
         # load other info
         d = np.load(args.subspace_model + "_info.npy", allow_pickle=True).item()
 
@@ -85,6 +85,7 @@ def main():
 
     # UI state
     run_sim = False
+    optimize = False
     eval_energy_every = True
     update_viz_every = True
 
@@ -122,9 +123,58 @@ def main():
     ### Main loop, sim step, and UI
     #########################################################################
 
+    def central_diff_grad(energy_fn, system_def, x, eps=1e-6):
+        """
+        Finite-difference gradient for torch tensors.
+        x: 1D torch tensor, dtype float32 or float64
+        """
+        n = x.numel()
+        grad = torch.zeros_like(x)
+
+        for i in range(n):
+            # unit vector ei
+            e = torch.zeros_like(x)
+            e[i] = eps
+
+            f_plus = energy_fn(system_def, x + e)
+            f_minus = energy_fn(system_def, x - e)
+
+            grad[i] = (f_plus - f_minus) / (2 * eps)
+
+        return grad
+
+    def finite_diff_gd(energy_fn, system_def, x0, lr=1e-2, eps=1e-6,
+                       steps=100, tol=1e-8, verbose=False):
+
+        x = x0.clone().detach().float()
+
+        history = {'loss': [], 'grad_norm': []}
+
+        for t in range(steps):
+            loss = float(energy_fn(system_def, x))
+
+            grad = central_diff_grad(energy_fn, system_def, x, eps)
+            grad_norm = grad.norm().item()
+
+            history['loss'].append(loss)
+            history['grad_norm'].append(grad_norm)
+
+            if verbose and (t % max(1, steps // 10) == 0):
+                print(f"iter {t:4d} loss={loss:.6e} ||g||={grad_norm:.3e}")
+
+            if grad_norm < tol:
+                if verbose:
+                    print("converged (grad norm < tol)")
+                break
+
+            # gradient descent step
+            x = x - lr * grad
+
+        return x, history
+
     def main_loop():
 
-        nonlocal run_sim, base_latent, update_viz_every, eval_energy_every
+        nonlocal run_sim, base_latent, update_viz_every, eval_energy_every, optimize
 
         # Define the GUI
 
@@ -141,6 +191,10 @@ def main():
 
                 # Make a detached clone to avoid modifying int_state in-place until confirmed
                 tmp_state_q = int_state['q_t'].clone() if torch.is_tensor(int_state['q_t']) else int_state['q_t'].copy()
+                _, optimize = psim.SliderFloat("optimize", optimize, 0, 4)
+                if optimize > 0:
+                    tmp_state_q, _ = finite_diff_gd(eval_potential_energy, system_def, tmp_state_q, lr=(10 ** (-(4-optimize))), eps=1e-6, steps=10, tol=1e-8, verbose=False)
+                    any_changed = True
 
                 low = subspace_domain_dict['viz_entry_bound_low']
                 high = subspace_domain_dict['viz_entry_bound_high']

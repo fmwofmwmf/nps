@@ -126,43 +126,62 @@ def fem_energy(system_def, mesh, material_energy, V):
 
     return material_energy(system_def, FT, mesh)
 
+# @torch.compile()
+# def fem_energy_batch(system_def, mesh, material_energy, V_batch):
+#     """
+#     Batched version of fem_energy.
+#
+#     V_batch: [B, N, D] -- batch of vertex positions
+#     Returns: [B] -- energy per batch
+#     """
+#     E = mesh["E"]  # [num_elements, num_vertices_per_element]
+#     DTI = mesh["DTI"]  # [num_elements, dim, dim]
+#
+#     batch_size = V_batch.shape[0]
+#     num_elements = E.shape[0]
+#     dim = DTI.shape[1]
+#
+#     first_vertex_indices = E[:, 0:1]
+#     other_vertex_indices = E[:, 1:]
+#
+#     first_vertices = V_batch[:, first_vertex_indices]  # Advanced indexing
+#
+#     other_vertices = V_batch[:, other_vertex_indices]  # Advanced indexing
+#
+#     # Compute DT: [batch_size, num_elements, dim, dim]
+#     DT = other_vertices - first_vertices
+#
+#     DT_reshaped = DT.reshape(batch_size * num_elements, dim, dim)  # [batch_size * num_elements, dim, dim]
+#     DTI_expanded = DTI.unsqueeze(0).expand(batch_size, num_elements, dim, dim)  # [batch_size, num_elements, dim, dim]
+#     DTI_reshaped = DTI_expanded.reshape(batch_size * num_elements, dim, dim)  # [batch_size * num_elements, dim, dim]
+#
+#     # Batch matrix multiplication
+#     FT_flat = torch.bmm(DTI_reshaped, DT_reshaped)  # [batch_size * num_elements, dim, dim]
+#     FT = FT_flat.reshape(batch_size, num_elements, dim, dim)  # [batch_size, num_elements, dim, dim]
+#
+#     # Step 3: Compute material energy for all batches
+#     E_batch = material_energy(system_def, FT, mesh)
+#
+#     return E_batch
+
 @torch.compile()
 def fem_energy_batch(system_def, mesh, material_energy, V_batch):
-    """
-    Batched version of fem_energy.
-
-    V_batch: [B, N, D] -- batch of vertex positions
-    Returns: [B] -- energy per batch
-    """
-    E = mesh["E"]  # [num_elements, num_vertices_per_element]
-    DTI = mesh["DTI"]  # [num_elements, dim, dim]
-
-    batch_size = V_batch.shape[0]
+    E = mesh["E"]
+    DTI = mesh["DTI"]
+    B, N, D = V_batch.shape
     num_elements = E.shape[0]
-    dim = DTI.shape[1]
 
-    first_vertex_indices = E[:, 0:1]
-    other_vertex_indices = E[:, 1:]
+    # More efficient indexing
+    first_vertices = V_batch[:, E[:, 0:1], :]  # [B, num_elements, 1, D]
+    other_vertices = V_batch[:, E[:, 1:], :]  # [B, num_elements, D, D]
 
-    first_vertices = V_batch[:, first_vertex_indices]  # Advanced indexing
+    DT = other_vertices - first_vertices  # [B, num_elements, D, D]
 
-    other_vertices = V_batch[:, other_vertex_indices]  # Advanced indexing
+    # Vectorized batch matrix multiplication
+    DTI_expanded = DTI.unsqueeze(0).expand(B, -1, -1, -1)  # [B, num_elements, D, D]
+    FT = torch.matmul(DTI_expanded, DT)  # [B, num_elements, D, D]
 
-    # Compute DT: [batch_size, num_elements, dim, dim]
-    DT = other_vertices - first_vertices
-
-    DT_reshaped = DT.reshape(batch_size * num_elements, dim, dim)  # [batch_size * num_elements, dim, dim]
-    DTI_expanded = DTI.unsqueeze(0).expand(batch_size, num_elements, dim, dim)  # [batch_size, num_elements, dim, dim]
-    DTI_reshaped = DTI_expanded.reshape(batch_size * num_elements, dim, dim)  # [batch_size * num_elements, dim, dim]
-
-    # Batch matrix multiplication
-    FT_flat = torch.bmm(DTI_reshaped, DT_reshaped)  # [batch_size * num_elements, dim, dim]
-    FT = FT_flat.reshape(batch_size, num_elements, dim, dim)  # [batch_size, num_elements, dim, dim]
-
-    # Step 3: Compute material energy for all batches
-    E_batch = material_energy(system_def, FT, mesh)
-
-    return E_batch
+    return material_energy(system_def, FT, mesh)
 
 def mean_strain_metric(system_def, mesh, V):
     dim = mesh["Vrest"].shape[1]

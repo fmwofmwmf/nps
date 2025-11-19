@@ -64,56 +64,89 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         z_cond = torch.cat([z_batch, cond_params], dim=-1)
         return model(z_cond, t_schedule)
 
+    @torch.compile()
+    def orthogonality_loss(z):
+        """
+        z: [batch_size, dim] (masked latent)
+        Returns scalar loss penalizing correlation between dims
+        """
+        B, D = z.size()
+        # center along batch
+        z_centered = z - z.mean(dim=0, keepdim=True)
+        # covariance matrix
+        cov = (z_centered.T @ z_centered) / B  # [D, D]
+        # zero out diagonal
+        diag_mask = torch.eye(D, device=z.device)
+        off_diag = cov * (1 - diag_mask)
+        loss = (off_diag ** 2).sum()
+        return loss
+
+    def jacobian_orthogonality_loss(z, out):
+        B, D = z.shape
+
+        # per-sample scalar (do not collapse batch!)
+        scalar = out.sum(dim=1)  # [B]
+
+        grad = torch.autograd.grad(
+            scalar,
+            z,
+            grad_outputs=torch.ones_like(scalar),
+            create_graph=True,
+            retain_graph=True
+        )[0]  # [B, D]
+
+        # Gram matrix (averaged over batch)
+        G = (grad.transpose(0, 1) @ grad) / B  # [D, D]
+
+        I = torch.eye(D, device=z.device)
+        return ((G - I) ** 2).mean()
+
     def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
-        # Sample conditional params once
+        prior_strength = 1e-1
+        weight_decay = 0
+        ortho_strength = 0
+
         cond_params = system.sample_conditional_params(system_def, None, rho=t_schedule).to(device)
         system_def["cond_param"] = cond_params
 
         # Sample batch of latent vectors
         z_batch = torch.randn((batch_size, args.subspace_dim), device=device)
-
+        z_batch.requires_grad_()
         # Apply subspace in batch
         q_batch = apply_subspace_batch(z_batch, cond_params, t_schedule)
 
-        # Compute batched potential energy
-        E_pots = system.potential_energy_batch(system_def, q_batch)
+        mask_loss = 0 #m_batch.sum() * prior_strength
+        decay_loss = model.L2() * weight_decay
+        ortho_loss = jacobian_orthogonality_loss(z_batch, q_batch) * ortho_strength
+
+        E_pots = (system.potential_energy_batch(system_def, q_batch))
 
         # Broadcast cond_params to batch
         cond_batch = cond_params.unsqueeze(0).expand(batch_size, -1)
 
-        return z_batch, cond_batch, q_batch, E_pots
+        return z_batch, cond_batch, q_batch, E_pots, mask_loss, decay_loss, ortho_loss
 
-    def batch_repulsion_neo(z_batch, q_batch, t_schedule):
+    def batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def):
         DIST_EPS = 1e-8
-        B, Z = z_batch.shape
-        _, Q = q_batch.shape
-        stats = {}
+        B = z_batch.shape[0]
 
-        q_diff = q_batch[:, None, :] - q_batch[None, :, :]  # [B, B, Q]
+        # Compute z distances more efficiently
+        z_dists_sq = torch.cdist(z_batch, z_batch, p=2).square()
 
-        B = q_batch.shape[0]
+        # Compute q distances in batch without reshaping
+        q_i = q_batch.unsqueeze(1).expand(B, B, -1)
+        q_j = q_batch.unsqueeze(0).expand(B, B, -1)
+        q_diffs = q_j - q_i
+        q_diffs_flat = q_diffs.reshape(B * B, -1)
 
-        q_diff_flat = q_diff.reshape(B * B, -1)  # [B*B, Q]
-
-        all_q_dists_flat = system.batched_kinetic_energy(system_def, q_diff_flat) + DIST_EPS
-
+        all_q_dists_flat = system.batched_kinetic_energy(system_def, q_diffs_flat) + DIST_EPS
         all_q_dists = all_q_dists_flat.view(B, B)
 
-        z_diff = z_batch[:, None, :] - z_batch[None, :, :]  # [B, B, Z]
-        all_z_dists = torch.sum(z_diff ** 2, dim=-1)  # [B, B]
+        # Compute factor efficiently
+        factor = torch.log(t_schedule * args.sigma_scale * z_dists_sq + DIST_EPS) - torch.log(all_q_dists)
+        repel_term = torch.sum(0.25 * factor.square(), dim=-1)
 
-        if args.expand_type == 'iso':
-            factor = torch.log(t_schedule * args.sigma_scale * all_z_dists + DIST_EPS) - torch.log(all_q_dists)
-
-            #print(1, t_schedule * args.sigma_scale * all_z_dists + DIST_EPS)
-            #print(2, all_q_dists)
-
-            repel_term = torch.sum(0.25 * factor ** 2, dim=-1)  # [B]
-            stats['mean_scale_log'] = (-factor).mean()
-        else:
-            raise ValueError("expand type should be 'iso'")
-
-        return repel_term, stats
+        return repel_term, {'mean_scale_log': -factor.mean()}
 
     def batch_repulsion(z_batch, q_batch, t_schedule):
         DIST_EPS = 1e-8
@@ -133,16 +166,14 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         factor = torch.log(t_schedule * args.sigma_scale * all_z_dists + DIST_EPS) - torch.log(all_q_dists)
         repel_term = torch.sum((0.5 * factor) ** 2, dim=-1)
 
-
-
         stats['mean_scale_log'] = torch.mean(-factor)
 
         return repel_term, stats
 
     pbar = tqdm(total=args.n_train_iters, desc="Training", unit="iter")
 
-    pr = cProfile.Profile()
-    pr.enable()
+    # pr = cProfile.Profile()
+    # pr.enable()
 
     for i_train_iter in range(args.n_train_iters):
 
@@ -150,13 +181,13 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
         optimizer.zero_grad()
 
-        z_batch, cond_batch, q_batch, E_pots = sample_system_and_Epot_batch(system_def, t_schedule, args.batch_size)
+        z_batch, cond_batch, q_batch, E_pots, mask_loss, decay_loss, ortho_loss = sample_system_and_Epot_batch(system_def, t_schedule, args.batch_size)
 
-        expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule)
+        expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def)
 
         E_pot = E_pots.mean()
         E_exp = expand_loss.mean() * args.weight_expand
-        total_loss = E_pot + E_exp
+        total_loss = E_pot + E_exp + mask_loss + decay_loss + ortho_loss
         total_loss.backward()
 
         optimizer.step()
@@ -171,6 +202,9 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
             pbar.set_postfix({
                 'loss': f"{total_loss.item():.6f}",
                 'E_pot': f"{E_pot.item():.6f}",
+                'Mask': f"{mask_loss:.6f}",
+                'Weight': f"{decay_loss:.6f}",
+                'Ortho': f"{ortho_loss:.6f}",
                 'E_exp': f"{E_exp.item():.6f}",
                 'stretch': f"{torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}",
                 't_sched': f"{t_schedule:.3f}"
@@ -181,8 +215,11 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
             pbar.write(f"   loss: {total_loss.item():.6f}")
             pbar.write(f"   E_pots: {E_pot.item():.6f}")
             pbar.write(f"   E_exp: {E_exp.item():.6f}")
+            pbar.write(f"   Mask: {mask_loss:.6f}")
+            pbar.write(f"   Weight: {decay_loss:.6f}")
+            pbar.write(f"   Ortho: {ortho_loss:.6f}")
             pbar.write(f"   mean metric stretch: {torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}")
-            E_pot = system.potential_energy(system_def, model(torch.zeros(args.subspace_dim), t_schedule))
+            E_pot = system.potential_energy(system_def, model(torch.zeros(args.subspace_dim), t_schedule)[0])
             pbar.write(f"   E_pots (0): {E_pot:.6f}")
             save_model(model, model_spec, args, i_train_iter, t_schedule)
 
