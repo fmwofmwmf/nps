@@ -59,8 +59,8 @@ def main():
         latent_comb_dim = system_def['interesting_states'].shape[0]
         t_schedule_final = d['t_schedule_final']
 
-        def apply_subspace(x, cond_params):
-            return subspace_model(torch.concat((x, cond_params), dim=-1), t_schedule=t_schedule_final)
+        def apply_subspace(x, space):
+            return subspace_model(torch.concat((x, torch.tensor((space,))), dim=-1), t_schedule=t_schedule_final)
 
         if args.system_name != d['system']:
             raise ValueError("system name does not match loaded weights")
@@ -88,6 +88,7 @@ def main():
     optimize = False
     eval_energy_every = True
     update_viz_every = True
+    space = 0.5
 
     # Set up state parameters
 
@@ -102,22 +103,26 @@ def main():
         int_state['q_tm1'] = int_state['q_t']
         int_state['qdot_t'] = torch.zeros_like(int_state['q_t'])
 
-        system.visualize(system_def, state_to_system(system_def, int_state['q_t']))
+        system.visualize(system_def, state_to_system(system_def, int_state['q_t'], space), space)
 
-    def state_to_system(system_def, state):
-        return apply_subspace(state, system_def['cond_param'])
+    def state_to_system(system_def, state, space):
+        return apply_subspace(state, space)
 
-    baseState = state_to_system(system_def, base_latent)
+    baseState = state_to_system(system_def, base_latent, space)
 
     subspace_fn = state_to_system
 
     ps.set_automatically_compute_scene_extents(False)
     reset_state()  # also creates initial viz
 
-    print(f"state_to_system dtype: {state_to_system(system_def, int_state['q_t']).dtype}")
+    print(f"state_to_system dtype: {state_to_system(system_def, int_state['q_t'], space).dtype}")
 
-    def eval_potential_energy(system_def, q):
-        return system.potential_energy(system_def, state_to_system(system_def, q))
+    def eval_potential_energy(system_def, q, compare = False):
+        pot = system.potential_energy(system_def, state_to_system(system_def, q, space), space)
+        if compare:
+            bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), torch.tensor((space,)))
+            return pot, bpot
+        return pot
 
     #########################################################################
     ### Main loop, sim step, and UI
@@ -174,12 +179,13 @@ def main():
 
     def main_loop():
 
-        nonlocal run_sim, base_latent, update_viz_every, eval_energy_every, optimize
+        nonlocal run_sim, base_latent, update_viz_every, eval_energy_every, optimize, space
 
         # Define the GUI
 
         # some latent sliders
         if use_subspace:
+            changed, space = psim.SliderFloat("space", space, .1, 2)
 
             psim.TextUnformatted(f"Subspace domain type: {subspace_domain_dict['domain_name']}")
 
@@ -216,7 +222,7 @@ def main():
 
                     integrators.update_state(int_opts, int_state, tmp_state_q, with_velocity=True)
                     integrators.apply_domain_projection(int_state, subspace_domain_dict)
-                    system.visualize(system_def, state_to_system(system_def, int_state['q_t']))
+                    system.visualize(system_def, state_to_system(system_def, int_state['q_t'], space), space)
 
                 psim.TreePop()
 
@@ -225,12 +231,12 @@ def main():
         system.build_system_ui(system_def)
 
         if update_viz_every or run_sim:
-            system.visualize(system_def, state_to_system(system_def, int_state['q_t']))
+            system.visualize(system_def, state_to_system(system_def, int_state['q_t'], space), space)
 
         if eval_energy_every:
 
-            E = eval_potential_energy(system_def, int_state['q_t'])
-            E_str = f"Potential energy: {E}"
+            E, BE = eval_potential_energy(system_def, int_state['q_t'], True)
+            E_str = f"Potential energy: {E}, {BE.item()}"
             #print(E, int_state['q_t'])
             psim.TextUnformatted(E_str)
 

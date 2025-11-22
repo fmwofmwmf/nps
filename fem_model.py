@@ -42,10 +42,10 @@ def StVK_energy(system_def, FT, mesh):
 
     return (A * energies).sum()
 
-def neohook_energy(system_def, FT, mesh):
+def neohook_energy(system_def, FT, mesh, A):
     poisson = system_def['poisson']
     Y = system_def['Y']
-    A = mesh["A"]
+    #A = mesh["A"]
 
     mu = 0.5 * Y / (1.0 + poisson)
     lamb = (Y * poisson) / ((1.0 + poisson) * (1.0 - 2.0 * poisson))
@@ -62,14 +62,13 @@ def neohook_energy(system_def, FT, mesh):
 
     return (A * (energies - energies0)).sum()
 
-@torch.compile()
-def neohook_energy_batch(system_def, FT, mesh):
+def neohook_energy_batch(system_def, FT, mesh, A):
     """
     FT: [B, num_elements, D, D]
     Returns: [B]
     """
     B, num_elements, D, _ = FT.shape
-    A = mesh["A"]
+    #A = mesh["A"]
     poisson = system_def['poisson']
     Y = system_def['Y']
 
@@ -117,71 +116,109 @@ def neohook_thin_energy(system_def, FT, mesh):
 
     return (A * (energies - energies0)).sum()
 
-def fem_energy(system_def, mesh, material_energy, V):
-    E = mesh["E"]
-    DTI = mesh["DTI"]
+# def fem_energy(system_def, mesh, material_energy, V, s):
+#     E = mesh["E"]
+#     DTI = mesh["DTI"]
+#
+#     DT = V[E[:, 1:]] - V[E[:, 0:1]]  # shape (num_elements, dim, dim)
+#     FT = torch.matmul(DTI, DT)
+#
+#     return material_energy(system_def, FT, mesh)
 
-    DT = V[E[:, 1:]] - V[E[:, 0:1]]  # shape (num_elements, dim, dim)
-    FT = torch.matmul(DTI, DT)
-
-    return material_energy(system_def, FT, mesh)
-
-# @torch.compile()
-# def fem_energy_batch(system_def, mesh, material_energy, V_batch):
-#     """
-#     Batched version of fem_energy.
-#
-#     V_batch: [B, N, D] -- batch of vertex positions
-#     Returns: [B] -- energy per batch
-#     """
-#     E = mesh["E"]  # [num_elements, num_vertices_per_element]
-#     DTI = mesh["DTI"]  # [num_elements, dim, dim]
-#
-#     batch_size = V_batch.shape[0]
-#     num_elements = E.shape[0]
-#     dim = DTI.shape[1]
-#
-#     first_vertex_indices = E[:, 0:1]
-#     other_vertex_indices = E[:, 1:]
-#
-#     first_vertices = V_batch[:, first_vertex_indices]  # Advanced indexing
-#
-#     other_vertices = V_batch[:, other_vertex_indices]  # Advanced indexing
-#
-#     # Compute DT: [batch_size, num_elements, dim, dim]
-#     DT = other_vertices - first_vertices
-#
-#     DT_reshaped = DT.reshape(batch_size * num_elements, dim, dim)  # [batch_size * num_elements, dim, dim]
-#     DTI_expanded = DTI.unsqueeze(0).expand(batch_size, num_elements, dim, dim)  # [batch_size, num_elements, dim, dim]
-#     DTI_reshaped = DTI_expanded.reshape(batch_size * num_elements, dim, dim)  # [batch_size * num_elements, dim, dim]
-#
-#     # Batch matrix multiplication
-#     FT_flat = torch.bmm(DTI_reshaped, DT_reshaped)  # [batch_size * num_elements, dim, dim]
-#     FT = FT_flat.reshape(batch_size, num_elements, dim, dim)  # [batch_size, num_elements, dim, dim]
-#
-#     # Step 3: Compute material energy for all batches
-#     E_batch = material_energy(system_def, FT, mesh)
-#
-#     return E_batch
-
-@torch.compile()
-def fem_energy_batch(system_def, mesh, material_energy, V_batch):
-    E = mesh["E"]
-    DTI = mesh["DTI"]
+#@torch.compile()
+def fem_energy_batch(system_def, mesh, material_energy, V_batch, s_batch):
+    """
+    Batched version of fem_energy.
+    V_batch:  [B, N, D]
+    s_batch:  [B] or [B,1] or [B,1,1]
+    """
+    E = mesh["E"]                 # [num_elements, dim]
+    Vrest = mesh["Vrest"]         # [N, D]
     B, N, D = V_batch.shape
     num_elements = E.shape[0]
 
-    # More efficient indexing
-    first_vertices = V_batch[:, E[:, 0:1], :]  # [B, num_elements, 1, D]
-    other_vertices = V_batch[:, E[:, 1:], :]  # [B, num_elements, D, D]
+    # -------------------------------
+    # 1. Scale the rest shape by s_batch
+    # -------------------------------
+    # Ensure s_batch is [B,1]
+    if s_batch.ndim == 1:
+        s_batch = s_batch[:, None]      # [B,1]
 
-    DT = other_vertices - first_vertices  # [B, num_elements, D, D]
+    # Broadcast to [B, N]
+    s_for_rest = s_batch                 # [B,1]
 
-    # Vectorized batch matrix multiplication
-    DTI_expanded = DTI.unsqueeze(0).expand(B, -1, -1, -1)  # [B, num_elements, D, D]
-    FT = torch.matmul(DTI_expanded, DT)  # [B, num_elements, D, D]
+    # Build Vrest_batch = [B, N, D]
+    Vrest_batch = Vrest.unsqueeze(0).expand(B, -1, -1).clone()
+    Vrest_batch[:, :, 1] = Vrest_batch[:, :, 1] * s_for_rest  # broadcast ok
 
-    return material_energy(system_def, FT, mesh)
+    # -------------------------------
+    # 2. Compute element edge matrices DT_R and DT
+    # -------------------------------
+    # Indices for vectorized gather:
+    # E[:,0] is first vertex index,  E[:,1:] are other vertices
+    # Shapes:
+    #   V_batch[:, E[:,0], :] → [B, num_elements, D]
+    #   but we want [B, num_elements, 1, D]
+    first_rest = Vrest_batch[:, E[:, 0], :].unsqueeze(2)
+    other_rest = Vrest_batch[:, E[:, 1:], :]
+
+    DT_R = other_rest - first_rest       # [B, num_elements, D, D]
+
+    # Same for current V
+    first = V_batch[:, E[:, 0], :].unsqueeze(2)
+    other = V_batch[:, E[:, 1:], :]
+
+    DT = other - first                   # [B, num_elements, D, D]
+
+    # -------------------------------
+    # 3. Inverse of DT_R for each batch element
+    # -------------------------------
+    DTI = torch.linalg.inv(DT_R)         # [B, num_elements, D, D]
+
+    # -------------------------------
+    # 4. Element areas/volumes A
+    # -------------------------------
+    detR = torch.linalg.det(DT_R)        # [B, num_elements]
+    A = torch.abs(detR) / (D * (D - 1))  # [B, num_elements]
+
+    # -------------------------------
+    # 5. Deformation gradients F = DTI @ DT
+    # -------------------------------
+    FT = torch.matmul(DTI, DT)           # [B, num_elements, D, D]
+
+    # -------------------------------
+    # 6. Material energy
+    # -------------------------------
+    return material_energy(system_def, FT, mesh, A)
+
+def fem_energy(system_def, mesh, material_energy, V, s):
+    dim = mesh["Vrest"].shape[1]
+
+    # Apply shape scaling to rest positions
+    Vrest = mesh["Vrest"].clone()
+    Vrest[:, 1] *= s
+
+    E = mesh["E"]
+
+    # Compute element edge matrices: shape (num_elements, dim, dim)
+    DT_R = Vrest[E[:, 1:]] - Vrest[E[:, 0:1]]
+
+    # Inverse of element matrices
+    DTI = torch.linalg.inv(DT_R)
+
+    # Current element matrices
+    DT = V[E[:, 1:]] - V[E[:, 0:1]]
+
+    # Element areas / volumes
+    A = torch.abs(torch.linalg.det(DT_R)) / (dim * (dim - 1))
+
+    # mesh["DTI"] = DTI
+    # mesh["A"] = A
+
+    # Deformation gradients
+    FT = torch.matmul(DTI, DT)  # shape: [num_elements, dim, dim]
+
+    return material_energy(system_def, FT, mesh, A)
 
 def mean_strain_metric(system_def, mesh, V):
     dim = mesh["Vrest"].shape[1]
@@ -420,40 +457,6 @@ class FEMSystem:
         system_def['cond_param'] = torch.zeros((0,))
         system.cond_dim = 0
 
-        def get_full_position(self, system_def, q):
-            pos = system_utils.apply_fixed_entries(
-                system_def['fixed_inds'], system_def['unfixed_inds'],
-                system_def['fixed_values'], q).reshape(-1, self.pos_dim)
-            return pos
-
-        def get_full_position_batch(self, system_def, q_batch):
-            """
-            q_batch: [B, Q] (latent/unfixed DOFs)
-            Returns: pos_batch: [B, N, D]
-            """
-            B, Q = q_batch.shape
-            N = len(system_def['fixed_inds']) + len(system_def['unfixed_inds'])
-            D = self.pos_dim
-
-            # Create tensor to hold full positions
-            pos_batch = torch.empty((B, N), dtype=q_batch.dtype, device=q_batch.device)
-
-            # Place unfixed entries
-            pos_batch[:, system_def['unfixed_inds']] = q_batch
-
-            # Place fixed entries (broadcast if necessary)
-            fixed_values = system_def['fixed_values']
-            if fixed_values.ndim == 1:
-                fixed_values = fixed_values.unsqueeze(0).expand(B, -1)
-            pos_batch[:, system_def['fixed_inds']] = fixed_values
-
-            # Reshape to [B, N_nodes, D]
-            pos_batch = pos_batch.reshape(B, -1, D)
-            return pos_batch
-
-        system.get_full_position = get_full_position
-        system.get_full_position_batch = get_full_position_batch
-
         def update_conditional(self, system_def):
             return system_def  # default does nothing
 
@@ -465,8 +468,7 @@ class FEMSystem:
         if problem_name == 'bistable':
 
             mesh = load_tri_mesh(os.path.join(".", "data", "longerCantileverP2"))
-            mesh["Vrest"][:, 1] *= 0.5  # scale y-coordinate
-
+            mesh["Vrest"][:, 1] *= 1  # scale y-coordinate
             # Precompute mesh quantities (assume precompute_mesh now uses torch)
             mesh = precompute_mesh(mesh)
 
@@ -505,13 +507,13 @@ class FEMSystem:
             xmid = 0.5 * (xmin + xmax)
             force_verts_mask = (verts[:, 0] > xmid - 1e-1) & (verts[:, 0] < xmid + 1e-1)
 
-            system_def['external_forces'] = {}
-            system_def['external_forces']['force_verts_mask'] = force_verts_mask
-            system_def['external_forces']['pull_X'] = torch.tensor(0., dtype=torch.float32)
-            system_def['external_forces']['pull_Y'] = torch.tensor(0., dtype=torch.float32)
-            pull_minmax = (-0.1, 0.1)
-            system_def['external_forces']['pull_strength_minmax'] = pull_minmax
-            system_def['external_forces']['pull_strength'] = 0.5 * (pull_minmax[0] + pull_minmax[1])
+            system_def['external_forces'] = None
+            # system_def['external_forces']['force_verts_mask'] = force_verts_mask
+            # system_def['external_forces']['pull_X'] = torch.tensor(0., dtype=torch.float32)
+            # system_def['external_forces']['pull_Y'] = torch.tensor(0., dtype=torch.float32)
+            # pull_minmax = (-0.1, 0.1)
+            # system_def['external_forces']['pull_strength_minmax'] = pull_minmax
+            # system_def['external_forces']['pull_strength'] = 0.5 * (pull_minmax[0] + pull_minmax[1])
 
             # Store mesh and initial positions in the system
             system.mesh = mesh
@@ -605,17 +607,82 @@ class FEMSystem:
     # ===========================================
     # === Energy functions 
     # ===========================================
+    def apply_shape(self, values, shape):
+        """
+        Scale the y-coordinate of vertices by shape.
 
-    def mean_strain(self, system_def, q):
+        Args:
+            values: flat [N] vector of DOFs (N even, interpreted as N/2 vertices)
+            shape: scalar or [B] or [B,1] batch of shape parameters
 
-        pos = self.get_full_position(self, system_def, q)
+        Returns:
+            values_scaled: same shape as input (or [B, N] for batch)
+        """
+        N = values.numel()
+        D = 2
+        assert N % D == 0, "Values length must be divisible by 2"
+
+        verts = values.view(-1, D).clone()  # [num_vertices, 2]
+
+        if torch.is_tensor(shape):
+            if shape.ndim == 2 and shape.shape[1] == 1:
+                shape = shape.squeeze(1)  # [B, 1] -> [B]
+            if shape.ndim == 1:
+                # batch case
+                B = shape.shape[0]
+                verts = verts.unsqueeze(0).expand(B, -1, -1).clone()  # [B, num_vertices, 2]
+                verts[:, :, 1] *= shape[:, None]  # scale y-coordinate
+            else:
+                # unexpected shape
+                raise ValueError(f"Shape tensor must be scalar or 1D, got {shape.shape}")
+        else:
+            # scalar case
+            verts[:, 1] *= shape
+
+        return verts.view_as(values) if not (torch.is_tensor(shape) and shape.ndim == 1) else verts
+
+
+    def get_full_position(self, system_def, q, shape):
+        pos = system_utils.apply_fixed_entries(
+            system_def['fixed_inds'], system_def['unfixed_inds'],
+            self.apply_shape(system_def['fixed_values'], shape), q).reshape(-1, self.pos_dim)
+        return pos
+
+    def get_full_position_batch(self, system_def, q_batch, shape_batch):
+        """
+        q_batch: [B, Q] (latent/unfixed DOFs)
+        Returns: pos_batch: [B, N, D]
+        """
+        B, Q = q_batch.shape
+        N = len(system_def['fixed_inds']) + len(system_def['unfixed_inds'])
+        D = self.pos_dim
+
+        # Create tensor to hold full positions
+        pos_batch = torch.empty((B, N), dtype=q_batch.dtype, device=q_batch.device)
+
+        # Place unfixed entries
+        pos_batch[:, system_def['unfixed_inds']] = q_batch
+
+        # Place fixed entries (broadcast if necessary)
+        fixed_values = self.apply_shape(system_def['fixed_values'], shape_batch)
+        if fixed_values.ndim == 2:
+            fixed_values = fixed_values.unsqueeze(0).expand(B, -1, -1)
+        pos_batch[:, system_def['fixed_inds']] = fixed_values.reshape(B, -1)
+
+        # Reshape to [B, N_nodes, D]
+        pos_batch = pos_batch.reshape(B, -1, D)
+        return pos_batch
+
+    def mean_strain(self, system_def, q, shape):
+
+        pos = self.get_full_position(system_def, q, shape)
 
         return mean_strain_metric(system_def, self.mesh, pos)
 
 
-    def potential_energy(self, system_def, q):
+    def potential_energy(self, system_def, q, shape):
         system_def = self.update_conditional(self, system_def)
-        pos = self.get_full_position(self, system_def, q)
+        pos = self.get_full_position(system_def, q, shape)
         mass_lumped = self.mesh["VA"] * system_def['density']
 
         # Gravity energy (vectorized)
@@ -655,12 +722,12 @@ class FEMSystem:
             ext_force_energy = torch.tensor(0., dtype=pos.dtype, device=pos.device)
 
         # FEM energy
-        fem_e = fem_energy(system_def, self.mesh, self.material_energy, pos)
+        fem_e = fem_energy(system_def, self.mesh, self.material_energy, pos, shape)
 
         return fem_e + gravity_energy + contact_energy + ext_force_energy
 
-    @torch.compile()
-    def potential_energy_batch(self, system_def, q_batch):
+    #@torch.compile()
+    def potential_energy_batch(self, system_def, q_batch, shape_batch):
         """
         Vectorized potential energy for a batch of q's.
         q_batch: [B, Q]
@@ -670,7 +737,7 @@ class FEMSystem:
         system_def = self.update_conditional(self, system_def)
 
         # Get full positions for the batch
-        pos_batch = self.get_full_position_batch(self, system_def, q_batch)  # [B, N, D]
+        pos_batch = self.get_full_position_batch(system_def, q_batch, shape_batch)  # [B, N, D]
         mass_lumped = self.mesh["VA"] * system_def['density']  # [N]
 
         # Gravity energy
@@ -709,7 +776,8 @@ class FEMSystem:
             ext_force_energy = torch.zeros(B, dtype=pos_batch.dtype, device=pos_batch.device)
 
         # FEM energy: batch
-        fem_e = fem_energy_batch(system_def, self.mesh, self.material_energy_batch, pos_batch)  # returns [B]
+        fem_e = fem_energy_batch(system_def, self.mesh, self.material_energy_batch, pos_batch, shape_batch)  # returns [B]
+        fem_ee = fem_energy(system_def, self.mesh, self.material_energy, pos_batch[0, :], shape_batch[0])
         return fem_e + gravity_energy + contact_energy + ext_force_energy
 
     @torch.compile()
@@ -726,7 +794,7 @@ class FEMSystem:
         return ke
 
     @torch.compile()
-    def batched_kinetic_energy(self, system_def, q_dot_batch):
+    def batched_kinetic_energy(self, system_def, q_dot_batch, shape_batch):
         system_def = self.update_conditional(self, system_def)
         batch_size = q_dot_batch.shape[0]
 
@@ -746,7 +814,7 @@ class FEMSystem:
 
         return ke_batch
 
-    @torch.compile()
+    #@torch.compile()
     def batched_apply_fixed_entries(self, fixed_inds, unfixed_inds, fixed_values, unfixed_values_batch):
         batch_size = unfixed_values_batch.shape[0]
         N = fixed_inds.numel() + unfixed_inds.numel()
@@ -806,12 +874,12 @@ class FEMSystem:
 
             psim.TreePop()
 
-    def visualize(self, system_def, q, prefix="", transparency=1.0):
+    def visualize(self, system_def, q, shape, prefix="", transparency=1.0):
         system_def = self.update_conditional(self, system_def)
 
         name = self.problem_name + prefix
 
-        pos = self.get_full_position(self, system_def, q).cpu().detach().numpy()
+        pos = self.get_full_position(system_def, q, shape).cpu().detach().numpy()
 
         elem_list = self.mesh['E']
 

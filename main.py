@@ -33,35 +33,22 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_every, gamma=args.lr_decay_frac)
 
-    def apply_subspace(x, cond_params, t_schedule):
-        z = torch.cat([x, cond_params], dim=-1)
+    def apply_subspace(x, shape, t_schedule):
+        z = torch.cat([x, shape], dim=-1)
         return model(z, t_schedule)
 
     def mollify_norm(x, eps=1e-20):
         return torch.sqrt(torch.sum(x**2) + eps)
 
-    def sample_system_and_Epot(system_def, t_schedule):
-        cond_params = system.sample_conditional_params(system_def, None, rho=t_schedule)
-        system_def["cond_param"] = cond_params
+    # def sample_system_and_Epot(system_def, t_schedule):
+    #     z = torch.randn((args.subspace_dim,), device=device)
+    #     q = apply_subspace(z, t_schedule)
+    #     E_pot = system.potential_energy(system_def, q)
+    #     return z, q, E_pot
 
-        z = torch.randn((args.subspace_dim,), device=device)
-        q = apply_subspace(z, cond_params, t_schedule)
-        # print(q.size(), z.size(), cond_params.size())
-        E_pot = system.potential_energy(system_def, q)
-        return z, cond_params, q, E_pot
-
-    def apply_subspace_batch(z_batch, cond_params, t_schedule):
-        """
-        Vectorized version for a batch of latent vectors.
-        z_batch: [B, latent_dim]
-        cond_params: [cond_dim] or [B, cond_dim]
-        Returns: q_batch [B, Q]
-        """
-        if cond_params.ndim == 1:
-            # expand cond_params for the batch
-            cond_params = cond_params.unsqueeze(0).expand(z_batch.size(0), -1)
+    def apply_subspace_batch(z_batch, shape, t_schedule):
         # Concatenate along feature dim
-        z_cond = torch.cat([z_batch, cond_params], dim=-1)
+        z_cond = torch.cat([z_batch, shape.unsqueeze(-1)], dim=-1)
         return model(z_cond, t_schedule)
 
     @torch.compile()
@@ -102,29 +89,20 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         return ((G - I) ** 2).mean()
 
     def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
-        prior_strength = 1e-1
-        weight_decay = 0
-        ortho_strength = 0
+        shape_min = 0.1
+        shape_max = 1.5
 
-        cond_params = system.sample_conditional_params(system_def, None, rho=t_schedule).to(device)
-        system_def["cond_param"] = cond_params
+        shape = torch.rand(batch_size, device=device) * (shape_max - shape_min) + shape_min
 
         # Sample batch of latent vectors
         z_batch = torch.randn((batch_size, args.subspace_dim), device=device)
         z_batch.requires_grad_()
         # Apply subspace in batch
-        q_batch = apply_subspace_batch(z_batch, cond_params, t_schedule)
+        q_batch = apply_subspace_batch(z_batch, shape, t_schedule)
 
-        mask_loss = 0 #m_batch.sum() * prior_strength
-        decay_loss = model.L2() * weight_decay
-        ortho_loss = jacobian_orthogonality_loss(z_batch, q_batch) * ortho_strength
+        E_pots = system.potential_energy_batch(system_def, q_batch, shape) / shape
 
-        E_pots = (system.potential_energy_batch(system_def, q_batch))
-
-        # Broadcast cond_params to batch
-        cond_batch = cond_params.unsqueeze(0).expand(batch_size, -1)
-
-        return z_batch, cond_batch, q_batch, E_pots, mask_loss, decay_loss, ortho_loss
+        return z_batch, q_batch, E_pots, shape
 
     def batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def):
         DIST_EPS = 1e-8
@@ -181,46 +159,33 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
         optimizer.zero_grad()
 
-        z_batch, cond_batch, q_batch, E_pots, mask_loss, decay_loss, ortho_loss = sample_system_and_Epot_batch(system_def, t_schedule, args.batch_size)
+        z_batch, q_batch, E_pots, shape = sample_system_and_Epot_batch(system_def, t_schedule, args.batch_size)
 
         expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def)
 
         E_pot = E_pots.mean()
         E_exp = expand_loss.mean() * args.weight_expand
-        total_loss = E_pot + E_exp + mask_loss + decay_loss + ortho_loss
+        total_loss = E_pot + E_exp
         total_loss.backward()
 
         optimizer.step()
         scheduler.step()
 
         pbar.update(1)
-
+        pbar.set_postfix({
+            'loss': f"{total_loss.item():.6f}",
+            'E_pot': f"{E_pot.item():.6f}",
+            'E_exp': f"{E_exp.item():.6f}",
+            'stretch': f"{torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}",
+            't_sched': f"{t_schedule:.3f}"
+        })
         if i_train_iter % args.report_every == 0:
-            # print(z_batch.mean(), torch.stack(z_batch1).mean())
-            # print(q_batch.mean(), torch.stack(q_batch1).mean())
-            # print(E_pots.mean(), torch.stack(E_pots1).mean())
-            pbar.set_postfix({
-                'loss': f"{total_loss.item():.6f}",
-                'E_pot': f"{E_pot.item():.6f}",
-                'Mask': f"{mask_loss:.6f}",
-                'Weight': f"{decay_loss:.6f}",
-                'Ortho': f"{ortho_loss:.6f}",
-                'E_exp': f"{E_exp.item():.6f}",
-                'stretch': f"{torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}",
-                't_sched': f"{t_schedule:.3f}"
-            })
-
             pbar.write(
                 f"\n== iter {i_train_iter}/{args.n_train_iters}  ({100. * i_train_iter / args.n_train_iters:.2f}%)")
             pbar.write(f"   loss: {total_loss.item():.6f}")
             pbar.write(f"   E_pots: {E_pot.item():.6f}")
             pbar.write(f"   E_exp: {E_exp.item():.6f}")
-            pbar.write(f"   Mask: {mask_loss:.6f}")
-            pbar.write(f"   Weight: {decay_loss:.6f}")
-            pbar.write(f"   Ortho: {ortho_loss:.6f}")
             pbar.write(f"   mean metric stretch: {torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}")
-            E_pot = system.potential_energy(system_def, model(torch.zeros(args.subspace_dim), t_schedule)[0])
-            pbar.write(f"   E_pots (0): {E_pot:.6f}")
             save_model(model, model_spec, args, i_train_iter, t_schedule)
 
             # pr.disable()

@@ -3,7 +3,7 @@
     activation = "ELU"
     MLP_hidden_layers = 5
     MLP_hidden_layer_width = 128
-    subspace_dim = 12
+    subspace_dim = 8
 
     n_train_iters = 500000
     batch_size = 128
@@ -15,12 +15,12 @@
     sigma_scale = 1e-3
     expand_type = "iso"
 
-    report_every = 100000
+    report_every = 10000
     output_dir = "./checkpoints"
 
     system_name = "FEM"
     problem_name = "bistable"
     subspace_domain_type = "normal"
 
-    subspace_model = "./checkpoints/SubspaceMLP__final_nodrop"
+    subspace_model = "./checkpoints/SubspaceMLP__final"
     integrator = "implicit-proximal"

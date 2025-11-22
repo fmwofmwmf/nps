@@ -166,8 +166,7 @@ class SubspaceMLP(nn.Module):
         self.activation = str_to_act(spec_dict["activation"])
 
         layers = []
-        in_dim = spec_dict["in_dim"]
-        self.dropout = NestedDropout(in_dim, p=0.1)
+        in_dim = spec_dict["in_dim"] + 1
         for i in range(spec_dict["MLP_hidden_layers"]):
             is_last = (i + 1 == spec_dict["MLP_hidden_layers"])
             out_dim = spec_dict["out_dim"] if is_last else spec_dict["MLP_hidden_layer_width"]
@@ -186,10 +185,6 @@ class SubspaceMLP(nn.Module):
         return sum((p ** 2).sum() for p in self.parameters())
 
     def forward(self, z, t_schedule=1.0):
-        z = self.dropout(z)
-        # if self.training:
-        #     m = z[1]
-        #     z = z[0]
         for i, layer in enumerate(self.linear_layers):
             z = layer(z)
             if i < len(self.linear_layers) - 1:
