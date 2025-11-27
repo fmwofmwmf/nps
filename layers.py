@@ -189,7 +189,7 @@ class SubspaceMLP(nn.Module):
             z = layer(z)
             if i < len(self.linear_layers) - 1:
                 z = self.activation(z)
-
+        # print(self.base_output.shape, z.shape)
         z = self.base_output + t_schedule * z
         # if self.training:
         #     return z, m

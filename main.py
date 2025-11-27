@@ -15,11 +15,12 @@ from fem_model import FEMSystem
 import layers
 from layers import SubspaceMLP
 from Args import Args
+from rb_model import Rigid3DSystem
 
 
 def train_system(args: Args, system, system_def, subspace_domain_dict, base_state, target_dim):
 
-    in_dim = args.subspace_dim + system.cond_dim
+    in_dim = args.subspace_dim
     model_spec = {
         "in_dim": in_dim,
         "out_dim": target_dim,
@@ -117,7 +118,7 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         q_diffs = q_j - q_i
         q_diffs_flat = q_diffs.reshape(B * B, -1)
 
-        all_q_dists_flat = system.batched_kinetic_energy(system_def, q_diffs_flat) + DIST_EPS
+        all_q_dists_flat = system.kinetic_energy_batch(system_def, q_diffs_flat, None) + DIST_EPS
         all_q_dists = all_q_dists_flat.view(B, B)
 
         # Compute factor efficiently
@@ -150,8 +151,8 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
     pbar = tqdm(total=args.n_train_iters, desc="Training", unit="iter")
 
-    # pr = cProfile.Profile()
-    # pr.enable()
+    pr = cProfile.Profile()
+    pr.enable()
 
     for i_train_iter in range(args.n_train_iters):
 
@@ -188,13 +189,13 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
             pbar.write(f"   mean metric stretch: {torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}")
             save_model(model, model_spec, args, i_train_iter, t_schedule)
 
-            # pr.disable()
-            # s = io.StringIO()
-            # ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
-            # ps.print_stats(20)  # Show top 20 functions
-            # print(s.getvalue())
-            # pr = cProfile.Profile()
-            # pr.enable()
+            pr.disable()
+            s = io.StringIO()
+            ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+            ps.print_stats(20)  # Show top 20 functions
+            print(s.getvalue())
+            pr = cProfile.Profile()
+            pr.enable()
 
     save_model(model, model_spec, args, "_final", 1.0)
 
@@ -222,7 +223,7 @@ if __name__ == '__main__':
 
     args = Args()
 
-    system, system_def = FEMSystem.construct("bistable")
+    system, system_def = Rigid3DSystem.construct("links")
 
     target_dim = system.dim
     base_state = system_def['interesting_states'][0, :]

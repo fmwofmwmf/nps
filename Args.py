@@ -15,12 +15,12 @@
     sigma_scale = 1e-3
     expand_type = "iso"
 
-    report_every = 10000
+    report_every = 200
     output_dir = "./checkpoints"
 
     system_name = "FEM"
     problem_name = "bistable"
     subspace_domain_type = "normal"
 
-    subspace_model = "./checkpoints/SubspaceMLP__final"
+    subspace_model = "./checkpoints/SubspaceMLP_0"
     integrator = "implicit-proximal"

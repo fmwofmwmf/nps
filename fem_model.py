@@ -794,7 +794,7 @@ class FEMSystem:
         return ke
 
     @torch.compile()
-    def batched_kinetic_energy(self, system_def, q_dot_batch, shape_batch):
+    def kinetic_energy_batch(self, system_def, q_dot_batch, shape_batch):
         system_def = self.update_conditional(self, system_def)
         batch_size = q_dot_batch.shape[0]
 

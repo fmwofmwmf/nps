@@ -1,8 +1,5 @@
-﻿import jax
-import jax.numpy as jnp
-
+﻿import torch
 import numpy as np
-
 import os
 
 import polyscope as ps
@@ -10,15 +7,11 @@ import polyscope.imgui as psim
 
 try:
     import igl
-finally:
+except Exception:
     print("WARNING: igl bindings not available")
 
-import utils
 
-
-###
-
-def make_body(file, density, scale):
+def make_body(file, density, scale, dtype=torch.float64):
     v, f = igl.read_triangle_mesh(file)
     v = scale * v
 
@@ -31,7 +24,11 @@ def make_body(file, density, scale):
     W = np.c_[v, np.ones(v.shape[0])]
     mass = np.matmul(W.T, vol[:, None] * W) * density
 
-    x0 = jnp.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], c])
+    # x0 is 4x3 in original: first 3 rows identity, last row is c
+    x0 = torch.tensor([[1.0, 0.0, 0.0],
+                       [0.0, 1.0, 0.0],
+                       [0.0, 0.0, 1.0],
+                       c], dtype=dtype)
 
     body = {'v': v, 'f': f, 'W': W, 'x0': x0, 'mass': mass}
     return body
@@ -40,39 +37,42 @@ def make_body(file, density, scale):
 def make_joint(b0, b1, bodies, joint_pos_world, joint_vec_world):
     # Creates a joint between the specified bodies, assumes the bodies have zero rotation and are properly aligned in the world
     # TODO: Use rotation for joint initialization
-    pb0 = joint_pos_world
-    vb0 = joint_vec_world
+    pb0 = joint_pos_world.clone()
+    vb0 = joint_vec_world.clone()
     if b0 != -1:
-        c0 = bodies[b0]['x0'][3, :]
+        c0 = bodies[b0]['x0'][3, :].clone()
         pb0 = pb0 - c0
-    pb1 = joint_pos_world
-    vb1 = joint_vec_world
+    pb1 = joint_pos_world.clone()
+    vb1 = joint_vec_world.clone()
     if b1 != -1:
-        c1 = bodies[b1]['x0'][3, :]
+        c1 = bodies[b1]['x0'][3, :].clone()
         pb1 = pb1 - c1
-    joint = {'body_id0': b0, 'body_id1': b1, 'pos_body0': pb0, 'pos_body1': pb1, 'vec_body0': vb0, 'vec_body1': vb1}
+    joint = {'body_id0': b0, 'body_id1': b1,
+             'pos_body0': pb0, 'pos_body1': pb1,
+             'vec_body0': vb0, 'vec_body1': vb1}
     return joint
 
 
-def bodiesToStructOfArrays(bodies):
+def bodiesToStructOfArrays(bodies, dtype=torch.float64):
     v_arr = []
     f_arr = []
     W_arr = []
     x0_arr = []
     mass_arr = []
     for b in bodies:
-        v_arr.append(b['v'])
-        f_arr.append(b['f'])
-        W_arr.append(b['W'])
-        x0_arr.append(b['x0'])
-        mass_arr.append(b['mass'])
+        # keep original numpy arrays for v, f, W (Polyscope / igl expect numpy) but convert x0/mass to torch
+        v_arr.append(torch.tensor(b['v'], dtype=dtype))
+        f_arr.append(torch.tensor(b['f'], dtype=torch.long))
+        W_arr.append(torch.tensor(b['W'], dtype=dtype))
+        x0_arr.append(b['x0'].to(dtype=dtype))
+        mass_arr.append(torch.tensor(b['mass'], dtype=dtype))
 
     out_struct = {
-        'v': jnp.stack(v_arr, axis=0),
-        'f': jnp.stack(f_arr, axis=0),
-        'W': jnp.stack(W_arr, axis=0),
-        'x0': jnp.stack(x0_arr, axis=0),
-        'mass': jnp.stack(mass_arr, axis=0),
+        'v': torch.stack(v_arr, dim=0),
+        'f': torch.stack(f_arr, dim=0),
+        'W': torch.stack(W_arr, dim=0),
+        'x0': torch.stack(x0_arr, dim=0),
+        'mass': torch.stack(mass_arr, dim=0),
     }
 
     n_bodies = len(v_arr)
@@ -83,7 +83,7 @@ def bodiesToStructOfArrays(bodies):
 class Rigid3DSystem:
 
     @staticmethod
-    def construct(problem_name):
+    def construct(problem_name, dtype=torch.float64):
         system_def = {}
         system = Rigid3DSystem()
 
@@ -92,33 +92,45 @@ class Rigid3DSystem:
 
         # set some defaults
         system_def['external_forces'] = {}
-        system_def['cond_param'] = jnp.zeros((0,))
+        system_def['cond_param'] = torch.zeros((0,), dtype=dtype)
         system_def["contact_stiffness"] = 1000000.0
         system.cond_dim = 0
         system.body_ID = None
 
         bodies = []
         joint_list = []
+        linkContactPairs = []
         numBodiesFixed = 0
 
         if problem_name == 'klann':
+            bodies.append(make_body(os.path.join(".", "data", "klann-red.obj"), 1000, 1.0, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "klann-purple.obj"), 1000, 1.0, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "klann-brown.obj"), 1000, 1.0, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "klann-distal.obj"), 1000, 1.0, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "klann-top.obj"), 1000, 1.0, dtype))
 
-            bodies.append(make_body(os.path.join(".", "data", "klann-red.obj"), 1000, 1.0))
-            bodies.append(make_body(os.path.join(".", "data", "klann-purple.obj"), 1000, 1.0))
-            bodies.append(make_body(os.path.join(".", "data", "klann-brown.obj"), 1000, 1.0))
-            bodies.append(make_body(os.path.join(".", "data", "klann-distal.obj"), 1000, 1.0))
-            bodies.append(make_body(os.path.join(".", "data", "klann-top.obj"), 1000, 1.0))
+            joint_list.append(make_joint(0, -1, bodies, torch.tensor([0, 0.08, 0.044], dtype=dtype),
+                                         torch.tensor([0, 0.0, 1.0], dtype=dtype)))
+            joint_list.append(make_joint(0, 1, bodies,
+                                         torch.tensor([-0.046622, 0.097594, 0.044], dtype=dtype),
+                                         torch.tensor([0, 0.0, 1.0], dtype=dtype)))
+            joint_list.append(make_joint(1, 2, bodies,
+                                         torch.tensor([-0.1736, 0.11205, 0.044], dtype=dtype),
+                                         torch.tensor([0, 0.0, 1.0], dtype=dtype)))
+            joint_list.append(make_joint(1, 3, bodies,
+                                         torch.tensor([-0.31194, 0.16654, 0.044], dtype=dtype),
+                                         torch.tensor([0, 0.0, 1.0], dtype=dtype)))
+            joint_list.append(make_joint(4, -1, bodies,
+                                         torch.tensor([-0.13, 0.1875, 0.044], dtype=dtype),
+                                         torch.tensor([0, 0.0, 1.0], dtype=dtype)))
+            joint_list.append(make_joint(2, -1, bodies,
+                                         torch.tensor([-0.13, 0.045, 0.044], dtype=dtype),
+                                         torch.tensor([0, 0.0, 1.0], dtype=dtype)))
+            joint_list.append(make_joint(4, 3, bodies,
+                                         torch.tensor([-0.21981, 0.25102, 0.044], dtype=dtype),
+                                         torch.tensor([0, 0.0, 1.0], dtype=dtype)))
 
-            joint_list.append(make_joint(0, -1, bodies, jnp.array([0, 0.08, 0.044]), jnp.array([0, 0.0, 1.0])))
-            joint_list.append(
-                make_joint(0, 1, bodies, jnp.array([-0.046622, 0.097594, 0.044]), jnp.array([0, 0.0, 1.0])))
-            joint_list.append(make_joint(1, 2, bodies, jnp.array([-0.1736, 0.11205, 0.044]), jnp.array([0, 0.0, 1.0])))
-            joint_list.append(make_joint(1, 3, bodies, jnp.array([-0.31194, 0.16654, 0.044]), jnp.array([0, 0.0, 1.0])))
-            joint_list.append(make_joint(4, -1, bodies, jnp.array([-0.13, 0.1875, 0.044]), jnp.array([0, 0.0, 1.0])))
-            joint_list.append(make_joint(2, -1, bodies, jnp.array([-0.13, 0.045, 0.044]), jnp.array([0, 0.0, 1.0])))
-            joint_list.append(make_joint(4, 3, bodies, jnp.array([-0.21981, 0.25102, 0.044]), jnp.array([0, 0.0, 1.0])))
-
-            system_def["gravity"] = jnp.array([0.0, -0.98, 0.0])
+            system_def["gravity"] = torch.tensor([0.0, -0.98, 0.0], dtype=dtype)
             system_def['external_forces']['force_strength_minmax'] = (-10, 10)
             system_def['external_forces']['force_strength_x'] = 0.0
             system_def['external_forces']['force_strength_y'] = 0.0
@@ -128,39 +140,44 @@ class Rigid3DSystem:
 
             scale = 5.0
 
-            bodies.append(make_body(os.path.join(".", "data", "stewart-base.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-arm1.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-arm2.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-arm3.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-arm4.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-arm5.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-arm6.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-strut1.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-strut2.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-strut3.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-strut4.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-strut5.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-strut6.obj"), 1000, scale))
-            bodies.append(make_body(os.path.join(".", "data", "stewart-top.obj"), 1000, scale))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-base.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-arm1.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-arm2.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-arm3.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-arm4.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-arm5.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-arm6.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-strut1.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-strut2.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-strut3.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-strut4.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-strut5.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-strut6.obj"), 1000, scale, dtype))
+            bodies.append(make_body(os.path.join(".", "data", "stewart-top.obj"), 1000, scale, dtype))
 
             numBodiesFixed = 1
 
             ang = np.pi * 2.0 / 3.0
-            R = jnp.array([[jnp.cos(ang), 0.0, jnp.sin(ang)], [0.0, 1.0, 0.0], [-jnp.sin(ang), 0.0, jnp.cos(ang)]])
-            Rh = jnp.array([[jnp.cos(ang / 2), 0.0, jnp.sin(ang / 2)], [0.0, 1.0, 0.0],
-                            [-jnp.sin(ang / 2), 0.0, jnp.cos(ang / 2)]])
+            R = torch.tensor([[np.cos(ang), 0.0, np.sin(ang)],
+                              [0.0, 1.0, 0.0],
+                              [-np.sin(ang), 0.0, np.cos(ang)]],
+                             dtype=dtype)
+            Rh = torch.tensor([[np.cos(ang / 2), 0.0, np.sin(ang / 2)],
+                               [0.0, 1.0, 0.0],
+                               [-np.sin(ang / 2), 0.0, np.cos(ang / 2)]],
+                              dtype=dtype)
 
-            ####[x,z,-y]
-            a = scale * jnp.array([-0.018, 0.0215, -0.044856])
-            b = scale * jnp.array([-0.047847, 0.0215, 0.00684])
-            v = jnp.array([0, 0.0, 1.0])
+            #### [x,z,-y] original comment preserved
+            a = scale * torch.tensor([-0.018, 0.0215, -0.044856], dtype=dtype)
+            b = scale * torch.tensor([-0.047847, 0.0215, 0.00684], dtype=dtype)
+            v = torch.tensor([0, 0.0, 1.0], dtype=dtype)
 
-            Ra = jnp.matmul(R, a)
-            RRa = jnp.matmul(R, Ra)
-            Rb = jnp.matmul(R, b)
-            RRb = jnp.matmul(R, Rb)
-            Rv = jnp.matmul(R, v)
-            RRv = jnp.matmul(R, Rv)
+            Ra = R @ a
+            RRa = R @ Ra
+            Rb = R @ b
+            RRb = R @ Rb
+            Rv = R @ v
+            RRv = R @ Rv
 
             joint_list.append(make_joint(0, 1, bodies, a, v))
             joint_list.append(make_joint(0, 2, bodies, b, Rv))
@@ -169,14 +186,14 @@ class Rigid3DSystem:
             joint_list.append(make_joint(0, 5, bodies, RRa, RRv))
             joint_list.append(make_joint(0, 6, bodies, RRb, v))
 
-            ####[x,z,-y]
-            a = scale * jnp.array([-0.003, 0.0215, -0.051856])
-            b = scale * jnp.array([-0.046409, 0.0215, 0.02333])
+            #### [x,z,-y]
+            a = scale * torch.tensor([-0.003, 0.0215, -0.051856], dtype=dtype)
+            b = scale * torch.tensor([-0.046409, 0.0215, 0.02333], dtype=dtype)
 
-            Ra = jnp.matmul(R, a)
-            RRa = jnp.matmul(R, Ra)
-            Rb = jnp.matmul(R, b)
-            RRb = jnp.matmul(R, Rb)
+            Ra = R @ a
+            RRa = R @ Ra
+            Rb = R @ b
+            RRb = R @ Rb
 
             joint_list.append(make_joint(1, 7, bodies, a, 0.01 * v))
             joint_list.append(make_joint(2, 8, bodies, b, 0.01 * Rv))
@@ -185,17 +202,17 @@ class Rigid3DSystem:
             joint_list.append(make_joint(5, 11, bodies, RRa, 0.01 * RRv))
             joint_list.append(make_joint(6, 12, bodies, RRb, 0.01 * v))
 
-            ####[x,z,-y]
-            a = scale * jnp.array([-0.032159, 0.082222, -0.022686])
-            b = scale * jnp.array([-0.035712, 0.082222, -0.016488])
-            v = jnp.matmul(Rh, jnp.array([0, 0.0, 1.0]))
+            #### [x,z,-y]
+            a = scale * torch.tensor([-0.032159, 0.082222, -0.022686], dtype=dtype)
+            b = scale * torch.tensor([-0.035712, 0.082222, -0.016488], dtype=dtype)
+            v = Rh @ torch.tensor([0, 0.0, 1.0], dtype=dtype)
 
-            Ra = jnp.matmul(R, a)
-            RRa = jnp.matmul(R, Ra)
-            Rb = jnp.matmul(R, b)
-            RRb = jnp.matmul(R, Rb)
-            Rv = jnp.matmul(R, v)
-            RRv = jnp.matmul(R, Rv)
+            Ra = R @ a
+            RRa = R @ Ra
+            Rb = R @ b
+            RRb = R @ Rb
+            Rv = R @ v
+            RRv = R @ Rv
 
             joint_list.append(make_joint(7, 13, bodies, a, 0.01 * v))
             joint_list.append(make_joint(8, 13, bodies, b, 0.01 * v))
@@ -205,7 +222,7 @@ class Rigid3DSystem:
             joint_list.append(make_joint(12, 13, bodies, RRb, 0.01 * RRv))
 
             ###
-            system_def["gravity"] = jnp.array([0.0, 0.98, 0.0])
+            system_def["gravity"] = torch.tensor([0.0, 0.98, 0.0], dtype=dtype)
             system_def['external_forces']['force_strength_minmax'] = (-300, 300)
             system_def['external_forces']['force_strength_x'] = 0.0
             system_def['external_forces']['force_strength_y'] = 0.0
@@ -213,125 +230,442 @@ class Rigid3DSystem:
 
             system.body_ID = np.array([2, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2])
 
+        elif problem_name == 'links':
+
+            numLinks = 24
+            link_separation = 0.0491
+
+            system_def['link_le'] = 0.013
+            system_def['link_r1'] = 0.02
+            system_def['link_r2'] = 0.009
+
+            for i in range(numLinks):
+                body = make_body(os.path.join(".", "data", "link.obj"), 1000, 1.0)
+                if i % 2 == 1:
+                    body['x0'] = torch.tensor([
+                        [0, 0, 1],
+                        [-1, 0, 0],
+                        [0, -1, 0],
+                        [0, -i * link_separation, 0]
+                    ], dtype=torch.float32)
+                else:
+                    body['x0'] = torch.tensor([
+                        [1, 0, 0],
+                        [0, 0, 1],
+                        [0, -1, 0],
+                        [0, -i * link_separation, 0]
+                    ], dtype=torch.float32)
+                bodies.append(body)
+
+            numBodiesFixed = 1
+
+            # Immediate neighbour contacts
+            for i in range(numLinks):
+                # Do both directions, since our computation is not symmetric
+                if i - 1 > 0:
+                    linkContactPairs.append((i, i - 1, 1))
+                if i + 1 < numLinks:
+                    linkContactPairs.append((i, i + 1, 1))
+
+            # Neighbor-of-neighbor contacts
+            for i in range(numLinks):
+                if i - 2 > 0:
+                    linkContactPairs.append((i, i - 2, 0))
+                if i + 2 < numLinks:
+                    linkContactPairs.append((i, i + 2, 0))
+
+            system_def["gravity"] = torch.tensor([0.0, -0.5, 0.0], dtype=torch.float32)
+            system_def['external_forces']['force_strength_minmax'] = (-200, 200)
+            system_def['external_forces']['force_strength_x'] = 0.0
+            system_def['external_forces']['force_strength_y'] = 0.0
+            system_def['external_forces']['force_strength_z'] = 0.0
+            system_def['forcedBodyId'] = (numLinks - 1) // 2
+
+            system.bodies, system.n_bodies = bodiesToStructOfArrays(bodies)
+
+
         else:
             raise ValueError("unrecognized system problem_name")
 
         #
-        posFixed = jnp.array(np.array([body['x0'] for body in bodies[0:numBodiesFixed]]).flatten())
-        pos = jnp.array(np.array([body['x0'] for body in bodies[numBodiesFixed:]]).flatten())
+        posFixed = torch.cat(
+            [body['x0'] for body in bodies[0:numBodiesFixed]],
+            dim=0
+        ).reshape(-1).to(dtype=dtype)
 
-        mass = jnp.array(np.array([body['mass'] for body in bodies[numBodiesFixed:]]).flatten())
+        pos = torch.cat(
+            [body['x0'] for body in bodies[numBodiesFixed:]],
+            dim=0
+        ).reshape(-1).to(dtype=dtype)
 
+        mass = torch.tensor(
+            [body['mass'] for body in bodies[numBodiesFixed:]],
+            dtype=dtype
+        ).reshape(-1)
         #
-        system.dim = pos.size
+        system.dim = pos.numel()
 
         system.bodiesRen = bodies
         system.n_bodies = len(bodies)
 
         #
         system.joints = joint_list
+        system.linkContactPairs = torch.tensor(linkContactPairs, dtype=torch.float32)
 
         system_def['fixed_pos'] = posFixed
         system_def['rest_pos'] = pos
-        system_def['init_pos'] = pos
+        system_def['init_pos'] = pos.clone()
         system_def['mass'] = mass
-        system_def['dim'] = pos.size
+        system_def['dim'] = pos.numel()
 
-        system_def['interesting_states'] = system_def['init_pos'][None, :]
+        system_def['interesting_states'] = system_def['init_pos'].unsqueeze(0)
 
         return system, system_def
 
-    def potential_energy(self, system_def, q):
+    # def eval_link_contact_energy(self, system_def, qRFull, pair):
+    #     le = system_def['link_le']
+    #     r1 = system_def['link_r1']
+    #     r2 = system_def['link_r2']
+    #     d = qRFull.device
+    #     b0id = int(pair[0].item())
+    #     b1id = int(pair[1].item())
+    #     measure_dont_sep_term = pair[2]
+    #
+    #     # relative translation
+    #     relT = qRFull[:, b1id, 3, :] - qRFull[:, b0id, 3, :]  # (B,3)
+    #     qRelT = torch.cat([qRFull[:, b1id, 0:3, :], relT.unsqueeze(1)], dim=1)  # (B,4,3)
+    #     qRel = torch.matmul(qRelT, qRFull[:, b0id, 0:3, :].transpose(1, 2))  # (B,4,3)
+    #
+    #     # expand W1 to batch
+    #     W1 = self.bodies['W'][b1id].unsqueeze(0).expand(qRFull.shape[0], -1, -1)  # (B,4,4)
+    #     v10 = torch.matmul(W1, qRel)  # (B,4,3)
+    #
+    #     # --- SDF term ---
+    #     ly = torch.clamp(torch.abs(v10[:, :, 2]) - le, min=0.0)
+    #     lxy = torch.sqrt(v10[:, :, 0] ** 2 + ly ** 2 + 1e-6) - r1
+    #     l = torch.sqrt(v10[:, :, 1] ** 2 + lxy ** 2 + 1e-6) - r2
+    #     c = torch.minimum(l, torch.zeros_like(l))
+    #     sdf_nocollision_dist = torch.mean(c ** 2, dim=1)  # (B,)
+    #
+    #     # --- Inner bbox term ---
+    #     good_bbox = torch.tensor([r1 - 2 * r2, r2, le + r1 - 2 * r2], device=d)
+    #     good_bbox = good_bbox + r2 / 2
+    #     dist_from_bbox = torch.sum(torch.clamp(torch.abs(v10) - good_bbox, min=0.0) ** 2, dim=-1)  # (B,4)
+    #     min_dist_from_bbox = measure_dont_sep_term * torch.min(dist_from_bbox, dim=1).values  # (B,)
+    #
+    #     combined_penalty = sdf_nocollision_dist + 10 * min_dist_from_bbox
+    #
+    #     return system_def['contact_stiffness'] * combined_penalty  # (B,)
 
-        qRFull = jnp.concatenate((system_def['fixed_pos'], q)).reshape(-1, 4, 3)
+    @torch.compile()
+    def eval_link_contact_energy_batch(self, system_def, qRFull):
+        """
+        Vectorized evaluation of link contact energies for all link pairs in a batch.
+        qRFull: (B, num_bodies, 4, 3)
+        Returns: (B,) total contact energy
+        """
+        if not hasattr(self, 'linkContactPairs') or self.linkContactPairs.shape[0] == 0:
+            return torch.zeros(qRFull.shape[0], device=qRFull.device, dtype=qRFull.dtype)
 
-        ###########
+        device = qRFull.device
+        B = qRFull.shape[0]
 
-        joint_energy = 0.0
+        # Extract pair indices and measure terms
+        pairs = self.linkContactPairs
+        b0 = pairs[:, 0].long()
+        b1 = pairs[:, 1].long()
+        measure_dont_sep = pairs[:, 2]
+
+        le = system_def['link_le']
+        r1 = system_def['link_r1']
+        r2 = system_def['link_r2']
+        stiffness = system_def['contact_stiffness']
+
+        # --- Gather transforms for all pairs ---
+        q_b0 = qRFull[:, b0, :, :]  # (B, num_pairs, 4, 3)
+        q_b1 = qRFull[:, b1, :, :]  # (B, num_pairs, 4, 3)
+
+        # Relative translation
+        relT = q_b1[:, :, 3, :] - q_b0[:, :, 3, :]  # (B, num_pairs, 3)
+        qRelT = torch.cat([q_b1[:, :, 0:3, :], relT.unsqueeze(2)], dim=2)  # (B, num_pairs, 4, 3)
+        qRel = torch.matmul(qRelT, q_b0[:, :, 0:3, :].transpose(2, 3))  # (B, num_pairs, 4, 3)
+
+        # Batch W1
+        W1 = self.bodies['W'][b1]  # (num_pairs, 4, 4)
+        W1 = W1.unsqueeze(0).expand(B, -1, -1, -1)  # (B, num_pairs, 4, 4)
+        v10 = torch.matmul(W1, qRel)  # (B, num_pairs, 4, 3)
+
+        # --- SDF term ---
+        ly = torch.clamp(torch.abs(v10[..., 2]) - le, min=0.0)
+        lxy = torch.sqrt(v10[..., 0] ** 2 + ly ** 2 + 1e-6) - r1
+        l = torch.sqrt(v10[..., 1] ** 2 + lxy ** 2 + 1e-6) - r2
+        c = torch.minimum(l, torch.zeros_like(l))
+        sdf_term = torch.mean(c ** 2, dim=2)  # mean over 4 points: (B, num_pairs)
+
+        # --- Inner bbox term ---
+        good_bbox = torch.tensor([r1 - 2 * r2, r2, le + r1 - 2 * r2], device=device) + r2 / 2
+        dist_bbox = torch.sum(torch.clamp(torch.abs(v10) - good_bbox, min=0.0) ** 2, dim=-1)  # (B, num_pairs, 4)
+        min_dist_bbox = torch.min(dist_bbox, dim=2).values  # (B, num_pairs)
+        min_dist_bbox = measure_dont_sep * min_dist_bbox
+
+        # Combine
+        pair_penalty = sdf_term + 10 * min_dist_bbox  # (B, num_pairs)
+        total_penalty = torch.sum(pair_penalty, dim=1)  # (B,)
+        return stiffness * total_penalty
+
+    def potential_energy_batch(self, system_def, q_batch, shape):
+        B = q_batch.shape[0]
+        dtype = q_batch.dtype
+        device = q_batch.device
+
+        num_bodies = system_def['mass'].numel() // (4 * 4)
+
+        # reshape q_batch + fixed_pos: (B, num_bodies, 4, 3)
+        fixed_pos = system_def['fixed_pos'].reshape(1, -1)
+        q_full_batch = torch.cat([fixed_pos.expand(B, -1), q_batch], dim=1)
+        qRFull = q_full_batch.reshape(B, -1, 4, 3)
+
+        joint_energy = torch.zeros(B, dtype=dtype, device=device)
+
+        ## joints
+        num_joints = len(self.joints)
+        joint_energy = 0
+        if num_joints > 0:
+            # stack joint info into tensors
+            pb0s = torch.stack([j['pos_body0'] for j in self.joints], dim=0).to(dtype=dtype,
+                                                                                device=device)  # (num_joints, 3)
+            vb0s = torch.stack([j['vec_body0'] for j in self.joints], dim=0).to(dtype=dtype, device=device)
+            pb1s = torch.stack([j['pos_body1'] for j in self.joints], dim=0).to(dtype=dtype, device=device)
+            vb1s = torch.stack([j['vec_body1'] for j in self.joints], dim=0).to(dtype=dtype, device=device)
+            b0ids = torch.tensor([j['body_id0'] for j in self.joints], device=device)
+            b1ids = torch.tensor([j['body_id1'] for j in self.joints], device=device)
+
+            one = torch.tensor([1.0], dtype=dtype, device=device)
+            zero = torch.tensor([0.0], dtype=dtype, device=device)
+
+            # compute body transforms
+            # (B, num_joints, 4)
+            vec4_pb0 = torch.cat([pb0s, one.expand(num_joints, 1)], dim=1)  # (num_joints, 4)
+            vec4_vb0 = torch.cat([vb0s, zero.expand(num_joints, 1)], dim=1)
+            vec4_pb1 = torch.cat([pb1s, one.expand(num_joints, 1)], dim=1)
+            vec4_vb1 = torch.cat([vb1s, zero.expand(num_joints, 1)], dim=1)
+
+            # expand to batch
+            vec4_pb0 = vec4_pb0.unsqueeze(0).expand(B, -1, -1)  # (B, num_joints, 4)
+            vec4_vb0 = vec4_vb0.unsqueeze(0).expand(B, -1, -1)
+            vec4_pb1 = vec4_pb1.unsqueeze(0).expand(B, -1, -1)
+            vec4_vb1 = vec4_vb1.unsqueeze(0).expand(B, -1, -1)
+
+            # fetch body transforms for all joints
+            qRFull_exp = qRFull.unsqueeze(1)  # (B,1,num_bodies,4,3)
+
+            # gather body transforms
+            b0ids_exp = b0ids.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand(B, num_joints, 4, 3)
+            b1ids_exp = b1ids.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand(B, num_joints, 4, 3)
+
+            qR_b0 = torch.gather(qRFull_exp.expand(-1, num_joints, -1, -1, -1), 2, b0ids_exp)  # (B,num_joints,4,3)
+            qR_b1 = torch.gather(qRFull_exp.expand(-1, num_joints, -1, -1, -1), 2, b1ids_exp)  # (B,num_joints,4,3)
+
+            # handle body_id = -1 by replacing with identity (or just keep vecs)
+            mask_b0 = (b0ids != -1).unsqueeze(0).expand(B, num_joints)
+            mask_b1 = (b1ids != -1).unsqueeze(0).expand(B, num_joints)
+
+            pb0_b = torch.where(mask_b0.unsqueeze(-1), torch.matmul(vec4_pb0.unsqueeze(-2), qR_b0).squeeze(-2),
+                                vec4_pb0[:, :, :3])
+            vb0_b = torch.where(mask_b0.unsqueeze(-1), torch.matmul(vec4_vb0.unsqueeze(-2), qR_b0).squeeze(-2),
+                                vec4_vb0[:, :, :3])
+            pb1_b = torch.where(mask_b1.unsqueeze(-1), torch.matmul(vec4_pb1.unsqueeze(-2), qR_b1).squeeze(-2),
+                                vec4_pb1[:, :, :3])
+            vb1_b = torch.where(mask_b1.unsqueeze(-1), torch.matmul(vec4_vb1.unsqueeze(-2), qR_b1).squeeze(-2),
+                                vec4_vb1[:, :, :3])
+
+            # compute distances and alignment
+            d = pb1_b - pb0_b  # (B, num_joints, 3)
+            dist_squared = torch.sum(d ** 2, dim=-1)
+            align = 1.0 - torch.sum(vb0_b * vb1_b, dim=-1)
+
+            joint_energy = 0.5 * 300000.0 * torch.sum(dist_squared, dim=1) + 0.5 * 500.0 * torch.sum(align, dim=1)
+
+        ##
+
+        # Contact energy
+        contact_energy = self.eval_link_contact_energy_batch(system_def, qRFull)
+
+        # External forces
+        ext_force_energy = torch.zeros(B, dtype=dtype, device=device)
+        external_forces = system_def['external_forces']
+        forcedBodyId = system_def.get('forcedBodyId', 23 // 2)
+        for axis, key in enumerate(['force_strength_x', 'force_strength_y', 'force_strength_z']):
+            if key in external_forces:
+                ext_force_energy += qRFull[:, forcedBodyId, 3, axis] * float(external_forces[key])
+
+        # Gravity
+        qR = q_batch.reshape(B, -1, 4, 3)
+        massR = system_def['mass'].reshape(1, -1, 4, 4).expand(B, -1, -1, -1)
+        gravity = system_def['gravity']
+        c_weighted = massR[:, :, 3, 3].unsqueeze(2) * qR[:, :, 3, :]
+        gravity_energy = -torch.sum(c_weighted * gravity.unsqueeze(0), dim=(1, 2))
+
+        # Rigid rotation constraint
+        rotT = qR[:, :, 0:3, :]
+        ide = torch.eye(3, dtype=dtype, device=device).unsqueeze(0).unsqueeze(0)
+        const = torch.matmul(rotT, rotT.transpose(2, 3)) - ide
+        rigid_energy = 5000.0 * torch.sum(const ** 2, dim=(1, 2, 3))
+
+        total_energy = joint_energy + contact_energy + ext_force_energy + gravity_energy + rigid_energy
+        return total_energy
+
+    def potential_energy(self, system_def, q, shape):
+        # q is torch tensor flattened for non-fixed bodies
+        qRFull = torch.cat((system_def['fixed_pos'], q), dim=0).reshape(-1, 4, 3)
+
+        joint_energy = torch.tensor(0.0, dtype=q.dtype)
 
         for j in self.joints:
-
-            pb0 = j['pos_body0']
-            vb0 = j['vec_body0']
+            pb0 = j['pos_body0'].to(dtype=q.dtype)
+            vb0 = j['vec_body0'].to(dtype=q.dtype)
 
             b0id = j['body_id0']
             if b0id != -1:
-                # transform point on body to point in world
-                pb0 = jnp.matmul(jnp.append(pb0, 1), qRFull[b0id])
-                vb0 = jnp.matmul(jnp.append(vb0, 0), qRFull[b0id])
+                # transform point on body to point in world: append 1 and multiply by 4x3 transform
+                vec4 = torch.cat((pb0, torch.tensor([1.0], dtype=q.dtype)))
+                pb0 = torch.matmul(vec4, qRFull[b0id])
+                vec4v = torch.cat((vb0, torch.tensor([0.0], dtype=q.dtype)))
+                vb0 = torch.matmul(vec4v, qRFull[b0id])
 
-            pb1 = j['pos_body1']
-            vb1 = j['vec_body1']
+            pb1 = j['pos_body1'].to(dtype=q.dtype)
+            vb1 = j['vec_body1'].to(dtype=q.dtype)
 
             b1id = j['body_id1']
             if b1id != -1:
-                # transform point on body to point in world
-                pb1 = jnp.matmul(jnp.append(pb1, 1), qRFull[b1id])
-                vb1 = jnp.matmul(jnp.append(vb1, 0), qRFull[b1id])
+                vec4 = torch.cat((pb1, torch.tensor([1.0], dtype=q.dtype)))
+                pb1 = torch.matmul(vec4, qRFull[b1id])
+                vec4v = torch.cat((vb1, torch.tensor([0.0], dtype=q.dtype)))
+                vb1 = torch.matmul(vec4v, qRFull[b1id])
 
             d = pb1 - pb0
-            dist_squared = jnp.sum(d * d)
+            dist_squared = torch.sum(d * d)
             joint_stiffness = 300000.0
 
-            align = 1.0 - jnp.sum(vb0 * vb1)
+            align = 1.0 - torch.sum(vb0 * vb1)
             align_stiffness = 500.0
 
-            joint_energy += 0.5 * joint_stiffness * dist_squared + 0.5 * align_stiffness * align
+            joint_energy = joint_energy + 0.5 * joint_stiffness * dist_squared + 0.5 * align_stiffness * align
 
         ###########
 
         contact_energy = 0.0
-        ext_force_energy = 0.0
+
+        # helper to evaluate energy between a pair of links
+        def eval_link_contact_energy(pair):
+
+            le = system_def['link_le']
+            r1 = system_def['link_r1']
+            r2 = system_def['link_r2']
+
+            b0id = int(pair[0].item() if isinstance(pair[0], torch.Tensor) else pair[0])
+            b1id = int(pair[1].item() if isinstance(pair[1], torch.Tensor) else pair[1])
+            measure_dont_sep_term = pair[2]
+
+            relT = qRFull[b1id, 3, :] - qRFull[b0id, 3, :]
+
+            qRelT = torch.cat((qRFull[b1id, 0:3, :], relT.unsqueeze(0)), dim=0)
+
+            # transpose instead of inverse (as in your approximation)
+            qRel = torch.matmul(qRelT, qRFull[b0id, 0:3, :].transpose(0, 1))
+
+            W1 = self.bodies['W'][b1id]
+            v10 = torch.matmul(W1, qRel)
+
+            #### --- SDF TERM --- ####
+            ly = torch.clamp(torch.abs(v10[:, 2]) - le, min=0.0)
+            lxy = torch.sqrt(v10[:, 0] * v10[:, 0] + ly * ly + 1e-6) - r1
+            l = torch.sqrt(v10[:, 1] * v10[:, 1] + lxy * lxy + 1e-6) - r2
+            c = torch.minimum(l, torch.tensor(0.0, dtype=l.dtype))
+            sdf_nocollision_dist = torch.mean(c * c)
+
+            #### --- INNER BBOX TERM --- ####
+            good_bbox = torch.tensor([r1 - 2 * r2, r2, le + r1 - 2 * r2],
+                                     dtype=v10.dtype)
+            good_bbox = good_bbox + r2 / 2
+
+            dist_from_bbox = torch.sum(torch.square(torch.clamp(torch.abs(v10) - good_bbox, min=0.0)), dim=-1)
+            min_dist_from_bbox = torch.min(dist_from_bbox)
+
+            # enable only if requested
+            min_dist_from_bbox = measure_dont_sep_term * min_dist_from_bbox
+
+            combined_penalty = sdf_nocollision_dist + 10 * min_dist_from_bbox
+
+            return system_def['contact_stiffness'] * combined_penalty
+
+        if self.linkContactPairs.shape[0] > 0:
+            # torch equivalent of vmap → list comprehension
+            link_energies = torch.stack([
+                eval_link_contact_energy(pair) for pair in self.linkContactPairs
+            ])
+            contact_energy += torch.sum(link_energies)
+
+        ###########
+
+        contact_energy = torch.tensor(0.0, dtype=q.dtype)
+        ext_force_energy = torch.tensor(0.0, dtype=q.dtype)
 
         external_forces = system_def['external_forces']
         forcedBodyId = 23 // 2
 
         if 'force_strength_x' in external_forces:
-            ext_force_energy += jnp.sum(qRFull[forcedBodyId, 3, 0] * external_forces['force_strength_x'])
+            ext_force_energy = ext_force_energy + torch.sum(qRFull[forcedBodyId, 3, 0] * float(external_forces['force_strength_x']))
 
         if 'force_strength_y' in external_forces:
-            ext_force_energy += jnp.sum(qRFull[forcedBodyId, 3, 1] * external_forces['force_strength_y'])
+            ext_force_energy = ext_force_energy + torch.sum(qRFull[forcedBodyId, 3, 1] * float(external_forces['force_strength_y']))
 
         if 'force_strength_z' in external_forces:
-            ext_force_energy += jnp.sum(qRFull[forcedBodyId, 3, 2] * external_forces['force_strength_z'])
-
-        ###########
+            ext_force_energy = ext_force_energy + torch.sum(qRFull[forcedBodyId, 3, 2] * float(external_forces['force_strength_z']))
 
         qR = q.reshape(-1, 4, 3)
 
         massR = system_def['mass'].reshape(-1, 4, 4)
 
-        gravity = system_def["gravity"]
-        c_weighted = massR[:, 3, 3][:, None] * qR[:, 3, :]
+        gravity = system_def["gravity"].to(dtype=q.dtype)
+        c_weighted = massR[:, 3, 3].unsqueeze(1) * qR[:, 3, :]
 
-        gravity_energy = -jnp.sum(c_weighted * gravity[None, :])
-
-        ###########
+        gravity_energy = -torch.sum(c_weighted * gravity.unsqueeze(0))
 
         rotT = qR[:, 0:3, :]
-        ide = jnp.stack([jnp.identity(3)] * rotT.shape[0])
+        # rotT expected shape (n,3,3) => rotT @ rotT.transpose(1,2)
+        ide = torch.stack([torch.eye(3, dtype=q.dtype)] * rotT.shape[0], dim=0)
 
-        const = rotT @ jnp.swapaxes(rotT, 1, 2) - ide
-        rigid_energy = 5000 * jnp.sum(const * const)
-
-        ###########
+        const = torch.matmul(rotT, rotT.transpose(1, 2)) - ide
+        rigid_energy = 5000.0 * torch.sum(const * const)
 
         return joint_energy + gravity_energy + ext_force_energy + rigid_energy + contact_energy
 
-    def kinetic_energy(self, system_def, q, q_dot):
+    @torch.compile()
+    def kinetic_energy_batch(self, system_def, qdot_batch, shape):
+        B = qdot_batch.shape[0]
+        num_bodies = system_def['mass'].numel() // (4 * 4)  # total number of bodies
 
+        qdotR = qdot_batch.reshape(B, num_bodies, 4, 3)
+        massR = system_def['mass'].reshape(1, num_bodies, 4, 4).expand(B, -1, -1, -1)
+
+        A = torch.matmul(torch.matmul(qdotR.transpose(2, 3), massR), qdotR)
+        tr = A.diagonal(dim1=-2, dim2=-1).sum(-1)
+
+        energies = 0.5 * tr.sum(dim=1)
+
+        return energies
+
+    def kinetic_energy(self, system_def, q_dot):
+        print(q_dot.shape)
         q_dotR = q_dot.reshape(-1, 4, 3)
         massR = system_def['mass'].reshape(-1, 4, 4)
 
-        A = jnp.swapaxes(q_dotR, 1, 2) @ massR @ q_dotR
-        return 0.5 * jnp.sum(jnp.trace(A, axis1=1, axis2=2))
-
-    # ===========================================
-    # === Conditional systems
-    # ===========================================
-
-    def sample_conditional_params(self, system_def, rngkey, rho=1.):
-        return jnp.zeros((0,))
+        # A = q_dotR.transpose(1,2) @ massR @ q_dotR  -> batch multiplication
+        A = torch.matmul(torch.matmul(q_dotR.transpose(1, 2), massR), q_dotR)
+        # trace for each batch
+        tr = torch.einsum('bii->b', A)
+        return 0.5 * torch.sum(tr)
 
     def build_system_ui(self, system_def):
         if psim.TreeNode("system UI"):
@@ -341,28 +675,30 @@ class Rigid3DSystem:
                 low, high = system_def['external_forces']['force_strength_minmax']
                 _, new_val = psim.SliderFloat("force_strength_x",
                                               float(system_def['external_forces']['force_strength_x']), low, high)
-                system_def['external_forces']['force_strength_x'] = jnp.array(new_val)
+                system_def['external_forces']['force_strength_x'] = float(new_val)
 
             if "force_strength_y" in system_def["external_forces"]:
                 low, high = system_def['external_forces']['force_strength_minmax']
                 _, new_val = psim.SliderFloat("force_strength_y",
                                               float(system_def['external_forces']['force_strength_y']), low, high)
-                system_def['external_forces']['force_strength_y'] = jnp.array(new_val)
+                system_def['external_forces']['force_strength_y'] = float(new_val)
 
             if "force_strength_z" in system_def["external_forces"]:
                 low, high = system_def['external_forces']['force_strength_minmax']
                 _, new_val = psim.SliderFloat("force_strength_z",
                                               float(system_def['external_forces']['force_strength_z']), low, high)
-                system_def['external_forces']['force_strength_z'] = jnp.array(new_val)
+                system_def['external_forces']['force_strength_z'] = float(new_val)
 
             psim.TreePop()
 
     def visualize(self, system_def, x, name="rigid3d", prefix='', transparency=1.):
-
-        xr = jnp.concatenate((system_def['fixed_pos'], x)).reshape(-1, 4, 3)
+        xr = torch.cat((system_def['fixed_pos'].cpu(), x), dim=0).reshape(-1, 4, 3)
 
         for bid in range(self.n_bodies):
-            v = np.array(jnp.matmul(self.bodiesRen[bid]['W'], xr[bid]))
+            # bodiesRen stores numpy W and f, and x0 as torch
+            W = self.bodiesRen[bid]['W']
+            xr_bid = xr[bid].detach().cpu().numpy()
+            v = np.array(np.matmul(W, xr_bid))
             f = np.array(self.bodiesRen[bid]['f'])
 
             ps_body = ps.register_surface_mesh("body" + prefix + str(bid), v, f)
@@ -372,11 +708,10 @@ class Rigid3DSystem:
             transform = np.identity(4)
             ps_body.set_transform(transform)
 
-        return ps_body  # not clear that anything needs to be returned
+        return ps_body
 
     def export(self, system_def, x, prefix=""):
         pass
 
     def visualize_set_nice_view(self, system_def, x):
         ps.look_at((1.5, 1.5, 1.5), (0., -.2, 0.))
-

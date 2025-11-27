@@ -17,6 +17,7 @@ import subspace
 
 from Args import Args
 from fem_model import FEMSystem
+from rb_model import Rigid3DSystem
 
 SRC_DIR = os.path.dirname(os.path.realpath(__file__))
 ROOT_DIR = os.path.join(SRC_DIR, "..")
@@ -24,7 +25,7 @@ ROOT_DIR = os.path.join(SRC_DIR, "..")
 
 def main():
     args = Args()
-    system, system_def = FEMSystem.construct("bistable")
+    system, system_def = Rigid3DSystem.construct("links")
 
     # Initialize polyscope
     ps.init()
