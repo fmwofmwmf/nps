@@ -166,7 +166,7 @@ class SubspaceMLP(nn.Module):
         self.activation = str_to_act(spec_dict["activation"])
 
         layers = []
-        in_dim = spec_dict["in_dim"] + 1
+        in_dim = spec_dict["in_dim"]
         for i in range(spec_dict["MLP_hidden_layers"]):
             is_last = (i + 1 == spec_dict["MLP_hidden_layers"])
             out_dim = spec_dict["out_dim"] if is_last else spec_dict["MLP_hidden_layer_width"]

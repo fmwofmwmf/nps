@@ -13,7 +13,7 @@ except Exception:
 
 def make_body(file, density, scale, dtype=torch.float64):
     v, f = igl.read_triangle_mesh(file)
-    v = scale * v
+    v = v @ scale
 
     vol = igl.massmatrix(v, f).data
     vol = np.nan_to_num(vol)  # massmatrix returns Nans in some stewart meshes
@@ -240,7 +240,8 @@ class Rigid3DSystem:
             system_def['link_r2'] = 0.009
 
             for i in range(numLinks):
-                body = make_body(os.path.join(".", "data", "link.obj"), 1000, 1.0)
+                scale = Rigid3DSystem.get_shape_transform(torch.tensor([1, 1, 1]))
+                body = make_body(os.path.join(".", "data", "link.obj"), 1000, scale.cpu().numpy())
                 if i % 2 == 1:
                     body['x0'] = torch.tensor([
                         [0, 0, 1],
@@ -282,7 +283,6 @@ class Rigid3DSystem:
             system_def['forcedBodyId'] = (numLinks - 1) // 2
 
             system.bodies, system.n_bodies = bodiesToStructOfArrays(bodies)
-
 
         else:
             raise ValueError("unrecognized system problem_name")
@@ -357,11 +357,58 @@ class Rigid3DSystem:
     #
     #     return system_def['contact_stiffness'] * combined_penalty  # (B,)
 
-    @torch.compile()
-    def eval_link_contact_energy_batch(self, system_def, qRFull):
+    @staticmethod
+    def get_shape_transform(shape):
+        return torch.diag(shape)
+
+    @staticmethod
+    def get_shape_transform_batch(shape):
         """
-        Vectorized evaluation of link contact energies for all link pairs in a batch.
-        qRFull: (B, num_bodies, 4, 3)
+        Converts a batch of shape vectors into batch of diagonal transform matrices.
+        Fully tensorized, no Python loops.
+
+        shape: (B, 3) tensor
+        Returns: (B, 3, 3) tensor
+        """
+        B = shape.shape[0]
+        # Create a zeros tensor and fill diagonal
+        diag_indices = torch.arange(3, device=shape.device)
+        transforms = torch.zeros(B, 3, 3, dtype=shape.dtype, device=shape.device)
+        transforms[:, diag_indices, diag_indices] = shape
+        return transforms  # (B, 3, 3)
+
+    def apply_shape_batch_shared_bodies(self, bodies, transforms):
+        """
+        Apply batch of 3x3 transforms to shared bodies, return tensor.
+
+        bodies: dict with key 'W' -> (N, V, 4) tensor
+        transforms: (B, 3, 3) tensor
+        Returns:
+            W_all: (B, N, V, 4) tensor, transformed W
+        """
+        B, _, _ = transforms.shape
+        W = bodies['W'].type(torch.float32)
+        N, V, _ = W.shape
+        device = transforms.device
+        dtype = transforms.dtype
+
+        # expand W to batch
+        W_all = W.unsqueeze(0).expand(B, -1, -1, -1).clone()  # (B, N, V, 4)
+
+        # apply 3x3 transform to x,y,z
+        W_xyz = W_all[..., :3]  # (B, N, V, 3)
+
+        W_all[..., :3] = torch.matmul(W_xyz, transforms.transpose(1, 2).unsqueeze(1))
+
+        return W_all  # (B, N, V, 4)
+
+    #@torch.compile()
+    def eval_link_contact_energy_batch(self, system_def, transformed_bodies, qRFull):
+        """
+        Vectorized evaluation of link contact energies for a batch of transformed bodies.
+        transformed_bodies: list of N dicts with keys 'W' (4,4) or tensor (N,4,4)
+                            already transformed by shape
+        qRFull: (B, num_bodies, 4, 3) world transforms
         Returns: (B,) total contact energy
         """
         if not hasattr(self, 'linkContactPairs') or self.linkContactPairs.shape[0] == 0:
@@ -369,8 +416,6 @@ class Rigid3DSystem:
 
         device = qRFull.device
         B = qRFull.shape[0]
-
-        # Extract pair indices and measure terms
         pairs = self.linkContactPairs
         b0 = pairs[:, 0].long()
         b1 = pairs[:, 1].long()
@@ -381,36 +426,40 @@ class Rigid3DSystem:
         r2 = system_def['link_r2']
         stiffness = system_def['contact_stiffness']
 
-        # --- Gather transforms for all pairs ---
-        q_b0 = qRFull[:, b0, :, :]  # (B, num_pairs, 4, 3)
-        q_b1 = qRFull[:, b1, :, :]  # (B, num_pairs, 4, 3)
+        # Gather transforms for all pairs
+        q_b0 = qRFull[:, b0, :, :]
+        q_b1 = qRFull[:, b1, :, :]
 
-        # Relative translation
-        relT = q_b1[:, :, 3, :] - q_b0[:, :, 3, :]  # (B, num_pairs, 3)
-        qRelT = torch.cat([q_b1[:, :, 0:3, :], relT.unsqueeze(2)], dim=2)  # (B, num_pairs, 4, 3)
-        qRel = torch.matmul(qRelT, q_b0[:, :, 0:3, :].transpose(2, 3))  # (B, num_pairs, 4, 3)
+        relT = q_b1[:, :, 3, :] - q_b0[:, :, 3, :]
+        qRelT = torch.cat([q_b1[:, :, 0:3, :], relT.unsqueeze(2)], dim=2)
+        qRel = torch.matmul(qRelT, q_b0[:, :, 0:3, :].transpose(2, 3))
 
-        # Batch W1
-        W1 = self.bodies['W'][b1]  # (num_pairs, 4, 4)
-        W1 = W1.unsqueeze(0).expand(B, -1, -1, -1)  # (B, num_pairs, 4, 4)
-        v10 = torch.matmul(W1, qRel)  # (B, num_pairs, 4, 3)
+        # Get transformed W from transformed bodies
+        # transformed_bodies_W: (N,4,4) → select b1 indices → expand to batch
+        W1 = transformed_bodies[:, b1, :, :]  # (B, num_pairs, V, 4)
+
+        # qRel: (B, num_pairs, 4, 3)
+        # We want to multiply each vertex in W1 (4,) by qRel (4,3) → (V,3)
+        # Use einsum for batched per-vertex multiplication
+        #v10 = torch.einsum('bpvf,bpfc->bpvc', W1, qRel)  # (B, num_pairs, V, 3)
+
+        v10 = torch.matmul(W1, qRel)
 
         # --- SDF term ---
         ly = torch.clamp(torch.abs(v10[..., 2]) - le, min=0.0)
         lxy = torch.sqrt(v10[..., 0] ** 2 + ly ** 2 + 1e-6) - r1
         l = torch.sqrt(v10[..., 1] ** 2 + lxy ** 2 + 1e-6) - r2
         c = torch.minimum(l, torch.zeros_like(l))
-        sdf_term = torch.mean(c ** 2, dim=2)  # mean over 4 points: (B, num_pairs)
+        sdf_term = torch.mean(c ** 2, dim=2)
 
         # --- Inner bbox term ---
         good_bbox = torch.tensor([r1 - 2 * r2, r2, le + r1 - 2 * r2], device=device) + r2 / 2
-        dist_bbox = torch.sum(torch.clamp(torch.abs(v10) - good_bbox, min=0.0) ** 2, dim=-1)  # (B, num_pairs, 4)
-        min_dist_bbox = torch.min(dist_bbox, dim=2).values  # (B, num_pairs)
+        dist_bbox = torch.sum(torch.clamp(torch.abs(v10) - good_bbox, min=0.0) ** 2, dim=-1)
+        min_dist_bbox = torch.min(dist_bbox, dim=2).values
         min_dist_bbox = measure_dont_sep * min_dist_bbox
 
-        # Combine
-        pair_penalty = sdf_term + 10 * min_dist_bbox  # (B, num_pairs)
-        total_penalty = torch.sum(pair_penalty, dim=1)  # (B,)
+        pair_penalty = sdf_term + 10 * min_dist_bbox
+        total_penalty = torch.sum(pair_penalty, dim=1)
         return stiffness * total_penalty
 
     def potential_energy_batch(self, system_def, q_batch, shape):
@@ -421,9 +470,9 @@ class Rigid3DSystem:
         num_bodies = system_def['mass'].numel() // (4 * 4)
 
         # reshape q_batch + fixed_pos: (B, num_bodies, 4, 3)
-        fixed_pos = system_def['fixed_pos'].reshape(1, -1)
+        fixed_pos = system_def['fixed_pos'].reshape(1, -1).float()
         q_full_batch = torch.cat([fixed_pos.expand(B, -1), q_batch], dim=1)
-        qRFull = q_full_batch.reshape(B, -1, 4, 3)
+        qRFull = q_full_batch.reshape(B, -1, 4, 3).float()
 
         joint_energy = torch.zeros(B, dtype=dtype, device=device)
 
@@ -488,8 +537,11 @@ class Rigid3DSystem:
 
         ##
 
+        transform = self.get_shape_transform_batch(shape)
+
+        new_bodies = self.apply_shape_batch_shared_bodies(self.bodies, transform)
         # Contact energy
-        contact_energy = self.eval_link_contact_energy_batch(system_def, qRFull)
+        contact_energy = self.eval_link_contact_energy_batch(system_def, new_bodies, qRFull)
 
         # External forces
         ext_force_energy = torch.zeros(B, dtype=dtype, device=device)
@@ -512,7 +564,7 @@ class Rigid3DSystem:
         const = torch.matmul(rotT, rotT.transpose(2, 3)) - ide
         rigid_energy = 5000.0 * torch.sum(const ** 2, dim=(1, 2, 3))
 
-        total_energy = joint_energy + contact_energy + ext_force_energy + gravity_energy + rigid_energy
+        total_energy = joint_energy + gravity_energy + ext_force_energy + rigid_energy + contact_energy
         return total_energy
 
     def potential_energy(self, system_def, q, shape):
@@ -691,22 +743,44 @@ class Rigid3DSystem:
 
             psim.TreePop()
 
-    def visualize(self, system_def, x, name="rigid3d", prefix='', transparency=1.):
+    def visualize(self, system_def, x, shape):
+        """
+        x: non-fixed DOF positions
+        shape: (3,) shape parameters for scaling/stretching the mesh
+        """
+        # full qR
         xr = torch.cat((system_def['fixed_pos'].cpu(), x), dim=0).reshape(-1, 4, 3)
 
+        # ---- get the shape transform matrix (3x3) ----
+        # get_shape_transform_batch expects (B,3)
+        shape = shape.unsqueeze(0)  # (1,3)
+        T = self.get_shape_transform_batch(shape)[0]  # (3,3)
+        T_np = T.detach().cpu().numpy()
+
         for bid in range(self.n_bodies):
-            # bodiesRen stores numpy W and f, and x0 as torch
-            W = self.bodiesRen[bid]['W']
-            xr_bid = xr[bid].detach().cpu().numpy()
-            v = np.array(np.matmul(W, xr_bid))
+            # original W is numpy, shape (V,4)
+            W = self.bodiesRen[bid]['W']  # numpy (V,4)
+
+            # full rigid transform for this body
+            xr_bid = xr[bid].detach().cpu().numpy()  # (4,3)
+
+            # ----- apply shape transform to the vertex positions -----
+            # W[:, :3] is (V,3), apply T (3x3)
+            W_xyz = W[:, :3] @ T_np.T  # (V,3)
+
+            # recombine with homogeneous coord
+            W_scaled = np.concatenate([W_xyz, W[:, 3:4]], axis=1)  # (V,4)
+
+            # local → world
+            v = W_scaled @ xr_bid  # (V,3)
+
+            # faces
             f = np.array(self.bodiesRen[bid]['f'])
 
-            ps_body = ps.register_surface_mesh("body" + prefix + str(bid), v, f)
-            if transparency < 1.:
-                ps_body.set_transparency(transparency)
+            # register mesh
+            ps_body = ps.register_surface_mesh(f"body{bid}", v, f)
 
-            transform = np.identity(4)
-            ps_body.set_transform(transform)
+            ps_body.set_transform(np.identity(4))
 
         return ps_body
 

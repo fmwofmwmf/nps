@@ -20,7 +20,7 @@ from rb_model import Rigid3DSystem
 
 def train_system(args: Args, system, system_def, subspace_domain_dict, base_state, target_dim):
 
-    in_dim = args.subspace_dim
+    in_dim = args.subspace_dim + args.shape_space_dim
     model_spec = {
         "in_dim": in_dim,
         "out_dim": target_dim,
@@ -49,7 +49,7 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
     def apply_subspace_batch(z_batch, shape, t_schedule):
         # Concatenate along feature dim
-        z_cond = torch.cat([z_batch, shape.unsqueeze(-1)], dim=-1)
+        z_cond = torch.cat([z_batch, shape], dim=-1)
         return model(z_cond, t_schedule)
 
     @torch.compile()
@@ -89,11 +89,27 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         I = torch.eye(D, device=z.device)
         return ((G - I) ** 2).mean()
 
-    def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
-        shape_min = 0.1
-        shape_max = 1.5
+    def sample_shape(batch_size, mins, maxs, device=None):
+        """
+        Sample B x D random values, each dimension with its own [min, max] range.
 
-        shape = torch.rand(batch_size, device=device) * (shape_max - shape_min) + shape_min
+        mins: (D,) tensor or list
+        maxs: (D,) tensor or list
+        """
+        mins = torch.as_tensor(mins, device=device).float()
+        maxs = torch.as_tensor(maxs, device=device).float()
+
+        # Random values in [0, 1], shape: (B, D)
+        r = torch.rand(batch_size, mins.shape[0], device=device)
+
+        # Scale to dimension-wise ranges
+        return r * (maxs - mins) + mins
+
+    def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
+        shape_min = 1. / (1. + t_schedule)
+        shape_max = (2. + t_schedule) / 2.
+
+        shape = sample_shape(batch_size, (1, 1, shape_min), (1, 1, shape_max), device)
 
         # Sample batch of latent vectors
         z_batch = torch.randn((batch_size, args.subspace_dim), device=device)
@@ -101,31 +117,51 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         # Apply subspace in batch
         q_batch = apply_subspace_batch(z_batch, shape, t_schedule)
 
-        E_pots = system.potential_energy_batch(system_def, q_batch, shape) / shape
+        E_pots = system.potential_energy_batch(system_def, q_batch, shape)
 
         return z_batch, q_batch, E_pots, shape
 
-    def batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def):
+    # def batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def):
+    #     DIST_EPS = 1e-8
+    #     B = z_batch.shape[0]
+    #
+    #     # Compute z distances more efficiently
+    #     z_dists_sq = torch.cdist(z_batch, z_batch, p=2).square()
+    #
+    #     # Compute q distances in batch without reshaping
+    #     q_i = q_batch.unsqueeze(1).expand(B, B, -1)
+    #     q_j = q_batch.unsqueeze(0).expand(B, B, -1)
+    #     q_diffs = q_j - q_i
+    #     q_diffs_flat = q_diffs.reshape(B * B, -1)
+    #
+    #     all_q_dists_flat = system.kinetic_energy_batch(system_def, q_diffs_flat, None) + DIST_EPS
+    #     all_q_dists = all_q_dists_flat.view(B, B)
+    #
+    #     # Compute factor efficiently
+    #     factor = torch.log(t_schedule * args.sigma_scale * z_dists_sq + DIST_EPS) - torch.log(all_q_dists)
+    #     repel_term = torch.sum(0.25 * factor.square(), dim=-1)
+    #
+    #     return repel_term, {'mean_scale_log': -factor.mean()}
+
+    #@torch.compile()
+    def batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def, sigma_scale):
         DIST_EPS = 1e-8
         B = z_batch.shape[0]
 
-        # Compute z distances more efficiently
+        # Z distances
         z_dists_sq = torch.cdist(z_batch, z_batch, p=2).square()
 
-        # Compute q distances in batch without reshaping
-        q_i = q_batch.unsqueeze(1).expand(B, B, -1)
-        q_j = q_batch.unsqueeze(0).expand(B, B, -1)
-        q_diffs = q_j - q_i
+        # Q distances - more efficient reshape
+        q_diffs = q_batch.unsqueeze(1) - q_batch.unsqueeze(0)  # (B, B, dim)
         q_diffs_flat = q_diffs.reshape(B * B, -1)
 
-        all_q_dists_flat = system.kinetic_energy_batch(system_def, q_diffs_flat, None) + DIST_EPS
-        all_q_dists = all_q_dists_flat.view(B, B)
+        all_q_dists = (system.kinetic_energy_batch(system_def, q_diffs_flat, None) + DIST_EPS).view(B, B)
 
-        # Compute factor efficiently
-        factor = torch.log(t_schedule * args.sigma_scale * z_dists_sq + DIST_EPS) - torch.log(all_q_dists)
-        repel_term = torch.sum(0.25 * factor.square(), dim=-1)
+        # Combined log computation
+        factor = torch.log(t_schedule * sigma_scale * z_dists_sq + DIST_EPS) - torch.log(all_q_dists)
+        repel_term = 0.25 * factor.square().sum(dim=-1)
 
-        return repel_term, {'mean_scale_log': -factor.mean()}
+        return repel_term, {'mean_scale_log': -factor.mean().detach()}
 
     def batch_repulsion(z_batch, q_batch, t_schedule):
         DIST_EPS = 1e-8
@@ -151,8 +187,8 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
     pbar = tqdm(total=args.n_train_iters, desc="Training", unit="iter")
 
-    pr = cProfile.Profile()
-    pr.enable()
+    # pr = cProfile.Profile()
+    # pr.enable()
 
     for i_train_iter in range(args.n_train_iters):
 
@@ -162,7 +198,7 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
         z_batch, q_batch, E_pots, shape = sample_system_and_Epot_batch(system_def, t_schedule, args.batch_size)
 
-        expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def)
+        expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def, args.sigma_scale)
 
         E_pot = E_pots.mean()
         E_exp = expand_loss.mean() * args.weight_expand
@@ -189,13 +225,13 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
             pbar.write(f"   mean metric stretch: {torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}")
             save_model(model, model_spec, args, i_train_iter, t_schedule)
 
-            pr.disable()
-            s = io.StringIO()
-            ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
-            ps.print_stats(20)  # Show top 20 functions
-            print(s.getvalue())
-            pr = cProfile.Profile()
-            pr.enable()
+            # pr.disable()
+            # s = io.StringIO()
+            # ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+            # ps.print_stats(20)  # Show top 20 functions
+            # print(s.getvalue())
+            # pr = cProfile.Profile()
+            # pr.enable()
 
     save_model(model, model_spec, args, "_final", 1.0)
 

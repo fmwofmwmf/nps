@@ -61,7 +61,7 @@ def main():
         t_schedule_final = d['t_schedule_final']
 
         def apply_subspace(x, space):
-            return subspace_model(torch.concat((x, torch.tensor((space,))), dim=-1), t_schedule=t_schedule_final)
+            return subspace_model(torch.concat((x, space,), dim=-1), t_schedule=t_schedule_final)
 
         if args.system_name != d['system']:
             raise ValueError("system name does not match loaded weights")
@@ -89,7 +89,7 @@ def main():
     optimize = False
     eval_energy_every = True
     update_viz_every = True
-    space = 0.5
+    space = torch.tensor((1,1,1))
 
     # Set up state parameters
 
@@ -121,7 +121,7 @@ def main():
     def eval_potential_energy(system_def, q, compare = False):
         pot = system.potential_energy(system_def, state_to_system(system_def, q, space), space)
         if compare:
-            bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), torch.tensor((space,)))
+            bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), space.view(1, 3))
             return pot, bpot
         return pot
 
@@ -186,7 +186,11 @@ def main():
 
         # some latent sliders
         if use_subspace:
-            changed, space = psim.SliderFloat("space", space, .1, 2)
+            _, x = psim.SliderFloat("spacex", space[0].item(), .1, 2)
+            _, y = psim.SliderFloat("spacey", space[1].item(), .1, 2)
+            _, z = psim.SliderFloat("spacez", space[2].item(), .1, 2)
+
+            space = torch.tensor((x,y,z))
 
             psim.TextUnformatted(f"Subspace domain type: {subspace_domain_dict['domain_name']}")
 
