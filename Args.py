@@ -16,7 +16,7 @@
     sigma_scale = 1
     expand_type = "iso"
 
-    report_every = 10000
+    report_every = 50000
     output_dir = "./checkpoints"
 
     system_name = "FEM"

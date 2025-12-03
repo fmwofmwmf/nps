@@ -93,7 +93,7 @@ class Rigid3DSystem:
         # set some defaults
         system_def['external_forces'] = {}
         system_def['cond_param'] = torch.zeros((0,), dtype=dtype)
-        system_def["contact_stiffness"] = 1000000.0
+        system_def["contact_stiffness"] = 1e8
         system.cond_dim = 0
         system.body_ID = None
 
@@ -379,36 +379,48 @@ class Rigid3DSystem:
 
     def apply_shape_batch_shared_bodies(self, bodies, transforms):
         """
-        Apply batch of 3x3 transforms to shared bodies, return tensor.
+        More efficient version without clone.
 
-        bodies: dict with key 'W' -> (N, V, 4) tensor
-        transforms: (B, 3, 3) tensor
+        Args:
+            bodies: dict with key 'W' -> (N, V, 4) tensor
+            transforms: (B, 3, 3) tensor
+
         Returns:
-            W_all: (B, N, V, 4) tensor, transformed W
+            W_all: (B, N, V, 4) tensor
         """
-        B, _, _ = transforms.shape
-        W = bodies['W'].type(torch.float32)
+        B = transforms.shape[0]
+        W = bodies['W']  # (N, V, 4)
         N, V, _ = W.shape
         device = transforms.device
         dtype = transforms.dtype
 
-        # expand W to batch
-        W_all = W.unsqueeze(0).expand(B, -1, -1, -1).clone()  # (B, N, V, 4)
+        W = W.to(device=device, dtype=dtype)
 
-        # apply 3x3 transform to x,y,z
-        W_xyz = W_all[..., :3]  # (B, N, V, 3)
+        # Split into xyz and homogeneous coordinate
+        W_xyz = W[..., :3]  # (N, V, 3)
+        W_ones = W[..., 3:4]  # (N, V, 1)
 
-        W_all[..., :3] = torch.matmul(W_xyz, transforms.transpose(1, 2).unsqueeze(1))
+        # Transform xyz: (1, N, V, 3) @ (B, 1, 3, 3) → (B, N, V, 3)
+        W_xyz_batch = W_xyz.unsqueeze(0)  # (1, N, V, 3)
+        transforms_broadcast = transforms.transpose(1, 2).unsqueeze(1)  # (B, 1, 3, 3)
 
-        return W_all  # (B, N, V, 4)
+        W_xyz_transformed = torch.matmul(W_xyz_batch, transforms_broadcast)  # (B, N, V, 3)
 
-    #@torch.compile()
-    def eval_link_contact_energy_batch(self, system_def, transformed_bodies, qRFull):
+        # Append ones column
+        W_ones_batch = W_ones.unsqueeze(0).expand(B, -1, -1, -1)  # (B, N, V, 1)
+        W_all = torch.cat([W_xyz_transformed, W_ones_batch], dim=-1)  # (B, N, V, 4)
+
+        return W_all
+
+    def eval_link_contact_energy_batch(self, system_def, transformed_bodies, qRFull, shape_transforms):
         """
         Vectorized evaluation of link contact energies for a batch of transformed bodies.
-        transformed_bodies: list of N dicts with keys 'W' (4,4) or tensor (N,4,4)
-                            already transformed by shape
-        qRFull: (B, num_bodies, 4, 3) world transforms
+
+        Args:
+            transformed_bodies: (B, num_bodies, V, 4) - vertices already transformed by shape
+            qRFull: (B, num_bodies, 4, 3) - world transforms
+            shape_transforms: (B, 4, 4) - shape transformation matrices
+
         Returns: (B,) total contact energy
         """
         if not hasattr(self, 'linkContactPairs') or self.linkContactPairs.shape[0] == 0:
@@ -421,40 +433,47 @@ class Rigid3DSystem:
         b1 = pairs[:, 1].long()
         measure_dont_sep = pairs[:, 2]
 
-        le = system_def['link_le']
-        r1 = system_def['link_r1']
-        r2 = system_def['link_r2']
+        le_base = system_def['link_le']
+        r1_base = system_def['link_r1']
+        r2_base = system_def['link_r2']
         stiffness = system_def['contact_stiffness']
 
+        # Extract per-axis scales from shape_transforms (B, 4, 4)
+        shape_3x3 = shape_transforms[:, :3, :3]  # (B, 3, 3)
+        scale_xy = torch.sqrt((shape_3x3[:, :, 0] ** 2).sum(dim=1))  # (B,) - x/y scale
+        scale_z = torch.sqrt((shape_3x3[:, :, 2] ** 2).sum(dim=1))  # (B,) - z scale
+
+        # Scale collision parameters (capsule aligned with z-axis)
+        le = le_base * scale_z.view(B, 1)  # (B, 1) - half-length (z-direction)
+        r1 = r1_base * scale_xy.view(B, 1)  # (B, 1) - major radius (xy-plane)
+        r2 = r2_base * scale_xy.view(B, 1)  # (B, 1) - minor radius (xy-plane)
+
         # Gather transforms for all pairs
-        q_b0 = qRFull[:, b0, :, :]
+        q_b0 = qRFull[:, b0, :, :]  # (B, num_pairs, 4, 3)
         q_b1 = qRFull[:, b1, :, :]
 
         relT = q_b1[:, :, 3, :] - q_b0[:, :, 3, :]
         qRelT = torch.cat([q_b1[:, :, 0:3, :], relT.unsqueeze(2)], dim=2)
         qRel = torch.matmul(qRelT, q_b0[:, :, 0:3, :].transpose(2, 3))
 
-        # Get transformed W from transformed bodies
-        # transformed_bodies_W: (N,4,4) → select b1 indices → expand to batch
         W1 = transformed_bodies[:, b1, :, :]  # (B, num_pairs, V, 4)
+        v10 = torch.matmul(W1, qRel)  # (B, num_pairs, V, 3)
 
-        # qRel: (B, num_pairs, 4, 3)
-        # We want to multiply each vertex in W1 (4,) by qRel (4,3) → (V,3)
-        # Use einsum for batched per-vertex multiplication
-        #v10 = torch.einsum('bpvf,bpfc->bpvc', W1, qRel)  # (B, num_pairs, V, 3)
-
-        v10 = torch.matmul(W1, qRel)
-
-        # --- SDF term ---
-        ly = torch.clamp(torch.abs(v10[..., 2]) - le, min=0.0)
-        lxy = torch.sqrt(v10[..., 0] ** 2 + ly ** 2 + 1e-6) - r1
-        l = torch.sqrt(v10[..., 1] ** 2 + lxy ** 2 + 1e-6) - r2
+        # --- SDF term (with scaled parameters) ---
+        ly = torch.clamp(torch.abs(v10[..., 2]) - le.unsqueeze(-1), min=0.0)
+        lxy = torch.sqrt(v10[..., 0] ** 2 + ly ** 2 + 1e-6) - r1.unsqueeze(-1)
+        l = torch.sqrt(v10[..., 1] ** 2 + lxy ** 2 + 1e-6) - r2.unsqueeze(-1)
         c = torch.minimum(l, torch.zeros_like(l))
-        sdf_term = torch.mean(c ** 2, dim=2)
+        sdf_term = torch.mean(c ** 2, dim=2)  # (B, num_pairs)
 
-        # --- Inner bbox term ---
-        good_bbox = torch.tensor([r1 - 2 * r2, r2, le + r1 - 2 * r2], device=device) + r2 / 2
-        dist_bbox = torch.sum(torch.clamp(torch.abs(v10) - good_bbox, min=0.0) ** 2, dim=-1)
+        # --- Inner bbox term (with scaled parameters) ---
+        good_bbox_x = r1 - 2 * r2
+        good_bbox_y = r2
+        good_bbox_z = le + r1 - 2 * r2
+        good_bbox = torch.stack([good_bbox_x, good_bbox_y, good_bbox_z], dim=-1)  # (B, 1, 3)
+        good_bbox = good_bbox + r2.unsqueeze(-1) / 2
+
+        dist_bbox = torch.sum(torch.clamp(torch.abs(v10) - good_bbox.unsqueeze(1), min=0.0) ** 2, dim=-1)
         min_dist_bbox = torch.min(dist_bbox, dim=2).values
         min_dist_bbox = measure_dont_sep * min_dist_bbox
 
@@ -462,6 +481,7 @@ class Rigid3DSystem:
         total_penalty = torch.sum(pair_penalty, dim=1)
         return stiffness * total_penalty
 
+    #@torch.compile()
     def potential_energy_batch(self, system_def, q_batch, shape):
         B = q_batch.shape[0]
         dtype = q_batch.dtype
@@ -541,7 +561,7 @@ class Rigid3DSystem:
 
         new_bodies = self.apply_shape_batch_shared_bodies(self.bodies, transform)
         # Contact energy
-        contact_energy = self.eval_link_contact_energy_batch(system_def, new_bodies, qRFull)
+        contact_energy = self.eval_link_contact_energy_batch(system_def, new_bodies, qRFull, transform)
 
         # External forces
         ext_force_energy = torch.zeros(B, dtype=dtype, device=device)

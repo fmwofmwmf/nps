@@ -106,10 +106,13 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         return r * (maxs - mins) + mins
 
     def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
-        shape_min = 1. / (1. + t_schedule)
-        shape_max = (2. + t_schedule) / 2.
+        shape_min = 0.1
+        shape_max = 3
 
-        shape = sample_shape(batch_size, (1, 1, shape_min), (1, 1, shape_max), device)
+        mn = t_schedule * shape_min + (1 - t_schedule)
+        mx = t_schedule * shape_max + (1 - t_schedule)
+
+        shape = sample_shape(batch_size, (1, 1, mn), (1, 1, mx), device)
 
         # Sample batch of latent vectors
         z_batch = torch.randn((batch_size, args.subspace_dim), device=device)
