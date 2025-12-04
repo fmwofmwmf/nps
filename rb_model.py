@@ -89,6 +89,7 @@ class Rigid3DSystem:
 
         system.system_name = "Rigid3d"
         system.problem_name = str(problem_name)
+        system.shape_param_names = []  # Will be set per-problem
 
         # set some defaults
         system_def['external_forces'] = {}
@@ -281,6 +282,7 @@ class Rigid3DSystem:
             system_def['external_forces']['force_strength_y'] = 0.0
             system_def['external_forces']['force_strength_z'] = 0.0
             system_def['forcedBodyId'] = (numLinks - 1) // 2
+            system.shape_param_names = ["Link Width", "Link Thickness", "Link Length"]
 
             system.bodies, system.n_bodies = bodiesToStructOfArrays(bodies)
 
@@ -321,6 +323,34 @@ class Rigid3DSystem:
         system_def['interesting_states'] = system_def['init_pos'].unsqueeze(0)
 
         return system, system_def
+
+    def to(self, device):
+        """Move all tensors in the system to the specified device."""
+        # Move bodies struct-of-arrays
+        if hasattr(self, 'bodies') and self.bodies is not None:
+            for key in self.bodies:
+                if isinstance(self.bodies[key], torch.Tensor):
+                    self.bodies[key] = self.bodies[key].to(device)
+        
+        # Move linkContactPairs
+        if hasattr(self, 'linkContactPairs') and isinstance(self.linkContactPairs, torch.Tensor):
+            self.linkContactPairs = self.linkContactPairs.to(device)
+        
+        # Move joints (each joint is a dict with tensors)
+        if hasattr(self, 'joints'):
+            for joint in self.joints:
+                for key in joint:
+                    if isinstance(joint[key], torch.Tensor):
+                        joint[key] = joint[key].to(device)
+        
+        # Move bodiesRen (list of body dicts)
+        if hasattr(self, 'bodiesRen'):
+            for body in self.bodiesRen:
+                for key in body:
+                    if isinstance(body[key], torch.Tensor):
+                        body[key] = body[key].to(device)
+        
+        return self
 
     # def eval_link_contact_energy(self, system_def, qRFull, pair):
     #     le = system_def['link_le']
@@ -591,7 +621,7 @@ class Rigid3DSystem:
         # q is torch tensor flattened for non-fixed bodies
         qRFull = torch.cat((system_def['fixed_pos'], q), dim=0).reshape(-1, 4, 3)
 
-        joint_energy = torch.tensor(0.0, dtype=q.dtype)
+        joint_energy = torch.tensor(0.0, dtype=q.dtype, device=q.device)
 
         for j in self.joints:
             pb0 = j['pos_body0'].to(dtype=q.dtype)
@@ -653,12 +683,12 @@ class Rigid3DSystem:
             ly = torch.clamp(torch.abs(v10[:, 2]) - le, min=0.0)
             lxy = torch.sqrt(v10[:, 0] * v10[:, 0] + ly * ly + 1e-6) - r1
             l = torch.sqrt(v10[:, 1] * v10[:, 1] + lxy * lxy + 1e-6) - r2
-            c = torch.minimum(l, torch.tensor(0.0, dtype=l.dtype))
+            c = torch.minimum(l, torch.tensor(0.0, dtype=l.dtype, device=l.device))
             sdf_nocollision_dist = torch.mean(c * c)
 
             #### --- INNER BBOX TERM --- ####
             good_bbox = torch.tensor([r1 - 2 * r2, r2, le + r1 - 2 * r2],
-                                     dtype=v10.dtype)
+                                     dtype=v10.dtype, device=v10.device)
             good_bbox = good_bbox + r2 / 2
 
             dist_from_bbox = torch.sum(torch.square(torch.clamp(torch.abs(v10) - good_bbox, min=0.0)), dim=-1)
@@ -680,8 +710,8 @@ class Rigid3DSystem:
 
         ###########
 
-        contact_energy = torch.tensor(0.0, dtype=q.dtype)
-        ext_force_energy = torch.tensor(0.0, dtype=q.dtype)
+        contact_energy = torch.tensor(0.0, dtype=q.dtype, device=q.device)
+        ext_force_energy = torch.tensor(0.0, dtype=q.dtype, device=q.device)
 
         external_forces = system_def['external_forces']
         forcedBodyId = 23 // 2
@@ -706,7 +736,7 @@ class Rigid3DSystem:
 
         rotT = qR[:, 0:3, :]
         # rotT expected shape (n,3,3) => rotT @ rotT.transpose(1,2)
-        ide = torch.stack([torch.eye(3, dtype=q.dtype)] * rotT.shape[0], dim=0)
+        ide = torch.stack([torch.eye(3, dtype=q.dtype, device=q.device)] * rotT.shape[0], dim=0)
 
         const = torch.matmul(rotT, rotT.transpose(1, 2)) - ide
         rigid_energy = 5000.0 * torch.sum(const * const)

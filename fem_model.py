@@ -604,6 +604,16 @@ class FEMSystem:
 
         return system, system_def
 
+    def to(self, device):
+        """Move all tensors in the system to the specified device."""
+        # Move mesh tensors
+        if hasattr(self, 'mesh') and self.mesh is not None:
+            for key in self.mesh:
+                if isinstance(self.mesh[key], torch.Tensor):
+                    self.mesh[key] = self.mesh[key].to(device)
+        
+        return self
+
     # ===========================================
     # === Energy functions 
     # ===========================================

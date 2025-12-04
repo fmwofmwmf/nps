@@ -1,0 +1,20 @@
+# Core dependencies - PyTorch with CUDA 12.1
+--index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchvision
+torchaudio
+
+# Core scientific computing (from standard PyPI)
+--extra-index-url https://pypi.org/simple
+numpy>=1.24.0
+
+# Geometry and visualization
+polyscope>=2.0.0
+libigl>=2.4.0
+potpourri3d
+
+# Training utilities
+tqdm>=4.65.0
+
+# Logging and experiment tracking (optional)
+tensorboard>=2.13.0
