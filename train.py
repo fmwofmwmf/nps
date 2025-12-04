@@ -285,4 +285,11 @@ def main():
 
 
 if __name__ == '__main__':
+    # Disable compilation via TorchInductor
+    torch._dynamo.reset()
+    torch._dynamo.config.verbose = True
+    torch._dynamo.config.suppress_errors = True
+
+    # Force AOTAutograd or eager mode instead of Inductor
+    torch._dynamo.optimize("eager")(lambda x: x)
     main()

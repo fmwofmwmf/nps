@@ -799,7 +799,7 @@ class Rigid3DSystem:
         shape: (3,) shape parameters for scaling/stretching the mesh
         """
         # full qR
-        xr = torch.cat((system_def['fixed_pos'].cpu(), x), dim=0).reshape(-1, 4, 3)
+        xr = torch.cat((system_def['fixed_pos'].cpu(), x.cpu()), dim=0).reshape(-1, 4, 3)
 
         # ---- get the shape transform matrix (3x3) ----
         # get_shape_transform_batch expects (B,3)
