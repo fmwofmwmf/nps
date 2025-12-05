@@ -265,6 +265,11 @@ def train(config):
                 json.dump(checkpoint_config, f, indent=2)
             
             logger.log_message(f"Saved checkpoint: {checkpoint_path}")
+            # for i, p in enumerate(model.parameters()):
+            #     if p.grad is None:
+            #         print(f"param[{i}] grad is None")
+            #     else:
+            #         print(f"param[{i}] grad norm:", p.grad.norm().item())
     
     # Final save and cleanup
     logger.log_message("\nTraining completed!")
@@ -285,11 +290,11 @@ def main():
 
 
 if __name__ == '__main__':
-    # Disable compilation via TorchInductor
-    torch._dynamo.reset()
-    torch._dynamo.config.verbose = True
-    torch._dynamo.config.suppress_errors = True
-
-    # Force AOTAutograd or eager mode instead of Inductor
-    torch._dynamo.optimize("eager")(lambda x: x)
+    # # Disable compilation via TorchInductor
+    # torch._dynamo.reset()
+    # torch._dynamo.config.verbose = True
+    # torch._dynamo.config.suppress_errors = True
+    #
+    # # Force AOTAutograd or eager mode instead of Inductor
+    # torch._dynamo.optimize("eager")(lambda x: x)
     main()

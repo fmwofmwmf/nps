@@ -352,41 +352,6 @@ class Rigid3DSystem:
         
         return self
 
-    # def eval_link_contact_energy(self, system_def, qRFull, pair):
-    #     le = system_def['link_le']
-    #     r1 = system_def['link_r1']
-    #     r2 = system_def['link_r2']
-    #     d = qRFull.device
-    #     b0id = int(pair[0].item())
-    #     b1id = int(pair[1].item())
-    #     measure_dont_sep_term = pair[2]
-    #
-    #     # relative translation
-    #     relT = qRFull[:, b1id, 3, :] - qRFull[:, b0id, 3, :]  # (B,3)
-    #     qRelT = torch.cat([qRFull[:, b1id, 0:3, :], relT.unsqueeze(1)], dim=1)  # (B,4,3)
-    #     qRel = torch.matmul(qRelT, qRFull[:, b0id, 0:3, :].transpose(1, 2))  # (B,4,3)
-    #
-    #     # expand W1 to batch
-    #     W1 = self.bodies['W'][b1id].unsqueeze(0).expand(qRFull.shape[0], -1, -1)  # (B,4,4)
-    #     v10 = torch.matmul(W1, qRel)  # (B,4,3)
-    #
-    #     # --- SDF term ---
-    #     ly = torch.clamp(torch.abs(v10[:, :, 2]) - le, min=0.0)
-    #     lxy = torch.sqrt(v10[:, :, 0] ** 2 + ly ** 2 + 1e-6) - r1
-    #     l = torch.sqrt(v10[:, :, 1] ** 2 + lxy ** 2 + 1e-6) - r2
-    #     c = torch.minimum(l, torch.zeros_like(l))
-    #     sdf_nocollision_dist = torch.mean(c ** 2, dim=1)  # (B,)
-    #
-    #     # --- Inner bbox term ---
-    #     good_bbox = torch.tensor([r1 - 2 * r2, r2, le + r1 - 2 * r2], device=d)
-    #     good_bbox = good_bbox + r2 / 2
-    #     dist_from_bbox = torch.sum(torch.clamp(torch.abs(v10) - good_bbox, min=0.0) ** 2, dim=-1)  # (B,4)
-    #     min_dist_from_bbox = measure_dont_sep_term * torch.min(dist_from_bbox, dim=1).values  # (B,)
-    #
-    #     combined_penalty = sdf_nocollision_dist + 10 * min_dist_from_bbox
-    #
-    #     return system_def['contact_stiffness'] * combined_penalty  # (B,)
-
     @staticmethod
     def get_shape_transform(shape):
         return torch.diag(shape)
@@ -743,7 +708,7 @@ class Rigid3DSystem:
 
         return joint_energy + gravity_energy + ext_force_energy + rigid_energy + contact_energy
 
-    @torch.compile()
+    # @torch.compile()
     def kinetic_energy_batch(self, system_def, qdot_batch, shape):
         B = qdot_batch.shape[0]
         num_bodies = system_def['mass'].numel() // (4 * 4)  # total number of bodies
