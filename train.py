@@ -4,6 +4,8 @@ Modern training script for neural subspace learning.
 Uses config files and tensorboard logging.
 """
 import argparse
+import os
+
 import torch
 from torch import optim
 from tqdm import tqdm
@@ -85,7 +87,8 @@ def train(config):
     
     # Setup subspace parameters
     subspace_dim = config.subspace_dim
-    shape_space_dim = config.shape_space_dim
+    shape_space_range = config['subspace']['shape_space_range']
+    shape_space_dim = len(shape_space_range)
     subspace_domain_type = config['subspace']['domain_type']
     subspace_domain_dict = subspace.get_subspace_domain_dict(subspace_domain_type)
     
@@ -152,25 +155,26 @@ def train(config):
     
     # Training loop
     pbar = tqdm(range(n_train_iters), desc="Training")
-    
+
+    range_tensor = torch.tensor(shape_space_range, device=device)  # (dim, 2)
+    mins = range_tensor[:, 0]  # (dim,)
+    maxs = range_tensor[:, 1]  # (dim,)
+
     for i_iter in pbar:
         # Update t_schedule (curriculum learning)
         progress = i_iter / n_train_iters
         t_schedule = progress * t_schedule_final
-        
+        t_curriculum = min(progress * 2.0, 1.0) * t_schedule_final
+
         # Sample latent codes from subspace domain (normal distribution)
         z_batch = torch.randn(batch_size, subspace_dim, device=device)
         z_batch.requires_grad_()
         
-        # Sample shape space with curriculum: starts at [1,1,1], expands to [1,1,0.1-3.0]
-        shape_min = 0.1
-        shape_max = 3.0
-        mn = t_schedule * shape_min + (1 - t_schedule)
-        mx = t_schedule * shape_max + (1 - t_schedule)
-        
-        # First two dimensions stay at 1.0, third dimension varies
-        shape_batch = torch.ones(batch_size, shape_space_dim, device=device)
-        shape_batch[:, 2] = torch.rand(batch_size, device=device) * (mx - mn) + mn
+        curr_mins = t_curriculum * mins + (1 - t_curriculum)
+        curr_maxs = t_curriculum * maxs + (1 - t_curriculum)
+
+        rand = torch.rand(batch_size, shape_space_dim, device=device)
+        shape_batch = rand * (curr_maxs - curr_mins) + curr_mins
         
         # Concatenate latent and shape
         input_batch = torch.cat([z_batch, shape_batch], dim=-1)
@@ -281,7 +285,7 @@ def main():
     parser.add_argument('--config', type=str, default='configs/links.json',
                         help='Path to config JSON file (default: configs/links.json)')
     args = parser.parse_args()
-    
+
     # Load config
     config = load_config(args.config)
     
@@ -297,4 +301,5 @@ if __name__ == '__main__':
     #
     # # Force AOTAutograd or eager mode instead of Inductor
     # torch._dynamo.optimize("eager")(lambda x: x)
+    torch.set_default_dtype(torch.float64)
     main()

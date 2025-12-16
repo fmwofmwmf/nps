@@ -13,7 +13,8 @@ class Config:
     @classmethod
     def from_file(cls, filepath: str) -> 'Config':
         """Load configuration from JSON file."""
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+
             config_dict = json.load(f)
         return cls(config_dict)
     

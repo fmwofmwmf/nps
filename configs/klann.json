@@ -1,22 +1,22 @@
-{
+﻿{
     "system": {
         "name": "Rigid3D",
-        "problem_name": "links",
+        "problem_name": "klann",
         "contact_stiffness": 1e8
     },
     "subspace": {
-        "dim": 8,
+        "dim": 1,
         "shape_space_range": [
-            [1.0,1.0],
-            [1.0,1.0],
-            [0.2,1.5]
+          [0.5,1.5],
+          [0.5,1.5],
+          [0.5,1.5]
         ],
         "domain_type": "normal"
     },
     "training": {
         "n_train_iters": 200000,
         "batch_size": 64,
-        "report_every": 100,
+        "report_every": 1000,
         "save_every": 3000,
         "weight_expand": 1.0,
         "sigma_scale": 1.0,
@@ -30,7 +30,7 @@
         "epsilon": 1e-8,
         "weight_decay": 0.0,
         "fused": true,
-        "lr_decay_every": 500000,
+        "lr_decay_every": 100000,
         "lr_decay_frac": 0.5
     },
     "encoding": {
@@ -45,6 +45,6 @@
     },
     "logging": {
         "output_dir": "./experiments",
-        "experiment_name": "links"
+        "experiment_name": "klann"
     }
 }

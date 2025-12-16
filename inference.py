@@ -144,6 +144,7 @@ def main():
     # If we're running on a use_subspace system, load it
     subspace_model_params = None
     subspace_dim = config.subspace_dim
+
     subspace_domain_dict = None
     use_subspace = False
     apply_subspace = None
@@ -193,6 +194,8 @@ def main():
     if use_subspace:
         print("Subspace dimension: " + str(subspace_dim))
 
+    shape_space_ranges = config['subspace']['shape_space_range']
+    shape_space_dim = len(shape_space_ranges)
     #########################################################################
     ### Set up state & UI params
     #########################################################################
@@ -209,7 +212,7 @@ def main():
     optimize = False
     eval_energy_every = True
     update_viz_every = True
-    space = torch.tensor((1.0, 1.0, 1.0), dtype=torch.float32)
+    space = torch.ones(shape_space_dim, dtype=torch.float64)
 
     # Set up state parameters
     subspace_domain_dict = subspace.get_subspace_domain_dict(config['subspace']['domain_type'])
@@ -241,7 +244,7 @@ def main():
     def eval_potential_energy(system_def, q, compare = False):
         pot = system.potential_energy(system_def, state_to_system(system_def, q, space), space)
         if compare:
-            bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), space.view(1, 3))
+            bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), space.view(1, shape_space_dim))
             return pot, bpot
         return pot
 
@@ -319,14 +322,15 @@ def main():
             # Default names based on shape_space_dim
             shape_space_dim = space.shape[0]
             shape_names = [f"Shape_{i}" for i in range(shape_space_dim)]
-        
+
+
         # Create sliders for each shape parameter
         new_space = []
         for i, name in enumerate(shape_names):
             if i < space.shape[0]:
-                _, val = psim.SliderFloat(name, space[i].item(), 0.1, 2.0)
+                _, val = psim.SliderFloat(name, space[i].item(), shape_space_ranges[i][0], shape_space_ranges[i][1])
                 new_space.append(val)
-        space = torch.tensor(new_space, dtype=torch.float32)
+        space = torch.tensor(new_space, dtype=torch.float64)
         
         psim.Separator()
 
@@ -366,7 +370,7 @@ def main():
                     if torch.is_tensor(tmp_state_q):
                         tmp_state_q = tmp_state_q.clone().detach()
                     else:
-                        tmp_state_q = np.array(tmp_state_q, dtype=np.float32)
+                        tmp_state_q = np.array(tmp_state_q, dtype=np.float64)
 
                     integrators.update_state(int_opts, int_state, tmp_state_q, with_velocity=True)
                     integrators.apply_domain_projection(int_state, subspace_domain_dict)
@@ -435,6 +439,7 @@ def main():
 if __name__ == '__main__':
     device = "cpu"
     torch.set_default_device(device)
-    
+    torch.set_default_dtype(torch.float64)
+
     with torch.no_grad():
         main()
