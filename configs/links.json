@@ -6,7 +6,7 @@
     },
     "subspace": {
         "dim": 8,
-        "shape_space_dim": 3,
+        "shape_space_dim": 4,
         "domain_type": "normal"
     },
     "training": {
@@ -26,7 +26,7 @@
         "epsilon": 1e-8,
         "weight_decay": 0.0,
         "fused": true,
-        "lr_decay_every": 500000,
+        "lr_decay_every": 100000,
         "lr_decay_frac": 0.5
     },
     "encoding": {

@@ -282,7 +282,7 @@ class Rigid3DSystem:
             system_def['external_forces']['force_strength_y'] = 0.0
             system_def['external_forces']['force_strength_z'] = 0.0
             system_def['forcedBodyId'] = (numLinks - 1) // 2
-            system.shape_param_names = ["Link Width", "Link Thickness", "Link Length"]
+            system.shape_param_names = ["Link Width", "Link Thickness", "Link Length", "Links"]
 
             system.bodies, system.n_bodies = bodiesToStructOfArrays(bodies)
 
@@ -478,6 +478,7 @@ class Rigid3DSystem:
 
     #@torch.compile()
     def potential_energy_batch(self, system_def, q_batch, shape):
+        shape = shape[:, :min(3, shape.shape[1])]
         B = q_batch.shape[0]
         dtype = q_batch.dtype
         device = q_batch.device
@@ -768,11 +769,19 @@ class Rigid3DSystem:
 
         # ---- get the shape transform matrix (3x3) ----
         # get_shape_transform_batch expects (B,3)
-        shape = shape.unsqueeze(0)  # (1,3)
-        T = self.get_shape_transform_batch(shape)[0]  # (3,3)
+        shapeb = shape[:3].unsqueeze(0)  # (1,3)
+        T = self.get_shape_transform_batch(shapeb)[0]  # (3,3)
         T_np = T.detach().cpu().numpy()
 
+        k = int(shape[3].clamp(0, 1) * self.n_bodies)
+        print(k)
         for bid in range(self.n_bodies):
+            if bid >= k and bid != 0:
+                try:
+                    ps.get_surface_mesh(f"body{bid}").set_enabled(False)
+                except Exception as e:
+                    pass
+                continue
             # original W is numpy, shape (V,4)
             W = self.bodiesRen[bid]['W']  # numpy (V,4)
 
@@ -794,7 +803,7 @@ class Rigid3DSystem:
 
             # register mesh
             ps_body = ps.register_surface_mesh(f"body{bid}", v, f)
-
+            ps_body.set_enabled(True)
             ps_body.set_transform(np.identity(4))
 
         return ps_body

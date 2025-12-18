@@ -157,7 +157,8 @@ def train(config):
         # Update t_schedule (curriculum learning)
         progress = i_iter / n_train_iters
         t_schedule = progress * t_schedule_final
-        
+        t_curriculum = min(progress * 2.0, 1.0) * t_schedule_final
+
         # Sample latent codes from subspace domain (normal distribution)
         z_batch = torch.randn(batch_size, subspace_dim, device=device)
         z_batch.requires_grad_()
@@ -165,19 +166,22 @@ def train(config):
         # Sample shape space with curriculum: starts at [1,1,1], expands to [1,1,0.1-3.0]
         shape_min = 0.1
         shape_max = 3.0
-        mn = t_schedule * shape_min + (1 - t_schedule)
-        mx = t_schedule * shape_max + (1 - t_schedule)
+        mn = t_curriculum * shape_min + (1 - t_curriculum)
+        mx = t_curriculum * shape_max + (1 - t_curriculum)
         
         # First two dimensions stay at 1.0, third dimension varies
         shape_batch = torch.ones(batch_size, shape_space_dim, device=device)
         shape_batch[:, 2] = torch.rand(batch_size, device=device) * (mx - mn) + mn
-        
+
+        shape_batch[:, 3] = torch.rand(batch_size, device=device)
+
         # Concatenate latent and shape
         input_batch = torch.cat([z_batch, shape_batch], dim=-1)
         
         # Forward pass through model
         q_batch = model(input_batch, t_schedule=t_schedule)
-        
+        q_batch.retain_grad()
+
         # Compute potential energy for the batch (vectorized)
         E_pot_batch = system.potential_energy_batch(system_def, q_batch, shape_batch)
         E_pot_mean = torch.mean(E_pot_batch)
@@ -211,6 +215,29 @@ def train(config):
         # Backward pass
         optimizer.zero_grad()
         loss.backward()
+
+        with torch.no_grad():
+            B, D = q_batch.shape
+            num_blocks = 23
+            block_size = D // num_blocks  # 12
+
+            # number of blocks to mask at the END
+            blocks_to_mask = (shape_batch[:, 2].clamp(0, 1) * num_blocks).long()
+
+            grad = q_batch.grad.view(B, num_blocks, block_size)
+
+            block_ids = torch.arange(num_blocks, device=grad.device)[None, :]  # [1,23]
+
+            # start index of masked region per batch
+            start = num_blocks - blocks_to_mask[:, None]  # [B,1]
+
+            # True = keep gradient, False = mask (zero)
+            mask = block_ids < start
+
+            grad *= mask[:, :, None]
+
+            q_batch.grad = grad.view(B, D)
+
         optimizer.step()
         scheduler.step()
         

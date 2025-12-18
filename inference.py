@@ -174,6 +174,7 @@ def main():
 
         @torch.inference_mode()
         def apply_subspace(x, space):
+
             return subspace_model(torch.concat((x, space,), dim=-1), t_schedule=t_schedule_final)
 
         if config.system_name != system_name:
@@ -209,7 +210,7 @@ def main():
     optimize = False
     eval_energy_every = True
     update_viz_every = True
-    space = torch.tensor((1.0, 1.0, 1.0), dtype=torch.float32)
+    space = torch.ones(config['subspace']['shape_space_dim'], dtype=torch.float32)
 
     # Set up state parameters
     subspace_domain_dict = subspace.get_subspace_domain_dict(config['subspace']['domain_type'])
@@ -241,7 +242,7 @@ def main():
     def eval_potential_energy(system_def, q, compare = False):
         pot = system.potential_energy(system_def, state_to_system(system_def, q, space), space)
         if compare:
-            bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), space.view(1, 3))
+            bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), space.view(1, space.shape[0]))
             return pot, bpot
         return pot
 
