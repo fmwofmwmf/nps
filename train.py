@@ -6,6 +6,7 @@ Uses config files and tensorboard logging.
 import argparse
 import torch
 from torch import optim
+from torch.func import vmap, grad
 from tqdm import tqdm
 
 from config_utils import load_config
@@ -194,8 +195,65 @@ def train(config):
         
         E_exp = expand_loss.mean() * weight_expand
         
+
+        # lip
+        weight_landscape_reg = 1e-1
+        B, d = z_batch.shape
+
+        # ----------------------------
+        # Random probe vector
+        # ----------------------------
+        v = torch.randn(d, device=device)       # [d]
+        v = v / v.norm()
+
+        # expand to batch dimension for vmap
+        v_exp = v.unsqueeze(0).expand(B, -1)    # [B, d]
+
+        # ----------------------------
+        # Define energy and HVP functions
+        # ----------------------------
+        def energy_single(z, shape):
+            # z: [d], shape: [s]
+            input_vec = torch.cat([z, shape], dim=-1).unsqueeze(0)  # [1, d+s]
+            q = model(input_vec, t_schedule=t_schedule)
+            E = system.potential_energy_batch(system_def, q, shape.unsqueeze(0))
+            return E.squeeze()
+
+        grad_energy = grad(energy_single)
+
+        def hvp_single(z, shape, v):
+            # returns H(z) @ v
+            return grad(lambda zz: grad_energy(zz, shape).dot(v))(z)
+
+        # ----------------------------
+        # Compute HVPs for all batch samples
+        # ----------------------------
+        Hv = vmap(hvp_single)(z_batch, shape_batch, v_exp)  # [B, d]
+
+        # ----------------------------
+        # Pairwise Hessian distance estimate
+        # ----------------------------
+        Hv1 = Hv.unsqueeze(1)   # [B, 1, d]
+        Hv2 = Hv.unsqueeze(0)   # [1, B, d]
+        hessians_sqdist_mat = ((Hv1 - Hv2) ** 2).sum(dim=-1)  # [B, B]
+
+        # ----------------------------
+        # Pairwise latent distances
+        # ----------------------------
+        Z1 = z_batch.unsqueeze(1)  # [B, 1, d]
+        Z2 = z_batch.unsqueeze(0)  # [1, B, d]
+        latents_sqdist_mat = ((Z1 - Z2) ** 2).sum(dim=-1).clamp(min=1e-5)  # [B, B]
+
+        # ----------------------------
+        # Landscape loss
+        # ----------------------------
+        sqslope_mat = hessians_sqdist_mat / latents_sqdist_mat
+        mask = ~torch.eye(B, dtype=torch.bool, device=device)
+        landscape_loss = sqslope_mat[mask].mean()
+        E_landscape = torch.clamp(landscape_loss * weight_landscape_reg, max=0.5)
+
         # Total loss
-        loss = E_pot_mean + E_exp
+        loss = E_pot_mean + E_exp + E_landscape
         
         # Check for NaN
         if torch.isnan(loss):
@@ -221,6 +279,7 @@ def train(config):
                 'loss/total': loss.item(),
                 'loss/potential_energy': E_pot_mean.item(),
                 'loss/expansion': E_exp.item(),
+                'loss/landscape': E_landscape.item(),
                 'training/t_schedule': t_schedule,
                 'training/learning_rate': optimizer.param_groups[0]['lr'],
                 'stats/mean_scale_log': repel_stats['mean_scale_log'],
@@ -231,6 +290,7 @@ def train(config):
             pbar.set_postfix({
                 'loss': f"{loss.item():.6f}",
                 'E_pot': f"{E_pot_mean.item():.6f}",
+                'landscape': f"{E_landscape.item():.6f}",
                 'E_exp': f"{E_exp.item():.6f}",
                 'stretch': f"{torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}",
                 't_sched': f"{t_schedule:.3f}"

@@ -365,12 +365,8 @@ class Rigid3DSystem:
         shape: (B, 3) tensor
         Returns: (B, 3, 3) tensor
         """
-        B = shape.shape[0]
-        # Create a zeros tensor and fill diagonal
-        diag_indices = torch.arange(3, device=shape.device)
-        transforms = torch.zeros(B, 3, 3, dtype=shape.dtype, device=shape.device)
-        transforms[:, diag_indices, diag_indices] = shape
-        return transforms  # (B, 3, 3)
+
+        return torch.diag_embed(shape)  # (B, 3, 3)
 
     def apply_shape_batch_shared_bodies(self, bodies, transforms):
         """
@@ -559,12 +555,12 @@ class Rigid3DSystem:
         contact_energy = self.eval_link_contact_energy_batch(system_def, new_bodies, qRFull, transform)
 
         # External forces
-        ext_force_energy = torch.zeros(B, dtype=dtype, device=device)
-        external_forces = system_def['external_forces']
-        forcedBodyId = system_def.get('forcedBodyId', 23 // 2)
-        for axis, key in enumerate(['force_strength_x', 'force_strength_y', 'force_strength_z']):
-            if key in external_forces:
-                ext_force_energy += qRFull[:, forcedBodyId, 3, axis] * float(external_forces[key])
+        # ext_force_energy = torch.zeros(B, dtype=dtype, device=device)
+        # external_forces = system_def['external_forces']
+        # forcedBodyId = system_def.get('forcedBodyId', 23 // 2)
+        # for axis, key in enumerate(['force_strength_x', 'force_strength_y', 'force_strength_z']):
+        #     if key in external_forces:
+        #         ext_force_energy += qRFull[:, forcedBodyId, 3, axis] * float(external_forces[key])
 
         # Gravity
         qR = q_batch.reshape(B, -1, 4, 3)
@@ -579,7 +575,7 @@ class Rigid3DSystem:
         const = torch.matmul(rotT, rotT.transpose(2, 3)) - ide
         rigid_energy = 5000.0 * torch.sum(const ** 2, dim=(1, 2, 3))
 
-        total_energy = joint_energy + gravity_energy + ext_force_energy + rigid_energy + contact_energy
+        total_energy = joint_energy + gravity_energy  + rigid_energy + contact_energy
         return total_energy
 
     def potential_energy(self, system_def, q, shape):
