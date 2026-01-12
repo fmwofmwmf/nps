@@ -274,7 +274,7 @@ class Rigid3DSystem:
                     linkContactPairs.append((i, i - 2, 0))
                 if i + 2 < numLinks:
                     linkContactPairs.append((i, i + 2, 0))
-
+            print(bodies[0]["mass"])
             system_def["gravity"] = torch.tensor([0.0, -0.5, 0.0], dtype=torch.float32)
             system_def['external_forces']['force_strength_minmax'] = (-200, 200)
             system_def['external_forces']['force_strength_x'] = 0.0
@@ -370,13 +370,7 @@ class Rigid3DSystem:
         shape: (B, 3) tensor
         Returns: (B, 3, 3) tensor
         """
-        B = shape.shape[0]
-        # Create a zeros tensor and fill diagonal
-        diag_indices = torch.arange(3, device=shape.device)
-        transforms = torch.zeros(B, 3, 3, dtype=shape.dtype, device=shape.device)
-        transforms[:, diag_indices, diag_indices] = shape
-        return transforms  # (B, 3, 3)
-
+        return torch.diag_embed(shape)
     def apply_shape_batch_shared_bodies(self, bodies, transforms):
         """
         More efficient version without clone.
@@ -490,9 +484,9 @@ class Rigid3DSystem:
         num_bodies = system_def['mass'].numel() // (4 * 4)
 
         # reshape q_batch + fixed_pos: (B, num_bodies, 4, 3)
-        fixed_pos = system_def['fixed_pos'].reshape(1, -1).float()
+        fixed_pos = system_def['fixed_pos'].reshape(1, -1)
         q_full_batch = torch.cat([fixed_pos.expand(B, -1), q_batch], dim=1)
-        qRFull = q_full_batch.reshape(B, -1, 4, 3).float()
+        qRFull = q_full_batch.reshape(B, -1, 4, 3)
 
         joint_energy = torch.zeros(B, dtype=dtype, device=device)
 
@@ -564,12 +558,12 @@ class Rigid3DSystem:
         contact_energy = self.eval_link_contact_energy_batch(system_def, new_bodies, qRFull, transform)
 
         # External forces
-        ext_force_energy = torch.zeros(B, dtype=dtype, device=device)
-        external_forces = system_def['external_forces']
-        forcedBodyId = system_def.get('forcedBodyId', 23 // 2)
-        for axis, key in enumerate(['force_strength_x', 'force_strength_y', 'force_strength_z']):
-            if key in external_forces:
-                ext_force_energy += qRFull[:, forcedBodyId, 3, axis] * float(external_forces[key])
+        # ext_force_energy = torch.zeros(B, dtype=dtype, device=device)
+        # external_forces = system_def['external_forces']
+        # forcedBodyId = system_def.get('forcedBodyId', 23 // 2)
+        # for axis, key in enumerate(['force_strength_x', 'force_strength_y', 'force_strength_z']):
+        #     if key in external_forces:
+        #         ext_force_energy += qRFull[:, forcedBodyId, 3, axis] * float(external_forces[key])
 
         # Gravity
         qR = q_batch.reshape(B, -1, 4, 3)
@@ -584,7 +578,7 @@ class Rigid3DSystem:
         const = torch.matmul(rotT, rotT.transpose(2, 3)) - ide
         rigid_energy = 5000.0 * torch.sum(const ** 2, dim=(1, 2, 3))
 
-        total_energy = joint_energy + gravity_energy + ext_force_energy + rigid_energy + contact_energy
+        total_energy = joint_energy + gravity_energy  + rigid_energy + contact_energy
         return total_energy
 
     def potential_energy(self, system_def, q, shape):
@@ -713,7 +707,7 @@ class Rigid3DSystem:
 
         return joint_energy + gravity_energy + ext_force_energy + rigid_energy + contact_energy
 
-    @torch.compile()
+    #@torch.compile()
     def kinetic_energy_batch(self, system_def, qdot_batch, shape):
         B = qdot_batch.shape[0]
         num_bodies = system_def['mass'].numel() // (4 * 4)  # total number of bodies
@@ -729,7 +723,7 @@ class Rigid3DSystem:
         return energies
 
     def kinetic_energy(self, system_def, q_dot):
-        print(q_dot.shape)
+        #print(q_dot.shape)
         q_dotR = q_dot.reshape(-1, 4, 3)
         massR = system_def['mass'].reshape(-1, 4, 4)
 
@@ -763,19 +757,20 @@ class Rigid3DSystem:
 
             psim.TreePop()
 
-    def visualize(self, system_def, x, shape):
+    def visualize(self, system_def, x, shape, return_transforms=False):
         """
         x: non-fixed DOF positions
         shape: (3,) shape parameters for scaling/stretching the mesh
         """
         # full qR
-        xr = torch.cat((system_def['fixed_pos'].cpu(), x), dim=0).reshape(-1, 4, 3)
+        xr = torch.cat((system_def['fixed_pos'], x), dim=0).reshape(-1, 4, 3)
 
         # ---- get the shape transform matrix (3x3) ----
         # get_shape_transform_batch expects (B,3)
         shape = shape.unsqueeze(0)  # (1,3)
         T = self.get_shape_transform_batch(shape)[0]  # (3,3)
         T_np = T.detach().cpu().numpy()
+        body_data = []
 
         for bid in range(self.n_bodies):
             # original W is numpy, shape (V,4)
@@ -801,8 +796,15 @@ class Rigid3DSystem:
             ps_body = ps.register_surface_mesh(f"body{bid}", v, f)
 
             ps_body.set_transform(np.identity(4))
+            if return_transforms:
+                body_data.append({
+                    'name': f"body{bid}",
+                    'vertices': v,
+                    'faces': f
+                })
 
-        return ps_body
+        if return_transforms:
+            return body_data
 
     def export(self, system_def, x, prefix=""):
         pass

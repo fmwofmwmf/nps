@@ -1,22 +1,22 @@
-﻿# This is a sample Python script.
-import cProfile
+﻿import cProfile
 import io
 import json
-import os
+import sys, os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import pstats
 
 import numpy as np
 import torch
 from torch import optim
 from tqdm import tqdm
-
+from torch.func import vmap, grad
 from fem_model import FEMSystem
 
 import layers
 from layers import SubspaceMLP
 from Args import Args
 from rb_model import Rigid3DSystem
-
+from rb_2d_model import Pendulum2DSystem
 
 def train_system(args: Args, system, system_def, subspace_domain_dict, base_state, target_dim):
 
@@ -33,19 +33,6 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
     model = SubspaceMLP(model_spec, base_output=base_state).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_every, gamma=args.lr_decay_frac)
-
-    def apply_subspace(x, shape, t_schedule):
-        z = torch.cat([x, shape], dim=-1)
-        return model(z, t_schedule)
-
-    def mollify_norm(x, eps=1e-20):
-        return torch.sqrt(torch.sum(x**2) + eps)
-
-    # def sample_system_and_Epot(system_def, t_schedule):
-    #     z = torch.randn((args.subspace_dim,), device=device)
-    #     q = apply_subspace(z, t_schedule)
-    #     E_pot = system.potential_energy(system_def, q)
-    #     return z, q, E_pot
 
     def apply_subspace_batch(z_batch, shape, t_schedule):
         # Concatenate along feature dim
@@ -106,8 +93,8 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
         return r * (maxs - mins) + mins
 
     def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
-        shape_min = 0.1
-        shape_max = 3
+        shape_min = 1
+        shape_max = 1
 
         mn = t_schedule * shape_min + (1 - t_schedule)
         mx = t_schedule * shape_max + (1 - t_schedule)
@@ -205,7 +192,65 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
         E_pot = E_pots.mean()
         E_exp = expand_loss.mean() * args.weight_expand
-        total_loss = E_pot + E_exp
+        # lip
+        weight_landscape_reg = 1e-2
+        B, d = z_batch.shape
+
+        # ----------------------------
+        # Random probe vector
+        # ----------------------------
+        v = torch.randn(d, device=device)  # [d]
+        v = v / v.norm()
+
+        # expand to batch dimension for vmap
+        v_exp = v.unsqueeze(0).expand(B, -1)  # [B, d]
+
+        # ----------------------------
+        # Define energy and HVP functions
+        # ----------------------------
+        def energy_single(z, shape):
+            # z: [d], shape: [s]
+            input_vec = torch.cat([z, shape], dim=-1).unsqueeze(0)  # [1, d+s]
+            q = model(input_vec, t_schedule=t_schedule)
+            E = system.potential_energy_batch(system_def, q, shape.unsqueeze(0))
+            return E.squeeze()
+
+        grad_energy = grad(energy_single)
+
+        def hvp_single(z, shape, v):
+            # returns H(z) @ v
+            return grad(lambda zz: grad_energy(zz, shape).dot(v))(z)
+
+        # ----------------------------
+        # Compute HVPs for all batch samples
+        # ----------------------------
+        Hv = vmap(hvp_single)(z_batch, shape, v_exp)  # [B, d]
+
+        # ----------------------------
+        # Pairwise Hessian distance estimate
+        # ----------------------------
+        Hv1 = Hv.unsqueeze(1)  # [B, 1, d]
+        Hv2 = Hv.unsqueeze(0)  # [1, B, d]
+        hessians_sqdist_mat = ((Hv1 - Hv2) ** 2).sum(dim=-1)  # [B, B]
+
+        # ----------------------------
+        # Pairwise latent distances
+        # ----------------------------
+        Z1 = z_batch.unsqueeze(1)  # [B, 1, d]
+        Z2 = z_batch.unsqueeze(0)  # [1, B, d]
+        latents_sqdist_mat = ((Z1 - Z2) ** 2).sum(dim=-1).clamp(min=1e-5)  # [B, B]
+
+        # ----------------------------
+        # Landscape loss
+        # ----------------------------
+        sqslope_mat = hessians_sqdist_mat / latents_sqdist_mat
+        mask = ~torch.eye(B, dtype=torch.bool, device=device)
+        landscape_loss = sqslope_mat[mask].mean()
+        E_landscape = torch.clamp(landscape_loss * weight_landscape_reg, max=50*t_schedule)
+        # E_landscape = torch.tensor(0.0, device=device)
+        # Total loss
+        total_loss = E_pot + E_exp + E_landscape
+
         total_loss.backward()
 
         optimizer.step()
@@ -216,6 +261,7 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
             'loss': f"{total_loss.item():.6f}",
             'E_pot': f"{E_pot.item():.6f}",
             'E_exp': f"{E_exp.item():.6f}",
+            'E_lip': f"{E_landscape.item():.6f}",
             'stretch': f"{torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}",
             't_sched': f"{t_schedule:.3f}"
         })
@@ -262,7 +308,7 @@ if __name__ == '__main__':
 
     args = Args()
 
-    system, system_def = Rigid3DSystem.construct("links")
+    system, system_def = Pendulum2DSystem.construct("double")
 
     target_dim = system.dim
     base_state = system_def['interesting_states'][0, :]
