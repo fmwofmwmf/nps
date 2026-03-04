@@ -8,10 +8,12 @@ import Args
 
 def str_to_act(s: str):
     d = {
+        "Identity": lambda x: x,
         "ReLU": F.relu,
         "LeakyReLU": F.leaky_relu,
         "ELU": F.elu,
         "Cos": torch.cos,
+        "Softplus": F.softplus,
     }
 
     if s not in d:
@@ -194,3 +196,4 @@ class SubspaceMLP(nn.Module):
         # if self.training:
         #     return z, m
         return z
+

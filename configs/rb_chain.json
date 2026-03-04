@@ -1,0 +1,48 @@
+{
+    "logging": {
+        "output_dir": "./experiments",
+        "experiment_name": "rb_chain"
+    },
+    "system": {
+        "name": "Rigid3D",
+        "problem_name": "links"
+    },
+    "subspace": {
+        "dim": 8,
+        "shape_space_range": [
+          [1,1,1],
+          [1,1,1],
+          [1,1,1]
+        ],
+        "domain_type": "normal"
+    },
+    "training": {
+        "n_train_iters": 200000,
+        "batch_size": 32,
+        "report_every": 1000,
+        "save_every": 5000,
+        "weight_expand": 1.0,
+        "weight_landscape": 1e-3,
+        "sigma_scale": 1.0,
+        "expand_type": "iso"
+    },
+    "optimizer": {
+        "otype": "Adam",
+        "learning_rate": 1e-4,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "epsilon": 1e-8,
+        "weight_decay": 0.0,
+        "lr_decay_every": 50000,
+        "lr_decay_frac": 0.5
+    },
+    "encoding": {
+        "otype": "Identity"
+    },
+    "network": {
+        "otype": "SubspaceMLP",
+        "activation": "Softplus",
+        "n_neurons": 128,
+        "n_hidden_layers": 2
+    }
+}

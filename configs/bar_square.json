@@ -1,0 +1,47 @@
+{
+    "logging": {
+        "output_dir": "./experiments",
+        "experiment_name": "bar_train"
+    },
+    "system": {
+        "name": "Bar2D",
+        "problem_name": "linkage",
+        "joint_stiffness": 1e5
+    },
+    "subspace": {
+        "dim": 1,
+        "shape_space_range": [
+
+        ],
+        "domain_type": "normal"
+    },
+    "training": {
+        "n_train_iters": 200000,
+        "batch_size": 32,
+        "report_every": 1000,
+        "save_every": 5000,
+        "weight_expand": 1.0,
+        "weight_landscape": 1e-3,
+        "sigma_scale": 1.0,
+        "expand_type": "iso"
+    },
+    "optimizer": {
+        "otype": "Adam",
+        "learning_rate": 1e-4,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "epsilon": 1e-8,
+        "weight_decay": 0.0,
+        "lr_decay_every": 2000,
+        "lr_decay_frac": 0.5
+    },
+    "encoding": {
+        "otype": "Identity"
+    },
+    "network": {
+        "otype": "SubspaceMLP",
+        "activation": "Softplus",
+        "n_neurons": 128,
+        "n_hidden_layers": 3
+    }
+}

@@ -1,4 +1,4 @@
-﻿import cProfile
+﻿
 import io
 import json
 import sys, os
@@ -9,100 +9,288 @@ import numpy as np
 import torch
 from torch import optim
 from tqdm import tqdm
-from torch.func import vmap, grad
-from fem_model import FEMSystem
 
-import layers
+from config_utils import load_config, Config, system_to_name
 from layers import SubspaceMLP
 from Args import Args
-from rb_model import Rigid3DSystem
-from rb_2d_model import Pendulum2DSystem
+from loss import *
 
-def train_system(args: Args, system, system_def, subspace_domain_dict, base_state, target_dim):
+def train_system(args: Args, config: Config):
 
-    in_dim = args.subspace_dim + args.shape_space_dim
+    system, system_def = system_to_name(config)
+    system.training = True
+    base_state = system_def['interesting_states'][0, :]
+
+    in_dim = config.subspace_dim + config.shape_space_dim
     model_spec = {
         "in_dim": in_dim,
-        "out_dim": target_dim,
-        "model_type": args.model_type,
-        "activation": args.activation,
-        "MLP_hidden_layers": args.MLP_hidden_layers,
-        "MLP_hidden_layer_width": args.MLP_hidden_layer_width,
+        "out_dim": system.dim,
+        "model_type": config["network"]["otype"],
+        "activation": config["network"]["activation"],
+        "MLP_hidden_layers": config["network"]["n_hidden_layers"],
+        "MLP_hidden_layer_width": config["network"]["n_neurons"],
     }
 
     model = SubspaceMLP(model_spec, base_output=base_state).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_every, gamma=args.lr_decay_frac)
+    optimizer = optim.Adam(model.parameters(), lr=config["optimizer"]["learning_rate"])
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=config["optimizer"]["lr_decay_every"], gamma=config["optimizer"]["lr_decay_frac"])
 
     def apply_subspace_batch(z_batch, shape, t_schedule):
         # Concatenate along feature dim
         z_cond = torch.cat([z_batch, shape], dim=-1)
         return model(z_cond, t_schedule)
 
-    @torch.compile()
-    def orthogonality_loss(z):
+    def orthogonality_loss_covariance(z):
         """
-        z: [batch_size, dim] (masked latent)
-        Returns scalar loss penalizing correlation between dims
+        Penalize correlation between latent dimensions in the batch.
+        Encourages decorrelated/orthogonal latent directions.
+
+        z: [B, D] latent codes
+        Returns: scalar loss
         """
         B, D = z.size()
-        # center along batch
-        z_centered = z - z.mean(dim=0, keepdim=True)
-        # covariance matrix
-        cov = (z_centered.T @ z_centered) / B  # [D, D]
-        # zero out diagonal
-        diag_mask = torch.eye(D, device=z.device)
-        off_diag = cov * (1 - diag_mask)
-        loss = (off_diag ** 2).sum()
-        return loss
 
-    def jacobian_orthogonality_loss(z, out):
+        # Center the latent codes
+        z_centered = z - z.mean(dim=0, keepdim=True)  # [B, D]
+
+        # Compute covariance matrix
+        cov = (z_centered.T @ z_centered) / (B - 1)  # [D, D]
+
+        # We want diagonal elements to be non-zero (variance)
+        # and off-diagonal elements to be zero (no correlation)
+
+        # Off-diagonal penalty
+        off_diag_mask = 1.0 - torch.eye(D, device=z.device, dtype=z.dtype)
+        off_diag_loss = (cov * off_diag_mask).pow(2).sum()
+
+        # Variance regularization: penalize if variance is too small
+        # This prevents collapse to a single point
+        diag = torch.diagonal(cov)
+        variance_loss = torch.sum(torch.relu(1.0 - diag))  # Penalize if variance < 1
+
+        return off_diag_loss + 0.1 * variance_loss
+
+    def orthogonality_loss_jacobian(z, q):
+        """
+        Ensure Jacobian columns (dq/dz_i) are orthogonal.
+        This is stronger: it ensures the latent directions map to
+        orthogonal directions in the output space.
+
+        z: [B, D] latent codes (requires grad)
+        q: [B, Q] decoded outputs
+        Returns: scalar loss
+        """
+        B, D = z.shape
+        Q = q.shape[1]
+
+        # Compute Jacobian dq/dz for the batch
+        # We want columns of J to be orthogonal
+
+        # Efficient batch Jacobian computation
+        jacobians = []
+        for i in range(D):
+            # Gradient of q w.r.t. z[:, i]
+            grad_outputs = torch.zeros_like(q)
+            grad_outputs[:, :] = 1.0
+
+            grads = torch.autograd.grad(
+                outputs=q,
+                inputs=z,
+                grad_outputs=grad_outputs,
+                create_graph=True,
+                retain_graph=True,
+                only_inputs=True
+            )[0]  # [B, D]
+
+            jacobians.append(grads[:, i:i + 1])  # [B, 1]
+
+        J = torch.cat(jacobians, dim=1)  # [B, D]
+
+        # Compute Gram matrix: J^T J (averaged over batch)
+        G = (J.T @ J) / B  # [D, D]
+
+        # We want G ≈ I (orthonormal Jacobian columns)
+        I = torch.eye(D, device=z.device, dtype=z.dtype)
+
+        return ((G - I) ** 2).mean()
+
+    def orthogonality_loss_jacobian_efficient(z, q):
+        """
+        More efficient version using per-dimension scalar outputs.
+
+        z: [B, D] latent codes (requires grad)
+        q: [B, Q] decoded outputs
+        Returns: scalar loss
+        """
         B, D = z.shape
 
-        # per-sample scalar (do not collapse batch!)
-        scalar = out.sum(dim=1)  # [B]
+        # For each output dimension, compute gradient w.r.t. z
+        # Then ensure these gradients are orthogonal across latent dims
 
-        grad = torch.autograd.grad(
-            scalar,
-            z,
-            grad_outputs=torch.ones_like(scalar),
+        # Sum over output dimensions to get a scalar per sample
+        q_sum = q.sum(dim=1)  # [B]
+
+        # Compute gradient
+        grads = torch.autograd.grad(
+            outputs=q_sum,
+            inputs=z,
+            grad_outputs=torch.ones_like(q_sum),
             create_graph=True,
             retain_graph=True
         )[0]  # [B, D]
 
         # Gram matrix (averaged over batch)
-        G = (grad.transpose(0, 1) @ grad) / B  # [D, D]
+        G = (grads.T @ grads) / B  # [D, D]
 
-        I = torch.eye(D, device=z.device)
+        I = torch.eye(D, device=z.device, dtype=z.dtype)
+
         return ((G - I) ** 2).mean()
 
-    def sample_shape(batch_size, mins, maxs, device=None):
+    def orthogonality_loss_variance_preserving(z, q):
         """
-        Sample B x D random values, each dimension with its own [min, max] range.
+        Combined loss that:
+        1. Keeps latent dimensions decorrelated
+        2. Ensures Jacobian columns are orthogonal
+        3. Prevents variance collapse
 
-        mins: (D,) tensor or list
-        maxs: (D,) tensor or list
+        z: [B, D] latent codes (requires grad)
+        q: [B, Q] decoded outputs
+        Returns: scalar loss
         """
-        mins = torch.as_tensor(mins, device=device).float()
-        maxs = torch.as_tensor(maxs, device=device).float()
+        B, D = z.shape
 
-        # Random values in [0, 1], shape: (B, D)
-        r = torch.rand(batch_size, mins.shape[0], device=device)
+        # 1. Latent covariance decorrelation
+        z_centered = z - z.mean(dim=0, keepdim=True)
+        cov_z = (z_centered.T @ z_centered) / (B - 1)
 
-        # Scale to dimension-wise ranges
-        return r * (maxs - mins) + mins
+        off_diag_mask = 1.0 - torch.eye(D, device=z.device, dtype=z.dtype)
+        latent_decorr_loss = (cov_z * off_diag_mask).pow(2).sum()
+
+        # 2. Variance preservation (penalize if variance too small)
+        diag_z = torch.diagonal(cov_z)
+        variance_loss = torch.sum(torch.relu(0.5 - diag_z))
+
+        # 3. Jacobian orthogonality
+        q_sum = q.sum(dim=1)
+        grads = torch.autograd.grad(
+            outputs=q_sum,
+            inputs=z,
+            grad_outputs=torch.ones_like(q_sum),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+
+        G = (grads.T @ grads) / B
+        I = torch.eye(D, device=z.device, dtype=z.dtype)
+        jacobian_ortho_loss = ((G - I) ** 2).mean()
+
+        # Combine
+        total_loss = latent_decorr_loss + variance_loss + jacobian_ortho_loss
+
+        return total_loss
+
+    def orthogonality_loss_output_spread(z, q):
+        """
+        Alternative: ensure outputs are spread out when latents are orthogonal.
+        This prevents mode collapse by ensuring different latent samples
+        produce different outputs.
+
+        z: [B, D] latent codes
+        q: [B, Q] decoded outputs
+        Returns: scalar loss
+        """
+        B, D = z.shape
+
+        # 1. Decorrelate latent dimensions
+        z_centered = z - z.mean(dim=0, keepdim=True)
+        cov_z = (z_centered.T @ z_centered) / (B - 1)
+        off_diag_mask = 1.0 - torch.eye(D, device=z.device, dtype=z.dtype)
+        decorr_loss = (cov_z * off_diag_mask).pow(2).sum()
+
+        # 2. Ensure output variance is maintained
+        q_centered = q - q.mean(dim=0, keepdim=True)
+        output_variance = (q_centered ** 2).mean()
+
+        # Penalize if output variance is too small (collapse)
+        variance_preservation = torch.relu(1.0 - output_variance)
+
+        # 3. Ensure different samples produce different outputs (anti-collapse)
+        # Compute pairwise output distances
+        q_dists = torch.cdist(q, q, p=2).pow(2)
+        z_dists = torch.cdist(z, z, p=2).pow(2).clamp(min=1e-6)
+
+        # Penalize if output distance is small when latent distance is large
+        # This prevents the map from collapsing
+        collapse_penalty = torch.relu(z_dists - q_dists).mean()
+
+        return decorr_loss + variance_preservation + 0.1 * collapse_penalty
+
+    # Recommended usage in your training loop:
+    def get_orthogonality_loss(z, q, loss_type='variance_preserving'):
+        """
+        Wrapper to select which orthogonality loss to use.
+
+        Args:
+            z: [B, D] latent codes (requires grad)
+            q: [B, Q] decoded outputs
+            loss_type: 'covariance', 'jacobian', 'variance_preserving', 'output_spread'
+        """
+        if loss_type == 'covariance':
+            return orthogonality_loss_covariance(z)
+        elif loss_type == 'jacobian':
+            return orthogonality_loss_jacobian_efficient(z, q)
+        elif loss_type == 'variance_preserving':
+            return orthogonality_loss_variance_preserving(z, q)
+        elif loss_type == 'output_spread':
+            return orthogonality_loss_output_spread(z, q)
+        else:
+            raise ValueError(f"Unknown loss type: {loss_type}")
+
+    def sample_shape(batch_size, mins, mids, maxs, device=None):
+        """
+        Sample B x D values from per-dimension [mid - t*(mid-min), mid + t*(max-mid)].
+        """
+        mins = torch.as_tensor(mins, device=device)
+        mids = torch.as_tensor(mids, device=device)
+        maxs = torch.as_tensor(maxs, device=device)
+
+        # Uniform in [-1, 1]
+        r = torch.rand(batch_size, mids.shape[0], device=device) * 2 - 1
+
+        left = mids - mins
+        right = maxs - mids
+
+        return torch.where(
+            r < 0,
+            mids + r * left,  # negative side
+            mids + r * right,  # positive side
+        )
 
     def sample_system_and_Epot_batch(system_def, t_schedule, batch_size):
-        shape_min = 1
-        shape_max = 1
+        shape_ranges = config["subspace"]["shape_space_range"]
 
-        mn = t_schedule * shape_min + (1 - t_schedule)
-        mx = t_schedule * shape_max + (1 - t_schedule)
+        mins = [x[0] for x in shape_ranges]
+        mids = [x[1] for x in shape_ranges]
+        maxs = [x[2] for x in shape_ranges]
 
-        shape = sample_shape(batch_size, (1, 1, mn), (1, 1, mx), device)
+        # scale outward from middle
+        mins = torch.tensor(mins, device=device)
+        mids = torch.tensor(mids, device=device)
+        maxs = torch.tensor(maxs, device=device)
+
+        shape = sample_shape(
+            batch_size,
+            mins,
+            mids,
+            maxs,
+            device=device,
+        )
+
+        # apply schedule
+        shape = mids + t_schedule * (shape - mids)
 
         # Sample batch of latent vectors
-        z_batch = torch.randn((batch_size, args.subspace_dim), device=device)
+        z_batch = torch.randn((batch_size, config.subspace_dim), device=device)
         z_batch.requires_grad_()
         # Apply subspace in batch
         q_batch = apply_subspace_batch(z_batch, shape, t_schedule)
@@ -111,41 +299,19 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
         return z_batch, q_batch, E_pots, shape
 
-    # def batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def):
-    #     DIST_EPS = 1e-8
-    #     B = z_batch.shape[0]
-    #
-    #     # Compute z distances more efficiently
-    #     z_dists_sq = torch.cdist(z_batch, z_batch, p=2).square()
-    #
-    #     # Compute q distances in batch without reshaping
-    #     q_i = q_batch.unsqueeze(1).expand(B, B, -1)
-    #     q_j = q_batch.unsqueeze(0).expand(B, B, -1)
-    #     q_diffs = q_j - q_i
-    #     q_diffs_flat = q_diffs.reshape(B * B, -1)
-    #
-    #     all_q_dists_flat = system.kinetic_energy_batch(system_def, q_diffs_flat, None) + DIST_EPS
-    #     all_q_dists = all_q_dists_flat.view(B, B)
-    #
-    #     # Compute factor efficiently
-    #     factor = torch.log(t_schedule * args.sigma_scale * z_dists_sq + DIST_EPS) - torch.log(all_q_dists)
-    #     repel_term = torch.sum(0.25 * factor.square(), dim=-1)
-    #
-    #     return repel_term, {'mean_scale_log': -factor.mean()}
-
     #@torch.compile()
     def batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def, sigma_scale):
         DIST_EPS = 1e-8
         B = z_batch.shape[0]
-
+        dim = q_batch.shape[1]
         # Z distances
         z_dists_sq = torch.cdist(z_batch, z_batch, p=2).square()
 
-        # Q distances - more efficient reshape
+        q_start = q_batch.unsqueeze(1).expand(B, B, dim).reshape(B*B, dim)
         q_diffs = q_batch.unsqueeze(1) - q_batch.unsqueeze(0)  # (B, B, dim)
         q_diffs_flat = q_diffs.reshape(B * B, -1)
 
-        all_q_dists = (system.kinetic_energy_batch(system_def, q_diffs_flat, None) + DIST_EPS).view(B, B)
+        all_q_dists = (system.kinetic_energy_batch(system_def, q_start, q_diffs_flat, None) + DIST_EPS).view(B, B)
 
         # Combined log computation
         factor = torch.log(t_schedule * sigma_scale * z_dists_sq + DIST_EPS) - torch.log(all_q_dists)
@@ -168,88 +334,45 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
 
         all_q_dists += DIST_EPS
 
-        factor = torch.log(t_schedule * args.sigma_scale * all_z_dists + DIST_EPS) - torch.log(all_q_dists)
+        factor = torch.log(t_schedule * config["training"]["sigma_scale"] * all_z_dists + DIST_EPS) - torch.log(all_q_dists)
         repel_term = torch.sum((0.5 * factor) ** 2, dim=-1)
 
         stats['mean_scale_log'] = torch.mean(-factor)
 
         return repel_term, stats
 
-    pbar = tqdm(total=args.n_train_iters, desc="Training", unit="iter")
+    pbar = tqdm(total=config.n_train_iters, desc="Training", unit="iter")
 
     # pr = cProfile.Profile()
     # pr.enable()
 
-    for i_train_iter in range(args.n_train_iters):
+    for i_train_iter in range(config.n_train_iters):
 
-        t_schedule = i_train_iter / float(args.n_train_iters)
+        t_schedule = i_train_iter / float(config.n_train_iters)
 
         optimizer.zero_grad()
 
-        z_batch, q_batch, E_pots, shape = sample_system_and_Epot_batch(system_def, t_schedule, args.batch_size)
+        z_batch, q_batch, E_pots, shape = sample_system_and_Epot_batch(system_def, t_schedule, config.batch_size)
 
-        expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def, args.sigma_scale)
+        expand_loss, repel_stats = batch_repulsion_neo(z_batch, q_batch, t_schedule, system_def, config["training"]["sigma_scale"])
 
         E_pot = E_pots.mean()
-        E_exp = expand_loss.mean() * args.weight_expand
+        E_exp = expand_loss.mean() * config["training"]["weight_expand"]
         # lip
-        weight_landscape_reg = 1e-2
-        B, d = z_batch.shape
 
-        # ----------------------------
-        # Random probe vector
-        # ----------------------------
-        v = torch.randn(d, device=device)  # [d]
-        v = v / v.norm()
+        weight_landscape_reg = config["training"]["weight_landscape"] * max(t_schedule * 2-1, 0)
+        if weight_landscape_reg > 0:
+            E_landscape = landscape_loss(model, system, system_def, z_batch, q_batch, shape, t_schedule, device) * weight_landscape_reg
+        else:
+            E_landscape = torch.tensor(0.0, device=device)
 
-        # expand to batch dimension for vmap
-        v_exp = v.unsqueeze(0).expand(B, -1)  # [B, d]
+        orth_weight = 1e-1
+        #E_ortho = get_orthogonality_loss(z_batch, q_batch, loss_type='output_spread') * orth_weight
+        E_ortho = 0#torch.clamp(E_ortho, max=50 * t_schedule)
 
-        # ----------------------------
-        # Define energy and HVP functions
-        # ----------------------------
-        def energy_single(z, shape):
-            # z: [d], shape: [s]
-            input_vec = torch.cat([z, shape], dim=-1).unsqueeze(0)  # [1, d+s]
-            q = model(input_vec, t_schedule=t_schedule)
-            E = system.potential_energy_batch(system_def, q, shape.unsqueeze(0))
-            return E.squeeze()
+        loss_curvature = 0#loss_multiscale_curvature(model, system, system_def, z_batch, q_batch, shape, t_schedule, device) * 1e-3 * t_schedule
 
-        grad_energy = grad(energy_single)
-
-        def hvp_single(z, shape, v):
-            # returns H(z) @ v
-            return grad(lambda zz: grad_energy(zz, shape).dot(v))(z)
-
-        # ----------------------------
-        # Compute HVPs for all batch samples
-        # ----------------------------
-        Hv = vmap(hvp_single)(z_batch, shape, v_exp)  # [B, d]
-
-        # ----------------------------
-        # Pairwise Hessian distance estimate
-        # ----------------------------
-        Hv1 = Hv.unsqueeze(1)  # [B, 1, d]
-        Hv2 = Hv.unsqueeze(0)  # [1, B, d]
-        hessians_sqdist_mat = ((Hv1 - Hv2) ** 2).sum(dim=-1)  # [B, B]
-
-        # ----------------------------
-        # Pairwise latent distances
-        # ----------------------------
-        Z1 = z_batch.unsqueeze(1)  # [B, 1, d]
-        Z2 = z_batch.unsqueeze(0)  # [1, B, d]
-        latents_sqdist_mat = ((Z1 - Z2) ** 2).sum(dim=-1).clamp(min=1e-5)  # [B, B]
-
-        # ----------------------------
-        # Landscape loss
-        # ----------------------------
-        sqslope_mat = hessians_sqdist_mat / latents_sqdist_mat
-        mask = ~torch.eye(B, dtype=torch.bool, device=device)
-        landscape_loss = sqslope_mat[mask].mean()
-        E_landscape = torch.clamp(landscape_loss * weight_landscape_reg, max=50*t_schedule)
-        # E_landscape = torch.tensor(0.0, device=device)
-        # Total loss
-        total_loss = E_pot + E_exp + E_landscape
+        total_loss = E_pot + E_exp + E_landscape + E_ortho + loss_curvature
 
         total_loss.backward()
 
@@ -262,17 +385,19 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
             'E_pot': f"{E_pot.item():.6f}",
             'E_exp': f"{E_exp.item():.6f}",
             'E_lip': f"{E_landscape.item():.6f}",
+            'E_orth': f"{E_ortho:.6f}",
+            'E_hess': f"{loss_curvature:.6f}",
             'stretch': f"{torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}",
             't_sched': f"{t_schedule:.3f}"
         })
-        if i_train_iter % args.report_every == 0:
+        if i_train_iter % config["training"]["save_every"] == 0:
             pbar.write(
-                f"\n== iter {i_train_iter}/{args.n_train_iters}  ({100. * i_train_iter / args.n_train_iters:.2f}%)")
+                f'\n== iter {i_train_iter}/{config["training"]["n_train_iters"]}  ({100. * i_train_iter / config["training"]["n_train_iters"]:.2f}%)')
             pbar.write(f"   loss: {total_loss.item():.6f}")
             pbar.write(f"   E_pots: {E_pot.item():.6f}")
             pbar.write(f"   E_exp: {E_exp.item():.6f}")
             pbar.write(f"   mean metric stretch: {torch.exp(torch.tensor(repel_stats['mean_scale_log'])).item():.6f}")
-            save_model(model, model_spec, args, i_train_iter, t_schedule)
+            save_model(model, model_spec, args, config, i_train_iter, t_schedule)
 
             # pr.disable()
             # s = io.StringIO()
@@ -282,20 +407,19 @@ def train_system(args: Args, system, system_def, subspace_domain_dict, base_stat
             # pr = cProfile.Profile()
             # pr.enable()
 
-    save_model(model, model_spec, args, "_final", 1.0)
+    save_model(model, model_spec, args, config, "_final", 1.0)
 
 
-def save_model(model, model_spec, args: Args, suffix, t_schedule):
-    filename = os.path.join(args.output_dir, f"{args.model_type}_{suffix}")
+def save_model(model, model_spec, args: Args, config: Config, suffix, t_schedule):
+    filename = os.path.join(config.output_dir, config.experiment_name, args.experiment_id, f"data_{suffix}")
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     torch.save(model.state_dict(), filename + ".pt")
-    torch.set_default_dtype(torch.float32)
     with open(filename + ".json", "w") as f:
         json.dump(model_spec, f)
     np.save(filename + "_info.npy", {
-        "system": args.system_name,
-        "problem_name": args.problem_name,
-        "subspace_domain_type": args.subspace_domain_type,
-        "subspace_dim": args.subspace_dim,
+        "system": config.system_name,
+        "problem_name": config.problem_name,
+        "subspace_dim": config.subspace_dim,
         "t_schedule_final": t_schedule,
     })
     print(f"Saved model to {filename}.pt")
@@ -305,16 +429,10 @@ def save_model(model, model_spec, args: Args, suffix, t_schedule):
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_default_device(device)
+    torch.set_default_dtype(torch.float64)
 
     args = Args()
 
-    system, system_def = Pendulum2DSystem.construct("double")
+    config = load_config(args.config_file)
 
-    target_dim = system.dim
-    base_state = system_def['interesting_states'][0, :]
-
-    # Construct the learned subspace operator
-    in_dim = args.subspace_dim + system.cond_dim
-    model_spec = layers.model_spec_from_args(args, in_dim, target_dim)
-
-    train_system(args, system, system_def, None, base_state, target_dim)
+    train_system(args, config)

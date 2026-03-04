@@ -11,7 +11,7 @@ class Pendulum2DSystem:
     """
 
     @staticmethod
-    def construct(problem_name, dtype=torch.float64):
+    def construct(problem_name, config, dtype=torch.float64):
         system_def = {}
         system = Pendulum2DSystem()
 
@@ -38,9 +38,10 @@ class Pendulum2DSystem:
 
         elif problem_name == 'chain':
             # Chain of pendulums
-            num_pendulums = 3
+            num_pendulums = 8
             lengths = [0.4] * num_pendulums
             masses = [0.5] * num_pendulums
+            masses[-1] = 5
             system_def['gravity'] = 9.8
 
         elif problem_name == 'variable':
@@ -65,7 +66,7 @@ class Pendulum2DSystem:
         # Initial configuration: all pendulums hanging down
         init_angles = torch.zeros(num_pendulums, dtype=dtype)
         # Add small perturbation to break symmetry
-        init_angles[0] = torch.pi / 2
+        #init_angles[:] = torch.pi / 2
 
         system_def['rest_pos'] = init_angles
         system_def['init_pos'] = init_angles.clone()
@@ -87,42 +88,39 @@ class Pendulum2DSystem:
 
         return system, system_def
 
-    def _compute_positions_batch(self, angles_batch, anchor):
+    def _compute_positions_batch(self, world_angles_batch, anchor):
         """
-        Compute Cartesian positions for a batch of configurations (vmap-compatible).
-
-        This function handles a batch dimension but is designed to be vmappable
-        over additional outer dimensions.
+        Compute Cartesian positions for a batch of configurations (world angles).
 
         Args:
-            angles_batch: (B, num_pendulums) - angles relative to parent
+            world_angles_batch: (B, num_pendulums) - angles in world frame
             anchor: (2,) - anchor point
 
         Returns:
             positions: (B, num_pendulums+1, 2) - positions of anchor + all endpoints
         """
-        device = angles_batch.device
-        dtype = angles_batch.dtype
-        B = angles_batch.shape[0]
+        B, n = world_angles_batch.shape
+        device, dtype = world_angles_batch.device, world_angles_batch.dtype
 
-        # Cumulative angles (global angles from vertical)
-        cumulative_angles = torch.cumsum(angles_batch, dim=1)  # (B, num_pendulums)
+        lengths = self.lengths.to(device=device, dtype=dtype)  # (n,)
 
-        # Compute displacements for all pendulums at once
-        lengths = self.lengths.to(device=device, dtype=dtype)  # (num_pendulums,)
-        dx = lengths.unsqueeze(0) * torch.sin(cumulative_angles)  # (B, num_pendulums)
-        dy = -lengths.unsqueeze(0) * torch.cos(cumulative_angles)  # (B, num_pendulums)
+        # Direction vectors for each link
+        cos = torch.cos(world_angles_batch)  # (B, n)
+        sin = torch.sin(world_angles_batch)  # (B, n)
+        dirs = torch.stack([sin, -cos], dim=-1)  # (B, n, 2), displacement vector
 
-        # Stack displacements
-        displacements = torch.stack([dx, dy], dim=2)  # (B, num_pendulums, 2)
+        # Multiply by lengths
+        displacements = dirs * lengths[None, :, None]  # (B, n, 2)
 
-        # Cumulative sum to get absolute positions of endpoints relative to anchor
-        relative_positions = torch.cumsum(displacements, dim=1)  # (B, num_pendulums, 2)
+        # Cumulative sum of displacements to get absolute positions
+        relative_positions = torch.cumsum(displacements, dim=1)  # (B, n, 2)
 
-        # Create positions array by concatenating anchor with endpoint positions
-        anchor_expanded = anchor.unsqueeze(0).unsqueeze(0).expand(B, 1, -1)  # (B, 1, 2)
-        endpoint_positions = anchor_expanded + relative_positions  # (B, num_pendulums, 2)
-        positions = torch.cat([anchor_expanded, endpoint_positions], dim=1)  # (B, num_pendulums+1, 2)
+        # Add anchor
+        anchor_expanded = anchor.view(1, 1, 2).expand(B, 1, 2)  # (B, 1, 2)
+        endpoint_positions = anchor_expanded + relative_positions  # (B, n, 2)
+
+        # Concatenate anchor at the start
+        positions = torch.cat([anchor_expanded, endpoint_positions], dim=1)  # (B, n+1, 2)
 
         return positions
 
@@ -130,120 +128,107 @@ class Pendulum2DSystem:
         """Non-batch version for single configuration"""
         return self._compute_positions_batch(angles.unsqueeze(0), anchor)[0]
 
-    def potential_energy_batch(self, system_def, angles_batch, shape=None):
+    def potential_energy_batch(self, system_def, world_angles_batch, shape=None):
         """
         Compute potential energy for batch of configurations.
 
         Args:
-            angles_batch: (B, num_pendulums) - angles
+            world_angles_batch: (B, num_pendulums) - angles in world frame
             shape: unused (for API compatibility)
 
         Returns:
             energy: (B,) - potential energies
         """
-        B = angles_batch.shape[0]
-        device = angles_batch.device
-        dtype = angles_batch.dtype
+        B, n = world_angles_batch.shape
+        device, dtype = world_angles_batch.device, world_angles_batch.dtype
 
         anchor = system_def['anchor_point'].to(device=device, dtype=dtype)
         g = system_def['gravity']
 
-        # Get positions of all endpoints
-        positions = self._compute_positions_batch(angles_batch, anchor)  # (B, num_pendulums+1, 2)
+        # Compute positions of all endpoints (world angles)
+        positions = self._compute_positions_batch(world_angles_batch, anchor)  # (B, n+1, 2)
 
-        # Potential energy = sum of m_i * g * h_i for each pendulum
-        # Center of mass is at midpoint of each pendulum
-        # Vectorize: compute all COM y-coordinates at once
+        # Center of mass y-coordinates
         if self.point_mass:
-            # Point mass at tip: COM is at endpoint
-            com_y = positions[:, 1:, 1]  # (B, num_pendulums)
+            com_y = positions[:, 1:, 1]  # (B, n)
         else:
-            # Uniform rod: COM is at midpoint
-            com_y = (positions[:, :-1, 1] + positions[:, 1:, 1]) / 2.0  # (B, num_pendulums)
+            com_y = 0.5 * (positions[:, :-1, 1] + positions[:, 1:, 1])  # (B, n)
 
-        # Vectorize mass multiplication: masses * g * com_y, then sum over pendulums
-        masses = self.masses.to(device=device, dtype=dtype).unsqueeze(0)  # (1, num_pendulums)
+        masses = self.masses.to(device=device, dtype=dtype).unsqueeze(0)  # (1, n)
         energy = torch.sum(masses * g * com_y, dim=1)  # (B,)
 
-        # External torque energy (torque * angle)
-        ext_forces = system_def['external_forces']
+        # External torque
+        ext_forces = system_def.get('external_forces', {})
         if 'torque_strength' in ext_forces and ext_forces['torque_strength'] != 0:
             link_idx = ext_forces.get('applied_link', 0)
-            if link_idx < self.num_pendulums:
-                # Vectorized selection without explicit indexing
-                # Create a one-hot mask for the link
-                link_mask = torch.zeros(self.num_pendulums, device=device, dtype=dtype)
+            if 0 <= link_idx < n:
+                link_mask = torch.zeros(n, device=device, dtype=dtype)
                 link_mask[link_idx] = 1.0
-                link_mask = link_mask.unsqueeze(0)  # (1, num_pendulums)
-
-                # Compute torque contribution
-                torque_energy = ext_forces['torque_strength'] * torch.sum(link_mask * angles_batch, dim=1)
+                torque_energy = ext_forces['torque_strength'] * (world_angles_batch * link_mask).sum(dim=1)
                 energy -= torque_energy
 
         return energy
 
+
+
     def potential_energy(self, system_def, angles, shape=None):
         """Single configuration version"""
-        return self.potential_energy_batch(system_def, angles.unsqueeze(0), shape)[0]
+        return self.potential_energy_batch(system_def, angles.unsqueeze(0), shape.unsqueeze(0))[0]
 
-    def kinetic_energy_batch(self, system_def, angles_batch, angvel_batch, shape):
+    def kinetic_energy_batch(self, system_def, world_angles_batch, world_angvel_batch, shape=None):
         """
-        angles_batch: (B, n) relative angles per link
-        angvel_batch: (B, n) relative angular velocities per link
-        Returns: (B,) kinetic energies
+        Compute kinetic energy for batch of pendulum configurations using world-frame angles.
+
+        Args:
+            world_angles_batch: (B, n) - angles in world frame
+            world_angvel_batch: (B, n) - angular velocities in world frame
+            shape: unused (for API compatibility)
+
+        Returns:
+            energy: (B,) - kinetic energies
         """
-        # angles_batch = angles_batch.clone()
-        # angles_batch[:, 1:] = 0
-        B, n = angles_batch.shape
-        device, dtype = angles_batch.device, angles_batch.dtype
+        B, n = world_angles_batch.shape
+        device, dtype = world_angles_batch.device, world_angles_batch.dtype
 
         lengths = self.lengths.to(device=device, dtype=dtype)  # (n,)
         masses = self.masses.to(device=device, dtype=dtype)  # (n,)
 
-        # Step 1: cumulative angles → absolute orientations
-        cum_angles = torch.cumsum(angles_batch, dim=1)  # (B, n)
-        cos = torch.cos(cum_angles)
-        sin = torch.sin(cum_angles)
+        # Step 1: compute link unit direction vectors in world frame
+        cos = torch.cos(world_angles_batch)  # (B, n)
+        sin = torch.sin(world_angles_batch)  # (B, n)
+        dirs = torch.stack([cos, sin], dim=-1)  # (B, n, 2)
 
-        # Step 2: build the upper-triangular matrix of contributions
-        # Each link i gets contributions from joints 0..i
-        # mask[i,j] = 1 if j <= i, else 0
-        mask = torch.triu(torch.ones(n, n, device=device, dtype=dtype), diagonal=0).T  # (n,n)
+        # Step 2: compute link velocities via direct Jacobian (world angles)
+        # Each link i velocity = sum_{j <= i} L_j * omega_j * [cos, sin]
+        # Build upper-triangular mask
+        mask = torch.triu(torch.ones(n, n, device=device, dtype=dtype), diagonal=0).T  # (n, n)
+        mask = mask[None, :, :]  # (1, n, n) for batch broadcasting
 
-        # Step 3: compute per-link Jacobian contributions
-        # L: (1,n,1)
-        L = lengths[None, :, None]  # broadcastable
-        # cos/sin: (B,n,1)
-        cos_ = cos[:, :, None]
-        sin_ = sin[:, :, None]
-        # Apply mask: mask[i,j] = 1 if j <= i else 0
-        mask = mask[None, :, :]  # (1,n,n)
-        contrib_x = L * cos_ * mask  # (B, n, n)
-        contrib_y = L * sin_ * mask  # (B, n, n)
+        L = lengths[None, :, None]  # (1, n, 1)
+        contrib = L * dirs[:, :, None, :] * mask[:, :, :, None]  # (B, n, n, 2)
+        omega = world_angvel_batch[:, None, :, None]  # (B,1,n,1)
+        vel_links = (contrib * omega).sum(dim=2)  # (B, n, 2)
 
-        # Step 4: multiply by angular velocities
-        # angvel_batch: (B,n) → (B,1,n) to multiply along joints axis
-        angvel = angvel_batch[:, None, :]  # (B,1,n)
-        vel_x = (contrib_x * angvel).sum(-1)  # sum over joints → (B,n)
-        vel_y = (contrib_y * angvel).sum(-1)  # (B,n)
+        # Prepend anchor velocity = 0
+        velocities_ext = torch.cat([torch.zeros(B, 1, 2, device=device, dtype=dtype), vel_links], dim=1)
 
-        velocities = torch.stack([vel_x, vel_y], dim=-1)  # (B, n, 2)
-
-        # Step 5: kinetic energy
         if self.point_mass:
-            v2 = (velocities ** 2).sum(-1)  # (B,n)
-            energy = 0.5 * (v2 * masses[None, :]).sum(-1)  # (B,)
+            # Tip velocities
+            v2 = (velocities_ext[:, 1:, :] ** 2).sum(-1)  # (B, n)
+            energy = 0.5 * (v2 * masses[None, :]).sum(-1)
         else:
-            # Rods: center-of-mass velocity
-            velocities_ext = torch.cat([torch.zeros(B, 1, 2, device=device, dtype=dtype), velocities], dim=1)
-            v_com = 0.5 * (velocities_ext[:, :-1, :] + velocities_ext[:, 1:, :])
+            # Rods: center-of-mass velocity + rotational KE
+            v_com = 0.5 * (velocities_ext[:, :-1, :] + velocities_ext[:, 1:, :])  # (B, n, 2)
             v_com2 = (v_com ** 2).sum(-1)
             KE_trans = 0.5 * v_com2 * masses[None, :]
-            I_com = masses * lengths ** 2 / 12.0
-            KE_rot = 0.5 * I_com[None, :] * (angvel_batch ** 2)
+
+            I_com = masses * lengths ** 2 / 12.0  # rotational inertia about COM
+            KE_rot = 0.5 * I_com[None, :] * (world_angvel_batch ** 2)
+
             energy = (KE_trans + KE_rot).sum(-1)
 
         return energy
+
     def kinetic_energy(self, system_def, angles, angvel, shape=None):
         """Single configuration version"""
         return self.kinetic_energy_batch(system_def, angles.unsqueeze(0), angvel.unsqueeze(0), shape)[0]

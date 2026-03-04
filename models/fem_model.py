@@ -444,7 +444,7 @@ class FEMSystem:
         self.mesh = None
 
     @staticmethod
-    def construct(problem_name):
+    def construct(problem_name, config):
 
         system_def = {}
         system = FEMSystem()
@@ -467,7 +467,7 @@ class FEMSystem:
 
         if problem_name == 'bistable':
 
-            mesh = load_tri_mesh(os.path.join(".", "data", "longerCantileverP2"))
+            mesh = load_tri_mesh(os.path.join("..", "data", "longerCantileverP2"))
             mesh["Vrest"][:, 1] *= 1  # scale y-coordinate
             # Precompute mesh quantities (assume precompute_mesh now uses torch)
             mesh = precompute_mesh(mesh)
