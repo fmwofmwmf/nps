@@ -1,13 +1,12 @@
 {
     "logging": {
         "output_dir": "./experiments",
-        "experiment_name": "bar_train"
+        "experiment_name": "bar_platform"
     },
     "system": {
         "name": "Bar2D",
-        "problem_name": "linkage",
-        "joint_stiffness": 1e5,
-        "bar_lengths": [2, 1, 1]
+        "problem_name": "platform",
+        "joint_stiffness": 1e5
     },
     "subspace": {
         "dim": 1,

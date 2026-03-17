@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+from gradient_helpers import *
 class SmoothGradientBasisField(nn.Module):
     """
     Learn a smooth field of orthonormal bases over configuration space.
@@ -109,49 +109,3 @@ class SmoothGradientBasisField(nn.Module):
         return B_ortho.squeeze(0)  # (dim, k)
 
 
-def batch_gram_schmidt(V):
-    """
-    Differentiable, autograd-safe batch Gram-Schmidt.
-    Args:
-        V: (B, dim, k)
-    Returns:
-        U: (B, dim, k)
-    """
-    B, dim, k = V.shape
-    U_list = []
-
-    for i in range(k):
-        u_i = V[:, :, i]  # (B, dim)
-        for j, u_j in enumerate(U_list):
-            proj = (u_i * u_j).sum(dim=1, keepdim=True) * u_j
-            u_i = u_i - proj
-
-        norm = torch.sqrt((u_i ** 2).sum(dim=1, keepdim=True) + 1e-8)
-        u_i = u_i / norm
-        U_list.append(u_i)
-
-    # Stack along last dimension
-    U = torch.stack(U_list, dim=2)  # (B, dim, k)
-    return U
-
-
-
-# Alternative: Use QR decomposition (more stable)
-def batch_orthonormalize_qr(V):
-    """
-    More numerically stable orthonormalization using QR.
-
-    Args:
-        V: (B, dim, k) - batch of vectors
-
-    Returns:
-        Q: (B, dim, k) - orthonormal basis
-    """
-    B = V.shape[0]
-    Q_list = []
-
-    for i in range(B):
-        Q, R = torch.linalg.qr(V[i])  # V[i] is (dim, k)
-        Q_list.append(Q)
-
-    return torch.stack(Q_list, dim=0)  # (B, dim, k)

@@ -8,7 +8,7 @@ from networkx.algorithms.threshold import eigenvectors
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import pstats
 import matplotlib.pyplot as plt
-
+import torch.nn.functional as F
 import numpy as np
 import torch
 from gradients import *
@@ -21,7 +21,7 @@ from layers import SubspaceMLP
 from Args import Args
 from loss import *
 
-
+from gradient_helpers import *
 
 def initialize_single_bar_buffer_arc(
         system,
@@ -471,8 +471,6 @@ def sample_interpolated_batch(
 def sample_batch(
     config_buffer,
     pca_targets_buffer,
-    vectors_buffer,
-    values_buffer,
     B
 ):
 
@@ -480,7 +478,7 @@ def sample_batch(
     N, dim = config_buffer.shape
     idx = torch.randint(0, N, (B,), device=device)
 
-    return config_buffer[idx], pca_targets_buffer[idx], vectors_buffer[idx], values_buffer[idx]
+    return config_buffer[idx], pca_targets_buffer[idx]
 def grassmann_weighted_knn_interpolation(
     q_new,
     config_buffer,
@@ -544,12 +542,8 @@ def grassmann_weighted_knn_interpolation(
 
     return V_interp
 
-import torch
-
-
 def upsample_buffer_with_noise(
     config_buffer,
-    target_buffer,
     system,
     system_def,
     space,
@@ -626,13 +620,137 @@ def upsample_buffer_with_noise(
 
     return new_config_buffer, new_target_buffer, torch.cat(new_targets1, dim=0), torch.cat(new_targets2, dim=0)
 
+def compare_basis_schemes(
+    system,
+    system_def,
+    config_buffer,
+    space,
+    basis_fn_a,
+    basis_fn_b,
+    num_vel_samples=32,
+    vel_scale=1e-2,
+):
+
+    state_to_system = lambda system_def, z, space: z
+
+    captures_a = []
+    captures_b = []
+    update_sizes = []
+
+    for q0 in tqdm(config_buffer, desc="Comparing basis schemes"):
+
+        U_a = basis_fn_a(system, system_def, q0, space)
+        U_b = basis_fn_b(system, system_def, q0, space)
+
+        z_dots = vel_scale * torch.randn(num_vel_samples, *q0.shape, device=q0.device)
+
+        def single_step(z_dot):
+            q_new, _, _ = latent_step_newton_batch(
+                system,
+                system_def,
+                state_to_system,
+                q0,
+                z_dot,
+                space,
+            )
+            return q_new - q0
+
+        deltas = torch.vmap(single_step)(z_dots)
+
+        delta_norms = deltas.norm(dim=1) + 1e-12
+
+        proj_a = (U_a @ (U_a.T @ deltas.T)).T
+        proj_b = (U_b @ (U_b.T @ deltas.T)).T
+
+        capture_a = proj_a.norm(dim=1) / delta_norms
+        capture_b = proj_b.norm(dim=1) / delta_norms
+
+        captures_a.append(capture_a)
+        captures_b.append(capture_b)
+        update_sizes.append(delta_norms)
+
+    captures_a = torch.cat(captures_a).cpu().numpy()
+    captures_b = torch.cat(captures_b).cpu().numpy()
+    update_sizes = torch.cat(update_sizes).cpu().numpy()
+
+    # log size
+    log_sizes = update_sizes
+
+    # automatic bins
+    bins = np.histogram_bin_edges(log_sizes, bins="auto")
+
+    # bin indices
+    inds = np.digitize(log_sizes, bins) - 1
+
+    mean_a = []
+    mean_b = []
+    centers = []
+
+    for i in range(len(bins) - 1):
+        mask = inds == i
+        if mask.sum() == 0:
+            continue
+
+        mean_a.append(captures_a[mask].mean())
+        mean_b.append(captures_b[mask].mean())
+        centers.append((bins[i] + bins[i + 1]) / 2)
+
+    centers = np.array(centers)
+
+    # plot
+    plt.figure()
+    plt.plot(centers, mean_a, label="Basis A")
+    plt.plot(centers, mean_b, label="Basis B")
+
+    plt.xlabel("update size")
+    plt.ylabel("Average fraction captured")
+    plt.title("Basis Capture vs Update Magnitude")
+    plt.legend()
+
+    plt.show()
+
+    return captures_a.mean(), captures_b.mean()
+
+def compute_pca_bases_from_buffer(
+    system,
+    system_def,
+    config_buffer,
+    space,
+    num_samples=32,
+    vel_scale=1e-2,
+    k=2,
+):
+    bases = []
+
+    for q0 in tqdm(config_buffer, desc="Computing local PCA bases"):
+        # basis = local_pca_one_step_random(
+        #     system=system,
+        #     system_def=system_def,
+        #     q0=q0,
+        #     space=space,
+        #     num_samples=num_samples,
+        #     vel_scale=vel_scale,
+        #     k=k,
+        # )
+        basis = gradient_pca(
+            system=system,
+            system_def=system_def,
+            q=q0,
+            space=space,
+            add_gradient=False,
+            k=k,
+        )
+        bases.append(basis)
+
+    return torch.stack(bases)  # (N, dim, k)
+
 
 def train_gradient_basis_field(
         model,
         system,
         system_def,
         k,
-        n_iters_per_epoch=1000,
+        n_iters_per_epoch=2000,
         n_epochs=10,
         batch_size=512,
         space=None
@@ -640,76 +758,105 @@ def train_gradient_basis_field(
     """
     Main training loop with pre-computed configuration buffer.
     """
-    data = torch.load("dataset.pt")
+    target_path = os.path.join("precompute", f"{config.experiment_name}_{k}D_pca_targets.pt")
+    config_path = os.path.join("precompute", f"{config.experiment_name}_dataset.pt")
 
-    # === Initialize configuration buffer (do once at start) ===
-    # config_buffer = initialize_configuration_buffer(
-    #     system,
-    #     system_def,
-    #     integrator,
-    #     buffer_size=buffer_size,
-    #     n_steps_per_sample=500,
-    #     space=space
+    configs = torch.load(config_path)
+
+    config_buffer = configs["q"].to(device="cuda")
+    visualize_buffer_animation(
+        system=system,
+        system_def=system_def, config_buffer=config_buffer)
+    # test = config_buffer[8]
+    # basis = local_pca_one_step_random(
+    #     system=system,
+    #     system_def=system_def,
+    #     q0=test,
+    #     space=space,
+    #     num_samples=32,
+    #     vel_scale=1e-2,
+    #     k=2,
     # )
     #
-    # system_def["external_forces"]["torque_strength"] = torch.zeros(1)
-    # system_def["external_forces"]["torque_joint_idx"] = torch.zeros(1)
-
-    config_buffer = data["q"].to(device="cuda")
-    pca_targets_buffer = data["y"].to(device="cuda")
-
-    # visualize_buffer_animation(
+    # compare_integration_error(
     #     system,
     #     system_def,
-    #     config_buffer,
-    #     n_frames=buffer_size,
-    #     fps=5
+    #     test,
+    #     basis,
+    #     space,
+    #     n_samples=32,
+    #     vel_scale=1e-2,
     # )
 
-    # for sigma in [0, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2]:
-    #     diagnose_interpolation_quality(
-    #             config_buffer,
-    #             pca_targets_buffer,
-    #             system,
-    #             system_def,
-    #             space,
-    #             B=32,
-    #             k_neighbors=k,
-    #             noise_std=sigma,
-    #     )
-
+    basis_fn_a = lambda system, system_def, q0, space: local_pca_one_step_random(
+            system=system,
+            system_def=system_def,
+            q0=q0,
+            space=space,
+            num_samples=128*2,
+            vel_scale=.1,
+            k=k,
+        )
+    basis_fn_b = lambda system, system_def, q0, space: gradient_pca(
+        system=system,
+        system_def=system_def,
+        q=q0,
+        space=space,
+        add_gradient=False,
+        k=k)
+    # compare_basis_schemes(
+    #     system,
+    #     system_def,
+    #     config_buffer[:150],
+    #     space,
+    #     basis_fn_a,
+    #     basis_fn_b,
+    #     num_vel_samples=32*32,
+    #     vel_scale=1e-2,
+    # )
+    # basis_fn_a(system, system_def, q0, space)
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
 
     N = config_buffer.shape[0]
 
     print(config_buffer.shape)
-    print(pca_targets_buffer.shape)
 
-    pbar = tqdm(total=n_iters_per_epoch * n_epochs, desc="Training", unit="iter")
-    for epoch in range(n_epochs):
-        samples = 2
-        config_buffer_new, pca_targets_buffer_new, eigenvalues_buffer_new, eigenvectors_buffer_new = upsample_buffer_with_noise(
-            config_buffer,
-            pca_targets_buffer,
+    if os.path.exists(target_path):
+        pca_targets_buffer_new = torch.load(target_path)
+        print("loaded cached PCA targets")
+    else:
+        pca_targets_buffer_new = compute_pca_bases_from_buffer(
             system,
             system_def,
+            config_buffer,
             space,
-            k_pca=k,
-            samples_per_point=samples,
-            noise_std=0.1,
-            batch_size=1024,
+            num_samples=128*16,
+            vel_scale=1e-2,
+            k=k,
         )
-        print(pca_targets_buffer_new.shape, eigenvectors_buffer_new.shape, eigenvalues_buffer_new.shape)
-        print(pca_targets_buffer_new[3].shape, model(config_buffer_new[3]).shape)
-        print(subspace_distance_loss(pca_targets_buffer_new[3].unsqueeze(0), model(config_buffer_new[3]).unsqueeze(0)).mean())
+        torch.save(pca_targets_buffer_new, target_path)
+    print(pca_targets_buffer_new.shape, k)
+    pbar = tqdm(total=n_iters_per_epoch * n_epochs, desc="Training", unit="iter")
+    for epoch in range(n_epochs):
+        # samples = 2
+        # config_buffer_new, pca_targets_buffer_new, eigenvalues_buffer_new, eigenvectors_buffer_new = upsample_buffer_with_noise(
+        #     config_buffer,
+        #     system,
+        #     system_def,
+        #     space,
+        #     k_pca=k,
+        #     samples_per_point=samples,
+        #     noise_std=0.1,
+        #     batch_size=1024,
+        # )
+        # print(pca_targets_buffer_new.shape, eigenvectors_buffer_new.shape, eigenvalues_buffer_new.shape)
+        # print(pca_targets_buffer_new[3].shape, model(config_buffer[3]).shape)
+        # print(subspace_distance_loss(pca_targets_buffer_new[3].unsqueeze(0), model(config_buffer[3]).unsqueeze(0)).mean())
         for iteration in range(n_iters_per_epoch):
-
-            q_batch, V_target, Vec_target, Val_target = sample_batch(
-                        config_buffer_new,
+            q_batch, V_target = sample_batch(
+                        config_buffer,
                         pca_targets_buffer_new,
-                        eigenvectors_buffer_new,
-                        eigenvalues_buffer_new,
                         batch_size,
                 )
 
@@ -739,8 +886,8 @@ def train_gradient_basis_field(
                 'Subspace': f"{loss_subspace.item():.6f}",
             })
 
-        # Save final model
-    torch.save(model.state_dict(), "experiments/model_local.pt")
+    model_path = os.path.join("experiments", f"{config.experiment_name}_{k}D_model_local.pt")
+    torch.save(model.state_dict(), model_path)
 
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

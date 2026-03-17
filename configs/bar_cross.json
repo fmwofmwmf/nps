@@ -1,13 +1,13 @@
 {
     "logging": {
         "output_dir": "./experiments",
-        "experiment_name": "bar_train"
+        "experiment_name": "bar_scissor"
     },
     "system": {
         "name": "Bar2D",
-        "problem_name": "linkage",
+        "problem_name": "scissor_lift",
         "joint_stiffness": 1e5,
-        "bar_lengths": [2, 1, 1]
+        "n_stages": 3
     },
     "subspace": {
         "dim": 1,

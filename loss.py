@@ -300,36 +300,7 @@ def eigenvalue_weighted_subspace_loss(B_pred, B_target, eigenvalues, eigenvector
     loss = (weighted_diff_eigen ** 2).sum(dim=(1, 2))  # (B,)
 
     return loss
-def fake_gradient_pca(system, system_def, q, k, space, add_gradient=True):
-    dim = q.shape[0]
-    M_phys = system.physical_mass_matrix(system_def, q)
 
-    q_grad = q.clone().requires_grad_(True)
-    E = system.potential_energy_batch(system_def, q_grad.unsqueeze(0),
-                                      space.unsqueeze(0))[0]
-
-    # Compute gradient and Hessian
-    grad = torch.autograd.grad(E, q_grad, create_graph=True)[0]
-
-    # Hessian of potential energy
-    H = torch.zeros(dim, dim, device=q.device, dtype=q.dtype)
-    for i in range(dim):
-        H[i] = torch.autograd.grad(grad[i], q_grad, retain_graph=True)[0]
-
-    # Eigendecomposition
-    L = torch.linalg.cholesky(M_phys)
-    L_inv = torch.linalg.inv(L)
-    H_transformed = L_inv @ H @ L_inv.T
-    eigenvalues, eigenvectors_w = torch.linalg.eigh(H_transformed)
-
-    U = L_inv.T @ eigenvectors_w
-    # eigenvalues, eigenvectors = torch.linalg.eigh(H)
-
-    if add_gradient:
-        U = torch.cat((U[:, :k], grad.unsqueeze(1)), dim=1)
-    U, _ = torch.linalg.qr(U)
-
-    return U
 
 import torch
 from torch.func import hessian, vmap

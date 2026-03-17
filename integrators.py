@@ -1,4 +1,6 @@
 ﻿import torch
+from torch.func import jacrev as _jacrev
+from torch.func import grad, jacfwd, vmap
 
 def latent_step(system, system_def, state_to_system, z, z_dot, space, dt=0.01, gamma=0.05, mass=1.0):
     """
@@ -117,6 +119,70 @@ def latent_step_newton_cg(
     return z_new, z_dot_new, R.norm().item()
 
 
+from torch.func import grad, jacfwd, vmap
+
+def latent_step_newton_batch(system, system_def, state_to_system,
+                                   z, z_dot, space, dt=0.01, max_iters=10, tol=1e-6):
+    n_latent = z.shape[0]
+    I = torch.eye(n_latent, device=z.device, dtype=z.dtype)
+
+    # --- Mass matrix (computed once) ---
+    def q_of_z(z_):
+        return state_to_system(system_def, z_, space)
+
+    J = _jacrev(q_of_z)(z)                          # (n_phys, n_latent)
+    q = q_of_z(z)
+    M_phys = system.physical_mass_matrix(system_def, q)
+    M = J.T @ M_phys @ J                            # (n_latent, n_latent)
+    M_z_dot = M @ z_dot
+
+    # --- Energy / force / stiffness via torch.func ---
+    def energy_fn(z_):
+        q_ = state_to_system(system_def, z_, space)
+        return system.potential_energy_batch(
+            system_def, q_.unsqueeze(0), space.unsqueeze(0)
+        )[0]
+
+    neg_grad_energy = grad(lambda z_: -energy_fn(z_))  # F_z = -dE/dz
+    hess_neg_energy = jacfwd(neg_grad_energy)           # K  = d(F_z)/dz = -d²E/dz²
+
+    z_new = z.clone()
+    z_dot_new = z_dot.clone()
+    residual_norm = torch.tensor(float('inf'), device=z.device)
+
+    for _ in range(max_iters):
+        F_z = neg_grad_energy(z_new)          # (n_latent,)   — one reverse pass
+        K   = hess_neg_energy(z_new)          # (n_latent, n_latent) — fwd-over-rev
+        E   = energy_fn(z_new)
+
+        M_z_dot_new = M @ z_dot_new
+        R_v = M_z_dot_new - M_z_dot - dt * F_z
+        R_z = z_new - z - dt * z_dot_new
+
+        residual_norm = torch.cat([R_z, R_v]).norm()
+
+        lhs = torch.cat([
+            torch.cat([I,        -dt * I], dim=1),
+            torch.cat([-dt * K,  M      ], dim=1),
+        ], dim=0)
+
+        try:
+            delta = torch.linalg.solve(lhs, -torch.cat([R_z, R_v]))
+        except RuntimeError:
+            delta = torch.cat([-R_z, -R_v / M.diagonal().mean()])
+
+        delta_z, delta_v = delta[:n_latent], delta[n_latent:]
+
+        KE = 0.5 * z_dot_new @ M_z_dot_new
+        E0 = KE + E
+
+        alpha = 1 # line_search(E0, z_new, z_dot_new, delta_z, delta_v, M, F_z, system, system_def, space)
+
+        z_new = z_new + alpha * delta_z
+        z_dot_new = z_dot_new + alpha * delta_v
+
+    return z_new, z_dot_new, residual_norm
+
 def latent_step_newton(system, system_def, state_to_system, z, z_dot, space,
                        dt=0.01, max_iters=10, tol=1e-6):
     """
@@ -209,7 +275,7 @@ def latent_step_newton(system, system_def, state_to_system, z, z_dot, space,
         E0 = KE + PE
 
 
-        alpha = line_search(E0, z_new, z_dot_new, delta_z, delta_v, M, F_z, system, system_def, space)
+        alpha = 1 #line_search(E0, z_new, z_dot_new, delta_z, delta_v, M, F_z, system, system_def, space)
 
         # Accept step
         z_new = (z_new + alpha * delta_z).detach()
@@ -217,106 +283,119 @@ def latent_step_newton(system, system_def, state_to_system, z, z_dot, space,
 
     return z_new, z_dot_new, residual_norm.item()
 
-
-def gradient_basis_step_newton_new(system, system_def, model, q, q_dot, space,
-                                   dt=0.01, max_iters=10, tol=1e-6):
-    """
-    Implicit Euler with learned gradient basis.
-    Basis is updated at each Newton iteration.
-
-    Args:
-        system: Physics system
-        system_def: System definition
-        model: Gradient basis model (outputs basis at q)
-        q: positions (dim,)
-        q_dot: velocities (dim,)
-        space: space parameter
-        dt: timestep
-        max_iters: max Newton iterations
-        tol: convergence tolerance
-
-    Returns:
-        q_new, q_dot_new, residual_norm
-    """
-    dim = q.shape[0]
-
-    # Initial guess - start in full space
+def gradient_basis_step_newton_pos_only(
+    system, system_def, model, q, q_dot, space,
+    dt=0.01, max_iters=10, tol=1e-6
+):
     q_new = q.clone().detach()
-    q_dot_new = q_dot.clone().detach()
-
-    M_phys = system.physical_mass_matrix(system_def, q)
-
-
-    # Compute reduced mass matrix
+    residual_norm = torch.tensor(float("inf"))
 
     for iteration in range(max_iters):
-        # Compute energy, gradient, and Hessian at current position
-        q_new_grad = q_new.clone().requires_grad_(True)
-        E = system.potential_energy_batch(system_def, q_new_grad.unsqueeze(0),
-                                          space.unsqueeze(0))[0]
 
-        grad_full = torch.autograd.grad(E, q_new_grad, create_graph=True)[0]
-
-        U = model(q_new).squeeze(0)  # (dim, k)
-        # print(U.shape)
+        U = model(q_new).squeeze(0)
         k = U.shape[1]
 
-        M_reduced = U.T @ M_phys @ U  # (k, k)
+        M_phys = system.physical_mass_matrix(system_def, q_new)
+        M_reduced = U.T @ M_phys @ U
 
-        q_reduced = U.T @ q
-        q_dot_reduced = U.T @ q_dot
+        q_new_grad = q_new.requires_grad_(True)
 
-        q_reduced_new = U.T @ q_new
-        q_dot_reduced_new = U.T @ q_dot_new
+        E = system.potential_energy_batch(
+            system_def, q_new_grad.unsqueeze(0), space.unsqueeze(0)
+        )[0]
 
-        # Compute Hessian
-        H = torch.zeros(dim, dim, device=q.device, dtype=q.dtype)
-        for i in range(dim):
-            H[i] = torch.autograd.grad(grad_full[i], q_new_grad, retain_graph=True)[0]
+        grad_full = torch.autograd.grad(E, q_new_grad, create_graph=True)[0]
+        g_full = grad_full.detach()
 
-        # Forces and stiffness in full space
-        F_full = -grad_full
-        K_full = -H
+        # reduced Hessian
+        HU = torch.stack([
+            torch.autograd.grad(grad_full @ U[:, i], q_new_grad,
+                                retain_graph=(i < k - 1))[0]
+            for i in range(k)
+        ], dim=1)
 
-        # Project to reduced space using current basis U
-        F_reduced = U.T @ F_full
-        K_reduced = U.T @ K_full @ U
+        H_reduced = U.T @ HU
 
-        # print(f"Lost: {((K_full.norm() - K_reduced.norm())/K_full.norm()).item() * 100:.2f}%")
-        # Compute residuals in reduced space
-        R_v_reduced = M_reduced @ (q_dot_reduced_new - q_dot_reduced) - dt * F_reduced
-        R_q_reduced = q_reduced_new - q_reduced - dt * q_dot_reduced_new
+        g_reduced = U.T @ g_full
 
-        # Total residual norm
-        residual_norm = torch.cat([R_q_reduced, R_v_reduced]).norm()
+        # residual
+        R = M_reduced @ (U.T @ (q_new - q - dt * q_dot)) + dt**2 * g_reduced
 
+        residual_norm = R.norm()
         if residual_norm < tol:
             break
 
-        # Build Newton system in reduced space
+        lhs = M_reduced + dt**2 * H_reduced
+        delta_reduced = torch.linalg.solve(lhs, -R)
+
+        delta_q = U @ delta_reduced
+
+        q_new = (q_new + delta_q).detach()
+
+    # velocity recovered from position change
+    q_dot_new = (q_new - q) / dt
+
+    return q_new, q_dot_new, residual_norm.item()
+
+def gradient_basis_step_newton_new(system, system_def, model, q, q_dot, space,
+                                    dt=0.01, max_iters=10, tol=1e-6):
+    dim = q.shape[0]
+    q_new = q.clone().detach()
+    q_dot_new = q_dot.clone().detach()
+
+    residual_norm = torch.tensor(float('inf'))
+
+    for iteration in range(max_iters):
+        # Recompute basis and mass at current iterate
+        U = model(q_new).squeeze(0)                        # (dim, k)
+        # print(U.shape)
+        k = U.shape[1]
+        M_phys = system.physical_mass_matrix(system_def, q_new)
+        M_reduced = U.T @ M_phys @ U                      # (k, k)
+
+        # Energy, forces in full space
+        q_new_grad = q_new.requires_grad_(True)
+        E = system.potential_energy_batch(
+            system_def, q_new_grad.unsqueeze(0), space.unsqueeze(0)
+        )[0]
+        grad_full = torch.autograd.grad(E, q_new_grad, create_graph=True)[0]
+        F_full = -grad_full.detach()
+
+        # Reduced Hessian without forming full (dim, dim) matrix
+        HU = torch.stack([
+            torch.autograd.grad(grad_full @ U[:, i], q_new_grad,
+                                retain_graph=(i < k - 1))[0]
+            for i in range(k)
+        ], dim=1)                                           # (dim, k)
+        K_reduced = -U.T @ HU                              # (k, k)
+
+        # Residuals in full space, projected to reduced
+        R_q_full = q_new - q - dt * q_dot_new
+        R_v_full = M_phys @ (q_dot_new - q_dot) - dt * F_full
+        R_q_reduced = U.T @ R_q_full
+        R_v_reduced = U.T @ R_v_full
+
+        residual_norm = torch.cat([R_q_full, R_v_full]).norm()  # track full residual
+        if residual_norm < tol:
+            break
+
+        # Newton solve in reduced space
         I_k = torch.eye(k, device=q.device, dtype=q.dtype)
-        top_red = torch.cat([I_k, -dt * I_k], dim=1)
-        bottom_red = torch.cat([-dt * K_reduced, M_reduced], dim=1)
-        lhs_reduced = torch.cat([top_red, bottom_red], dim=0)
+        lhs = torch.cat([
+            torch.cat([I_k,        -dt * I_k  ], dim=1),
+            torch.cat([-dt * K_reduced, M_reduced], dim=1),
+        ], dim=0)
+        rhs = -torch.cat([R_q_reduced, R_v_reduced])
 
-        rhs_reduced = -torch.cat([R_q_reduced, R_v_reduced], dim=0)
-
-        delta_reduced = torch.linalg.solve(lhs_reduced, rhs_reduced)
-
-        delta_q_reduced = delta_reduced[:k]
-        delta_v_reduced = delta_reduced[k:]
-
-        # Lift delta to full space
-        delta_q_full = U @ delta_q_reduced
-        delta_v_full = U @ delta_v_reduced
+        delta_reduced = torch.linalg.solve(lhs, rhs)
+        delta_q_full = U @ delta_reduced[:k]
+        delta_v_full = U @ delta_reduced[k:]
 
         KE = 0.5 * q_dot_new @ M_phys @ q_dot_new
-        PE = E
-        E0 = KE + PE
+        E0 = KE + E.detach()
 
-        alpha = 1#line_search(E0, q_new, q_dot_new, delta_q_full, delta_v_full, M_phys, F_full, system, system_def, space)
+        alpha = 1 # line_search(E0, q_new, q_dot_new, delta_q_full, delta_v_full, M_phys, F_full, system, system_def, space)
 
-        # Accept step
         q_new = (q_new + alpha * delta_q_full).detach()
         q_dot_new = (q_dot_new + alpha * delta_v_full).detach()
 
@@ -342,157 +421,6 @@ def line_search(E0, q, q_dot, delta_q, delta_v, M_phys, F, system, system_def, s
 
     return alpha
 
-def gradient_basis_step_newton_new2(system, system_def, model, q, q_dot, space,
-                                   dt=0.01, max_iters=1, tol=1e-6, debug=False):
-    dim = q.shape[0]
-
-    U = model(q)
-
-    k = U.shape[1]
-    q_grad = q.clone().requires_grad_(True)
-
-    print(q_grad.shape, q_dot.shape)
-    E = (system.potential_energy_batch(system_def, q_grad.unsqueeze(0),
-                                      space.unsqueeze(0))[0] +
-         system.kinetic_energy_batch(system_def, q_grad.unsqueeze(0), q_dot.unsqueeze(0), space.unsqueeze(0))[0])
-
-    g = torch.autograd.grad(E, q_grad, create_graph=True)[0]
-
-    H = torch.zeros(dim, dim, device=q.device, dtype=q.dtype)
-    for i in range(dim):
-        H[i] = torch.autograd.grad(g[i], q_grad, retain_graph=True)[0]
-
-    H_squiggle = U.T @ H @ U
-    g_squiggle = U.T @ g
-
-    delta_q_squiggle = torch.linalg.solve(-H_squiggle, g_squiggle)
-    delta_q = U @ delta_q_squiggle
-
-    return q + delta_q, delta_q/dt, 0.0
-
-# def gradient_basis_step_newton_new(system, system_def, model, q, q_dot, space,
-#                                    dt=0.01, max_iters=1, tol=1e-6, debug=False):
-#     """
-#     Single Newton iteration comparing full-space update to reduced-basis update.
-#
-#     Shows how much of the full update is captured by the reduced basis.
-#     """
-#     dim = q.shape[0]
-#
-#     M_phys = system.physical_mass_matrix(system_def, q)
-#
-#     U = model(q)
-#
-#     k = U.shape[1]
-#     q_grad = q.clone().requires_grad_(True)
-#     E = system.potential_energy_batch(system_def, q_grad.unsqueeze(0),
-#                                       space.unsqueeze(0))[0]
-#
-#     grad = torch.autograd.grad(E, q_grad, create_graph=True)[0]
-#
-#     H = torch.zeros(dim, dim, device=q.device, dtype=q.dtype)
-#     for i in range(dim):
-#         H[i] = torch.autograd.grad(grad[i], q_grad, retain_graph=True)[0]
-#
-#     grad_full = torch.autograd.grad(E, q_grad, create_graph=True)[0]
-#     F_full = -grad_full
-#     K_full = -H
-#
-#     if debug:
-#         # === PART 2: Full-space Newton step ===
-#         print("\n--- FULL SPACE UPDATE ---")
-#
-#         # Compute forces
-#
-#
-#         # Full Newton system
-#         # [ I         -dt*I ] [delta_q  ]   = [-R_q]
-#         # [-dt*K   M        ] [delta_v  ]     [-R_v]
-#         R_v_full = M_phys @ (q_dot - q_dot) - dt * F_full  # Simplified: just -dt*F
-#         R_q_full = q - q - dt * q_dot  # Simplified: just -dt*q_dot
-#
-#         I_dim = torch.eye(dim, device=q.device, dtype=q.dtype)
-#         top = torch.cat([I_dim, -dt * I_dim], dim=1)
-#         bottom = torch.cat([-dt * K_full, M_phys], dim=1)
-#         lhs_full = torch.cat([top, bottom], dim=0)
-#
-#         rhs_full = -torch.cat([R_q_full, R_v_full], dim=0)
-#
-#         delta_full = torch.linalg.solve(lhs_full, rhs_full)
-#         delta_q_full = delta_full[:dim]
-#         delta_v_full = delta_full[dim:]
-#
-#         print(f"Full update magnitudes:")
-#         print(f"  |delta_q|: {delta_q_full.norm().item():.6e}")
-#         print(f"  |delta_v|: {delta_v_full.norm().item():.6e}")
-#
-#     # Project to reduced space
-#     q_reduced = U.T @ q
-#     q_dot_reduced = U.T @ q_dot
-#
-#     M_reduced = U.T @ M_phys @ U
-#     F_reduced = U.T @ F_full
-#     K_reduced = U.T @ K_full @ U
-#
-#     R_v_reduced = M_reduced @ (q_dot_reduced - q_dot_reduced) - dt * F_reduced
-#     R_q_reduced = q_reduced - q_reduced - dt * q_dot_reduced
-#
-#     I_k = torch.eye(k, device=q.device, dtype=q.dtype)
-#     top_red = torch.cat([I_k, -dt * I_k], dim=1)
-#     bottom_red = torch.cat([-dt * K_reduced, M_reduced], dim=1)
-#     lhs_reduced = torch.cat([top_red, bottom_red], dim=0)
-#
-#     rhs_reduced = -torch.cat([R_q_reduced, R_v_reduced], dim=0)
-#
-#     delta_reduced = torch.linalg.solve(lhs_reduced, rhs_reduced)
-#     delta_q_reduced = delta_reduced[:k]
-#     delta_v_reduced = delta_reduced[k:]
-#
-#     # Lift back to full space
-#     delta_q_reduced_lifted = U @ delta_q_reduced
-#     delta_v_reduced_lifted = U @ delta_v_reduced
-#
-#     if debug:
-#         # === PART 4: Projection analysis ===
-#         print("\n--- PROJECTION ANALYSIS ---")
-#
-#         # Project full update onto reduced basis
-#         delta_q_full_projected = U @ (U.T @ delta_q_full)
-#         delta_v_full_projected = U @ (U.T @ delta_v_full)
-#
-#         # Components lost
-#         delta_q_lost = delta_q_full - delta_q_full_projected
-#         delta_v_lost = delta_v_full - delta_v_full_projected
-#
-#         # Squared norms for proper fractions
-#         full_q_sq = delta_q_full.norm() ** 2
-#         captured_q_sq = delta_q_full_projected.norm() ** 2
-#
-#         full_v_sq = delta_v_full.norm() ** 2
-#         captured_v_sq = delta_v_full_projected.norm() ** 2
-#
-#         print(f"\nPosition update (delta_q):")
-#         print(f"  Full magnitude: {delta_q_full.norm().item():.6e}")
-#         print(f"  Fraction captured: {(captured_q_sq / full_q_sq * 100):.1f}%")
-#
-#         print(f"\nVelocity update (delta_v):")
-#         print(f"  Full magnitude: {delta_v_full.norm().item():.6e}")
-#         print(f"  Fraction captured: {(captured_v_sq / full_v_sq * 100):.1f}%")
-#
-#         # Check if reduced update matches projected full update
-#         print(f"\nConsistency check:")
-#         print(
-#             f"  |delta_q_reduced_lifted - delta_q_full_projected|: {(delta_q_reduced_lifted - delta_q_full_projected).norm().item():.6e}")
-#         print(
-#             f"  |delta_v_reduced_lifted - delta_v_full_projected|: {(delta_v_reduced_lifted - delta_v_full_projected).norm().item():.6e}")
-#         print(f"  (Should be near zero if projection is correct)")
-#
-#         print("=" * 60 + "\n")
-#
-#     q_new = q + delta_q_reduced_lifted
-#     q_dot_new = q_dot + delta_v_reduced_lifted
-#
-#     return q_new, q_dot_new, 0.0
 def gradient_basis_step_newton(system, system_def, model, q, q_dot, space,
                                    dt=0.01, max_iters=10, tol=1e-6):
     """

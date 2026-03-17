@@ -14,6 +14,7 @@ from gradients import *
 from integrators import *
 import layers
 import subspace
+from integrator_helpers import *
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa
 from matplotlib.animation import FuncAnimation
@@ -22,6 +23,7 @@ from config_utils import *
 from integrators import choose_integrator
 from energy_diagnostics import diagnose_energy_landscape
 from log_utils import save_frames_universal
+from gradient_helpers import *
 
 SRC_DIR = os.path.dirname(os.path.realpath(__file__))
 ROOT_DIR = os.path.join(SRC_DIR, "..")
@@ -42,19 +44,20 @@ def main():
     #########################################################################
     k = config.subspace_dim
 
-    # load subspace weights
-    network = SmoothGradientBasisField(system.dim, k, config["network"]["n_hidden_layers"], config["network"]["n_neurons"])
-    network.load_state_dict(torch.load("experiments/model_local.pt"))
+    if args.use_subspace:
+        network = SmoothGradientBasisField(system.dim, k, config["network"]["n_hidden_layers"], config["network"]["n_neurons"])
+        model_path = os.path.join("experiments", f"{config.experiment_name}_{k}D_model_local.pt")
+        network.load_state_dict(torch.load(model_path))
 
-    network.eval()
+        network.eval()
     def model_eval(q, log=False):
         if not log:
             return network.inference_recompute(system, system_def, q, space) if args.use_subspace else (
-                fake_gradient_pca(system, system_def, q, k, space))
-        bench = fake_gradient_pca(system, system_def, q, k, space)
+                gradient_pca(system, system_def, q, k, space))
+        bench = gradient_pca(system, system_def, q, k, space)
         predict = network.inference_recompute(system, system_def, q, space)
         # print(bench, predict)
-        if (log): print(f"Basis Error: {subspace_distance_loss(predict.unsqueeze(0), bench.unsqueeze(0)).mean() }")
+        if log: print(f"Basis Error: {subspace_distance_loss(predict.unsqueeze(0), bench.unsqueeze(0)).mean() }")
         #print((bench - predict).norm().item(), bench.norm().item())
         return predict if args.use_subspace else bench
 
@@ -67,10 +70,12 @@ def main():
 
     integrator = choose_integrator(args.integrator_name)
     int_state = {}
+    int_state_gt = {}
     ## State of the system
 
     # UI state
     run_sim = False
+    run_alt_sim = False
     reduced = False
     optimize = False
     show_gradient, show_pca, show_model = False, False, False
@@ -81,11 +86,19 @@ def main():
     # Set up state parameters
 
     def reset_state():
+        nonlocal int_state_gt
         int_state['q_t'] = system_def['init_pos']
         int_state['q_tm1'] = int_state['q_t']
         int_state['qdot_t'] = torch.zeros_like(int_state['q_t'])
+        int_state_gt['q_t'] = system_def['init_pos']
+        int_state_gt['q_tm1'] = int_state_gt['q_t']
+        int_state_gt['qdot_t'] = torch.zeros_like(int_state['q_t'])
 
         system.visualize(system_def, state_to_system(system_def, int_state['q_t'], space), space)
+        system.visualize(system_def, state_to_system(system_def, int_state_gt['q_t'], space), space,
+                         name_prefix="GT",
+                         offset=np.array(args.ground_truth_offset),
+                         main_color=(0.8, 0.5, 0.2))
 
     def state_to_system(system_def, state, space):
         return state
@@ -93,6 +106,7 @@ def main():
     ps.set_automatically_compute_scene_extents(False)
     reset_state()  # also creates initial viz
     system.visualize_set_nice_view(system_def, space)
+
     print(f"state_to_system dtype: {state_to_system(system_def, int_state['q_t'], space).dtype}")
 
     def eval_potential_energy(system_def, q, compare = False):
@@ -103,12 +117,6 @@ def main():
             bpot = system.potential_energy_batch(system_def, state_to_system(system_def, q, space).unsqueeze(0), space.view(1, space.shape[0]))
             return pot, bpot
         return pot
-
-    #########################################################################
-    ### Main loop, sim step, and UI
-    #########################################################################
-    energy_history = []
-    max_energy_history = 500
 
     def latent_kinetic_energy(system_def, z, z_dot, space):
         z = z.clone().detach().requires_grad_(True)
@@ -126,123 +134,19 @@ def main():
         # Use your existing KE
         return system.kinetic_energy(system_def, decode(z), q_dot)
 
-    def analyze_gradient_basis(system, system_def, model, q, space, k=10):
-        """
-        Analyze and print gradient, model prediction, and PCA basis at current configuration.
+    #########################################################################
+    ### Main loop, sim step, and UI
+    #########################################################################
+    energy_history = []
+    max_energy_history = 500
 
-        Args:
-            system: Physics system
-            system_def: System definition
-            model: Trained gradient basis field model
-            q: Current configuration
-            space: Space parameter
-            k: Number of basis vectors to analyze
-        """
-        dim = q.shape[0]
-
-        # 1. Compute actual gradient
-        q_grad = q.clone().requires_grad_(True)
-        E = system.potential_energy_batch(system_def, q_grad.unsqueeze(0), space.unsqueeze(0))[0]
-        grad_full = torch.autograd.grad(E, q_grad)[0]  # (dim,)
-
-        print("\n" + "=" * 60)
-        print("GRADIENT BASIS ANALYSIS")
-        print("=" * 60)
-
-        # 2. Get model's predicted basis
-        B_pred = model(q.unsqueeze(0)).squeeze(0)  # (dim, k)
-
-        print(f"\nActual gradient norm: {grad_full.norm().item():.6f}")
-        print(f"Gradient: {grad_full.detach().cpu().numpy()}")
-        print(f"Basis: {B_pred.detach().cpu().numpy()}")
-
-        cos_sim = (grad_full @ B_pred) / (grad_full.norm() * B_pred.norm())
-
-        print(f"Cos Sim: {cos_sim}")
-        print(f"Norm: {B_pred.norm(dim=0, keepdim=True)}")
-
-        # 3. Project gradient onto predicted basis
-        grad_coeffs_pred = B_pred.T @ grad_full  # (k,)
-        grad_reconstructed_pred = B_pred @ grad_coeffs_pred  # (dim,)
-        recon_error_pred = (grad_full - grad_reconstructed_pred).norm().item()
-
-        print(f"\n--- MODEL PREDICTION ---")
-        print(f"Predicted basis shape: {B_pred.shape}")
-        print(f"Gradient coefficients in predicted basis: {grad_coeffs_pred.detach().cpu().numpy()}")
-        print(f"Reconstruction error: {recon_error_pred:.6f}")
-        print(f"Explained variance: {1 - (recon_error_pred / grad_full.norm().item()) ** 2:.4f}")
-
-        # Check orthonormality
-        G = B_pred.T @ B_pred
-        ortho_error = (G - torch.eye(G.shape[0])).norm().item()
-        print(f"Orthonormality error (||B^T B - I||): {ortho_error:.6e}")
-
-        # 4. Compute PCA basis from local gradient samples
-        # Sample gradients near current configuration
-        n_samples = 1000
-        perturbations = torch.randn(n_samples, dim) * 0.01
-        q_samples = q.unsqueeze(0) + perturbations  # (n_samples, dim)
-
-        # Compute gradients at samples
-        gradients_list = []
-        for i in range(n_samples):
-            q_sample = q_samples[i].requires_grad_(True)
-            E_sample = system.potential_energy_batch(system_def, q_sample.unsqueeze(0), space.unsqueeze(0))[0]
-            grad_sample = torch.autograd.grad(E_sample, q_sample)[0]
-            gradients_list.append(grad_sample)
-
-        gradients_samples = torch.stack(gradients_list, dim=0)  # (n_samples, dim)
-
-        # Compute PCA
-        mean_grad = gradients_samples.mean(dim=0)
-        centered = gradients_samples - mean_grad
-        cov = (centered.T @ centered) / (n_samples - 1)
-        eigenvalues, eigenvectors = torch.linalg.eigh(cov)
-
-        # Sort descending
-        idx = torch.argsort(eigenvalues, descending=True)
-        eigenvalues = eigenvalues[idx]
-        eigenvectors = eigenvectors[:, idx]
-
-        V_pca = eigenvectors[:, :k]  # (dim, k)
-
-        print(f"\n--- PCA BASIS (from {n_samples} local samples) ---")
-        print(f"Top {k} eigenvalues: {eigenvalues[:k].detach().cpu().numpy()}")
-        print(f"Explained variance ratio: {(eigenvalues[:k].sum() / eigenvalues.sum()).item():.4f}")
-
-        # Project gradient onto PCA basis
-        grad_coeffs_pca = V_pca.T @ grad_full
-        grad_reconstructed_pca = V_pca @ grad_coeffs_pca
-        recon_error_pca = (grad_full - grad_reconstructed_pca).norm().item()
-
-        print(f"Gradient coefficients in PCA basis: {grad_coeffs_pca.detach().cpu().numpy()}")
-        print(f"Reconstruction error: {recon_error_pca:.6f}")
-
-        # 5. Compare predicted basis to PCA basis
-        # Subspace distance (order-invariant)
-        P_pred = B_pred @ B_pred.T
-        P_pca = V_pca @ V_pca.T
-        subspace_distance = (P_pred - P_pca).norm().item()
-
-        print(f"\n--- COMPARISON ---")
-        print(f"Subspace distance (||P_pred - P_pca||): {subspace_distance:.6f}")
-
-        # Grassmann distance
-        M = B_pred.T @ V_pca
-        grassmann_dist = torch.sqrt(k - (M ** 2).sum() + 1e-8).item()
-        print(f"Grassmann distance: {grassmann_dist:.6f}")
-
-        print("=" * 60 + "\n")
-
-    data = torch.load("dataset.pt")
-    targets_buffer = data["q"].to(device="cuda")
-    pca_targets_buffer = data["y"].to(device="cuda")
     frames = []
+    data = []
 
     def main_loop():
 
         nonlocal run_sim, update_viz_every, eval_energy_every, optimize, space, record_count, reduced
-        nonlocal show_gradient, show_pca, show_model
+        nonlocal show_gradient, show_pca, show_model, run_alt_sim
 
         new_space = []
         for i, (low, _, high) in enumerate(config["subspace"]["shape_space_range"]):
@@ -295,6 +199,7 @@ def main():
             reset_state()
         if psim.Button("reset KE"):
             int_state['qdot_t'] = torch.zeros_like(int_state['q_t'])
+            int_state_gt['qdot_t'] = torch.zeros_like(int_state['q_t'])
         if psim.Button("reset force"):
             ext_forces = system_def['external_forces']
             if 'torque_strength' in ext_forces:
@@ -306,13 +211,13 @@ def main():
 
         _, run_sim = psim.Checkbox("run simulation", run_sim)
         _, reduced_n = psim.Checkbox("reduced basis mode", reduced)
+        psim.Separator()
+        psim.TextUnformatted(f"Configuration difference: {torch.norm(int_state['q_t'] - int_state_gt['q_t'])}")
+        _, run_alt_sim = psim.Checkbox("Run GT Sim", run_alt_sim)
         if reduced_n and not reduced: print("Switched to REDUCED")
         if not reduced_n and reduced: print("Switched to FULL")
         reduced = reduced_n
         psim.SameLine()
-        # if run_sim or psim.Button("single step"):
-        # Number of steps per frame
-
 
         if psim.Button("Analyze Gradient Basis"):
             analyze_gradient_basis(system, system_def, model, int_state['q_t'], space, k=5)
@@ -351,23 +256,89 @@ def main():
         steps_per_frame = 1
         if run_sim or psim.Button("single step"):
             for _ in range(steps_per_frame):
-                dists = torch.norm(targets_buffer.cpu() - int_state['q_t'], dim=1)
-                min_dist, idx = dists.min(dim=0)
-                targ = fake_gradient_pca(system, system_def, int_state['q_t'], k, space)
-                basis_diff = subspace_distance_loss(model(int_state['q_t']).unsqueeze(0), targ.unsqueeze(0).cpu())[0]
-                if len(frames) % 15 == 0:
-                    print("Distance to nearest reference:", min_dist.item())
-                    print("Basis error wrt nearest reference:", basis_diff.item())
-                    model(int_state['q_t'], True)
-                frames.append((int_state['q_t'].detach().cpu(), fake_gradient_pca(system, system_def, int_state['q_t'], k, space).detach().cpu()))
+                # if len(frames) % 1500 == 0:
+                #     dists = torch.norm(targets_buffer.cpu() - int_state['q_t'], dim=1)
+                #     targ = fake_gradient_pca(system, system_def, int_state['q_t'], k, space)
+                #     min_dist, idx = dists.min(dim=0)
+                #     basis_diff = subspace_distance_loss(model(int_state['q_t']).unsqueeze(0), targ.unsqueeze(0).cpu())[0]
+                #     print("Distance to nearest reference:", min_dist.item())
+                #     print("Basis error wrt nearest reference:", basis_diff.item())
+                #     model(int_state['q_t'], True)
+                # if len(frames) % 5 == 1:
+                #     print("Integration analysis=====")
+                #     targ = local_pca_one_step_random(
+                #         system,
+                #         system_def,
+                #         int_state['q_t'],
+                #         space,
+                #         num_samples=128*128,
+                #         vel_scale=1e-2,
+                #         k=k,
+                #     )
+                #     targ = add_basis(targ, get_gradient(system, system_def, int_state['q_t'], space))
+                #     error1 = compare_integration_error_single(
+                #             system,
+                #             system_def,
+                #             int_state['q_t'],
+                #             targ,
+                #             space,
+                #             int_state['qdot_t'],
+                #     )
+                #     targ = gradient_pca(system, system_def, int_state['q_t'], k, space)
+                #     error2 = compare_integration_error_single(
+                #         system,
+                #         system_def,
+                #         int_state['q_t'],
+                #         targ,
+                #         space,
+                #         int_state['qdot_t'],
+                #     )
+                #     data.append([error1, error2])
+                frames.append(int_state['q_t'].detach().cpu())
+                # frames.append(1)
+                ppos, pvel = int_state['q_t'], int_state['qdot_t']
                 int_state['q_t'], int_state['qdot_t'], n = run_sim_step(system, system_def, model, state_to_system, int_state, space, reduced, integrator)
+                if run_alt_sim:
+                    pos_err, vel_err, pos_pct, vel_pct, bpos_pct, bvel_pct = compare_integration_error_basic(system,
+                                                                                                             system_def, ppos, pvel, int_state['q_t'], int_state['qdot_t'],
+                                                                                                             model(int_state['q_t']), space)
+                    vel_err_percent = vel_err / (int_state['qdot_t'].norm() + 1e-12) * 100
+
+                    # Display
+                    psim.TextUnformatted(f"Error: {pos_err:.5e} q, {vel_err:.5e} ({vel_err_percent:.3f}%) q_dot")
+                    psim.TextUnformatted(f"Error as percent of Delta: {pos_pct:.3f}% q, {vel_pct:.3f}% q_dot")
+                    psim.TextUnformatted(f"Basis span: {bpos_pct:.3f}% q, {bvel_pct:.3f}% q_dot")
+
+                    int_state_gt['q_t'], int_state_gt['qdot_t'], _ = run_sim_step(system, system_def, model, state_to_system,
+                                                                            int_state_gt, space, False, integrator)
 
             psim.LabelText("Newton Residual", f"{n:.3e}")
-            q_vis = state_to_system(system_def, int_state['q_t'], space)
-            pos = system.visualize(system_def, q_vis, space, return_transforms=True)
+
+            if run_alt_sim:
+                system.visualize(system_def, state_to_system(system_def, int_state_gt['q_t'], space), space, return_transforms=True,
+                                name_prefix="GT",
+                                offset=np.array([0.5, 2, 3]),
+                                main_color=(0.8, 0.5, 0.2),)
+                system.visualize(system_def, state_to_system(system_def, int_state_gt['q_t'], space), space,
+                                 name_prefix="GT",
+                                 offset=np.array(args.ground_truth_offset),
+                                 main_color=(0.8, 0.5, 0.2))
+            pos = system.visualize(system_def, state_to_system(system_def, int_state['q_t'], space), space, return_transforms=True)
 
     ps.set_user_callback(main_loop)
     ps.show()
+
+    a = [p[0] for p in data]
+    b = [p[1] for p in data]
+
+    plt.figure()
+    plt.plot(a, label="Perturb")
+    plt.plot(b, label="Hessian")
+    plt.xlabel("t")
+    plt.ylabel("% error")
+    plt.title("error")
+    plt.legend()
+    plt.show()
 
     # print("\n=== Subspace distances between subsequent frames ===")
     # for i in range(1, len(frames)):
@@ -377,17 +348,11 @@ def main():
     #     dist = subspace_distance_loss(V_prev.unsqueeze(0), V_curr.unsqueeze(0))[0]
     #
     #     print(f"{i - 1} -> {i}: {dist:.6e}")
-
-    input("press enter to save")
-    qs, ys = zip(*frames)
-    qs, ys = torch.stack(qs), torch.stack(ys)
-    torch.save({"q": qs, "y": ys}, "dataset.pt")
-    print(ys.shape)
+    path = os.path.join("precompute", f"{config.experiment_name}_dataset.pt")
+    input(f"press enter to save ({path}) {len(frames)} frames")
+    qs = torch.stack(frames)
+    torch.save({"q": qs}, path)
     return
-
-
-
-
 
 def run_sim_and_hash(
     n_frames,
@@ -432,7 +397,7 @@ def run_sim_and_hash(
     return sim_hash
 def run_sim_step(system, system_def, model, state_to_system, int_state, space, reduced, integrator):
     if reduced:
-        return gradient_basis_step_newton_new(system,
+        return gradient_basis_step_newton_pos_only(system,
                                               system_def,
                                               model,
                                               int_state['q_t'],
