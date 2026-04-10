@@ -1,0 +1,67 @@
+{
+    "logging": {
+        "output_dir": "./experiments",
+        "experiment_name": "bar_walker_lots"
+    },
+    "system": {
+        "name": "Bar2D",
+        "problem_name": "file_array",
+        "mechanism_name": "objects/klann_2leg.txt",
+        "joint_stiffness": 1e8,
+        "ground_truth_offset": [-15, 0, 0],
+        "gravity": -9,
+        "instances": [
+          {"x": 0, "y": -3, "rotation": 0, "flipped": false, "driver_bar": 0},
+          {"x": 0, "y": -2, "rotation": 0, "flipped": false, "driver_bar": 0},
+          {"x": 0, "y": -1, "rotation": 0, "flipped": false, "driver_bar": 0},
+          {"x": 0, "y": 0, "rotation": 0, "flipped": false, "driver_bar": 0},
+          {"x": 0, "y": 1, "rotation": 0, "flipped": false, "driver_bar": 0},
+          {"x": 0, "y": 2, "rotation": 0, "flipped": false, "driver_bar": 0},
+          {"x": 0, "y": 3, "rotation": 0, "flipped": false, "driver_bar": 0}
+        ]
+    },
+    "subspace": {
+        "dim": 1,
+        "bonus_dim": 1,
+        "shape_space_range": [
+
+        ],
+        "domain_type": "normal"
+    },
+    "collection": {
+        "dt": 0.01,
+        "samples": [
+            {"torque":  512, "n_steps": 100},
+            {"torque": -512, "n_steps": 100}
+        ]
+    },
+    "training": {
+        "n_train_iters": 200000,
+        "batch_size": 32,
+        "report_every": 1000,
+        "save_every": 5000,
+        "weight_expand": 1.0,
+        "weight_landscape": 1e-3,
+        "sigma_scale": 1.0,
+        "expand_type": "iso"
+    },
+    "optimizer": {
+        "otype": "Adam",
+        "learning_rate": 1e-4,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "epsilon": 1e-8,
+        "weight_decay": 0.0,
+        "lr_decay_every": 2000,
+        "lr_decay_frac": 0.5
+    },
+    "encoding": {
+        "otype": "Identity"
+    },
+    "network": {
+        "otype": "SubspaceMLP",
+        "activation": "Softplus",
+        "n_neurons": 128,
+        "n_hidden_layers": 3
+    }
+}

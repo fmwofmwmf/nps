@@ -90,8 +90,11 @@ def initialize_configuration_buffer(
     if os.path.exists(cache_path):
         print(f"Loading cached configuration buffer from {cache_path}...")
         config_buffer = torch.load(cache_path)
-        print(f"Loaded {config_buffer.shape[0]} configurations")
-        return config_buffer
+        if config_buffer.shape[1] != system.dim:
+            print(f"Cache dim mismatch ({config_buffer.shape[1]} vs {system.dim}), regenerating...")
+        else:
+            print(f"Loaded {config_buffer.shape[0]} configurations")
+            return config_buffer
 
     dim = system.dim
     device = system_def['init_pos'].device
@@ -750,6 +753,7 @@ def train_gradient_basis_field(
         system,
         system_def,
         k,
+        bonus_dim,
         n_iters_per_epoch=2000,
         n_epochs=10,
         batch_size=512,
@@ -758,7 +762,7 @@ def train_gradient_basis_field(
     """
     Main training loop with pre-computed configuration buffer.
     """
-    target_path = os.path.join("precompute", f"{config.experiment_name}_{k}D_pca_targets.pt")
+    target_path = os.path.join("precompute", f"{config.experiment_name}_pca_targets.pt")
     config_path = os.path.join("precompute", f"{config.experiment_name}_dataset.pt")
 
     configs = torch.load(config_path)
@@ -821,23 +825,43 @@ def train_gradient_basis_field(
     N = config_buffer.shape[0]
 
     print(config_buffer.shape)
-
+    if k > 10:
+        print("k too big")
     if os.path.exists(target_path):
-        pca_targets_buffer_new = torch.load(target_path)
-        print("loaded cached PCA targets")
+        pca_targets_full = torch.load(target_path)
+        if pca_targets_full.shape[0] != config_buffer.shape[0] or pca_targets_full.shape[1] != system.dim:
+            print(f"Cache shape mismatch (targets {tuple(pca_targets_full.shape)} vs config {tuple(config_buffer.shape)}), recomputing...")
+            os.remove(target_path)
+            pca_targets_full = compute_pca_bases_from_buffer(
+                system,
+                system_def,
+                config_buffer,
+                space,
+                num_samples=128*16,
+                vel_scale=1e-2,
+                k=min(system.dim, 10),
+            )
+            torch.save(pca_targets_full, target_path)
+        else:
+            print("loaded cached PCA targets")
     else:
-        pca_targets_buffer_new = compute_pca_bases_from_buffer(
+        pca_targets_full = compute_pca_bases_from_buffer(
             system,
             system_def,
             config_buffer,
             space,
             num_samples=128*16,
             vel_scale=1e-2,
-            k=k,
+            k=min(system.dim, 10),
         )
-        torch.save(pca_targets_buffer_new, target_path)
-    print(pca_targets_buffer_new.shape, k)
+        torch.save(pca_targets_full, target_path)
+    pca_targets_buffer_new = pca_targets_full[:, :, :k]
+    print(pca_targets_buffer_new, k)
     pbar = tqdm(total=n_iters_per_epoch * n_epochs, desc="Training", unit="iter")
+
+    loss_weights = 4 ** np.arange(k, dtype=np.float64)  # [1, 2, 4, 8, 16]
+    loss_weights = torch.tensor(loss_weights[::-1].copy())  # flip → [16, 8, 4, 2, 1]
+
     for epoch in range(n_epochs):
         # samples = 2
         # config_buffer_new, pca_targets_buffer_new, eigenvalues_buffer_new, eigenvectors_buffer_new = upsample_buffer_with_noise(
@@ -862,9 +886,10 @@ def train_gradient_basis_field(
 
             # === 4. Predict basis from model ===
             B_pred = model(q_batch)  # (B, dim, k)
+            # print(B_pred.shape)
 
             # === 5. Compute losses ===
-            loss_subspace = subspace_distance_loss(B_pred, V_target).mean()
+            loss_subspace = weighted_subspace_loss(B_pred, V_target, loss_weights).sum(dim=1).mean()
             #loss_ortho = orthonormality_loss(B_pred)
 
             # === 6. Combine losses ===
@@ -885,30 +910,39 @@ def train_gradient_basis_field(
                 'Loss': f"{total_loss.item():.6f}",
                 'Subspace': f"{loss_subspace.item():.6f}",
             })
-
-    model_path = os.path.join("experiments", f"{config.experiment_name}_{k}D_model_local.pt")
+    path = f"{config.experiment_name}_{k}D_{bonus_dim}P_model_local.pt" if bonus_dim > 0 else f"{config.experiment_name}_{k}D_model_local.pt"
+    model_path = os.path.join("experiments", path)
     torch.save(model.state_dict(), model_path)
 
-if __name__ == '__main__':
+def main(args=None):
+    if args is None:
+        from get_args import get_args
+        args = get_args()
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_default_device(device)
     torch.set_default_dtype(torch.float64)
-
-    args = Args()
 
     config = load_config(args.config_file)
 
     system, system_def = system_to_name(config)
     system.training = True
 
-    in_dim = system.dim + config.shape_space_dim
+    in_dim = system.dim
     k = config.subspace_dim
+    bonus_dim = config["subspace"]["bonus_dim"]
 
-    model = SmoothGradientBasisField(in_dim, k, config["network"]["n_hidden_layers"], config["network"]["n_neurons"])
+    model = SmoothGradientBasisField(in_dim, k + bonus_dim, config["network"]["n_hidden_layers"], config["network"]["n_neurons"])
 
     train_gradient_basis_field(
         model,
         system,
         system_def,
         k,
+        bonus_dim,
+        batch_size=128,
         space=torch.empty(0))
+
+
+if __name__ == '__main__':
+    main()

@@ -7,6 +7,7 @@
         "name": "Bar2D",
         "problem_name": "scissor_lift_piston",
         "joint_stiffness": 1e5,
+      "ground_truth_offset": [-5, 0, 0],
         "n_stages": 3
     },
     "subspace": {

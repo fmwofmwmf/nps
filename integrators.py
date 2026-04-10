@@ -1,6 +1,27 @@
-﻿import torch
-from torch.func import jacrev as _jacrev
+﻿import time
+import torch
+from torch.func import jacrev
 from torch.func import grad, jacfwd, vmap
+
+
+def _t():
+    """Wall-clock timer, GPU-safe: syncs CUDA if available."""
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    return time.perf_counter()
+
+
+def _print_profile(timings, n_iters):
+    total = sum(timings.values())
+    print(f"\n{'─'*55}")
+    print(f"  Integrator profile  ({n_iters} Newton iter{'s' if n_iters != 1 else ''})")
+    print(f"{'─'*55}")
+    for label, t in timings.items():
+        pct = 100 * t / total if total > 0 else 0
+        bar = '█' * int(pct / 2)
+        print(f"  {label:<28s} {t*1e3:7.2f} ms  {pct:5.1f}%  {bar}")
+    print(f"  {'TOTAL':<28s} {total*1e3:7.2f} ms")
+    print(f"{'─'*55}\n")
 
 def latent_step(system, system_def, state_to_system, z, z_dot, space, dt=0.01, gamma=0.05, mass=1.0):
     """
@@ -176,65 +197,63 @@ def latent_step_newton_batch(system, system_def, state_to_system,
         KE = 0.5 * z_dot_new @ M_z_dot_new
         E0 = KE + E
 
-        alpha = 1 # line_search(E0, z_new, z_dot_new, delta_z, delta_v, M, F_z, system, system_def, space)
+        alpha = line_search(E0, z_new, z_dot_new, delta_z, delta_v, M, F_z, system, system_def, space)
 
         z_new = z_new + alpha * delta_z
         z_dot_new = z_dot_new + alpha * delta_v
 
     return z_new, z_dot_new, residual_norm
 
+
 def latent_step_newton(system, system_def, state_to_system, z, z_dot, space,
-                       dt=0.01, max_iters=10, tol=1e-6):
-    """
-    Fully physically accurate latent-space implicit Euler step.
-
-    Args:
-        system: Physical system object (needs kinetic_energy, mass_matrix, potential_energy, etc.)
-        system_def: System definition
-        state_to_system: Function mapping latent z -> physical q
-        z: latent positions (n_latent,)
-        z_dot: latent velocities (n_latent,)
-        space: optional extra space info for system
-        dt: timestep
-        max_iters: max Newton iterations
-        tol: convergence tolerance (residual norm)
-
-    Returns:
-        z_new: updated latent positions
-        z_dot_new: updated latent velocities
-        residual_norm: final residual norm
-    """
+                             dt=0.01, max_iters=10, tol=1e-6, pca_k=0, profile=False):
     n_latent = z.shape[0]
+    device, dtype = z.device, z.dtype
 
-    # Initial guess: explicit Euler
     z_new = z.clone().detach()
     z_dot_new = z_dot.clone().detach()
 
-    # Compute mass matrix: M = J^T M_phys J
-    q = state_to_system(system_def, z, space)  # physical config
-    J = torch.autograd.functional.jacobian(
-        lambda z_: state_to_system(system_def, z_, space), z
-    )  # shape (n_phys, n_latent)
-    # print(J.shape)
-    M_phys = system.physical_mass_matrix(system_def, q)  # shape (n_phys, n_phys)
-    M = J.T @ M_phys @ J  # shape (n_latent, n_latent)
+    timings = {"mass_jacobian": 0.0, "energy_force": 0.0,
+               "stiffness": 0.0, "newton_solve": 0.0}
+    n_iters = 0
+
+    # Compute mass matrix
+    t0 = _t()
+    q = state_to_system(system_def, z, space)
+    J = jacrev(lambda z_: state_to_system(system_def, z_, space))(z)
+    M_phys = system.physical_mass_matrix(system_def, q)
+    M = J.T @ M_phys @ J
+    timings["mass_jacobian"] += _t() - t0
+
+    def energy_fn(q_):
+        return system.potential_energy_batch(system_def, q_.unsqueeze(0),
+                                             space.unsqueeze(0))[0]
 
     for iteration in range(max_iters):
-        # Compute forces at current Newton iterate
-        z_new_grad = z_new.clone().requires_grad_(True)
-        q_new = state_to_system(system_def, z_new_grad, space)
-        E = system.potential_energy_batch(system_def, q_new.unsqueeze(0),
-                                          space.unsqueeze(0))[0]
-        F_z = -torch.autograd.grad(E, z_new_grad)[0]  # latent force
+        n_iters += 1
 
-        # Compute stiffness matrix K = dF/dz
+        # Current q
+        q_new = state_to_system(system_def, z_new, space)
+
+        # Force via single backward pass
+        t0 = _t()
+        z_new_grad = z_new.clone().requires_grad_(True)
+        q_grad = state_to_system(system_def, z_new_grad, space)
+        E = system.potential_energy_batch(system_def, q_grad.unsqueeze(0),
+                                          space.unsqueeze(0))[0]
+        F_z = -torch.autograd.grad(E, z_new_grad)[0]
+        timings["energy_force"] += _t() - t0
+
+        # Stiffness via jacrev
+        t0 = _t()
         def force_fn(z_):
             q_ = state_to_system(system_def, z_, space)
             E_ = system.potential_energy_batch(system_def, q_.unsqueeze(0),
                                                space.unsqueeze(0))[0]
             return -torch.autograd.grad(E_, z_, create_graph=True)[0]
 
-        K = torch.autograd.functional.jacobian(force_fn, z_new)  # (n_latent, n_latent)
+        K = jacrev(force_fn)(z_new)
+        timings["stiffness"] += _t() - t0
 
         # Implicit Euler residuals
         R_v = M @ (z_dot_new - z_dot) - dt * F_z
@@ -244,98 +263,249 @@ def latent_step_newton(system, system_def, state_to_system, z, z_dot, space,
         if residual_norm < tol:
             break
 
-        # Build full Newton system
-        # [ I         -dt*I ] [dz]   = [-R_z]
-        # [-dt*K   M + dt*γ*M] [dv]   = [-R_v]
-        I = torch.eye(n_latent, device=z.device, dtype=z.dtype)
+        # Newton system
+        t0 = _t()
+        I = torch.eye(n_latent, device=device, dtype=dtype)
         top = torch.cat([I, -dt * I], dim=1)
         bottom = torch.cat([-dt * K, M], dim=1)
-        lhs = torch.cat([top, bottom], dim=0)  # (2n_latent, 2n_latent)
-
+        lhs = torch.cat([top, bottom], dim=0)
         rhs = -torch.cat([R_z, R_v], dim=0)
 
-        # Solve Newton system
         try:
             delta = torch.linalg.solve(lhs, rhs)
         except RuntimeError:
-            print("something really bad")
-            # fallback: damped gradient
-            delta = torch.cat([
-                -R_z,
-                -R_v / M.diagonal().mean()
-            ])
+            delta = torch.cat([-R_z, -R_v / M.diagonal().mean()])
+        timings["newton_solve"] += _t() - t0
 
         delta_z = delta[:n_latent]
         delta_v = delta[n_latent:]
 
-        KE = 0.5 * z_dot_new @ M @ z_dot_new
-        PE = system.potential_energy_batch(system_def,
-                                           state_to_system(system_def, z_new, space).unsqueeze(0),
-                                           space.unsqueeze(0))[0]
-        E0 = KE + PE
+        # =========================================================
+        # DEBUG: Analyze delta_q alignment with PCA basis
+        # =========================================================
 
+        if pca_k > 0:
+            # Map delta_z to full space delta_q
+            J_new = jacrev(lambda z_: state_to_system(system_def, z_, space))(z_new)
+            delta_q = J_new @ delta_z
 
-        alpha = 1 #line_search(E0, z_new, z_dot_new, delta_z, delta_v, M, F_z, system, system_def, space)
+            # Get gradient in full space
+            with torch.no_grad():
+                g_full = grad(energy_fn)(q_new)
 
-        # Accept step
-        z_new = (z_new + alpha * delta_z).detach()
-        z_dot_new = (z_dot_new + alpha * delta_v).detach()
+            g_norm = g_full.norm()
+            g_dir = g_full / (g_norm + 1e-10)
 
+            # Project out gradient from delta_q
+            delta_q_grad_component = (delta_q @ g_dir) * g_dir
+            delta_q_no_grad = delta_q - delta_q_grad_component
+
+            # Get PCA basis (no gradient added)
+            with torch.no_grad():
+                H_pca = jacrev(grad(energy_fn))(q_new)
+                eigenvalues, eigenvectors = torch.linalg.eigh(H_pca)
+                U_pca = eigenvectors[:, :pca_k]
+
+            # Compute alignment of delta_q with orthogonalized basis
+            delta_q_norm = delta_q.norm()
+            if delta_q_norm > 1e-10:
+                delta_q_dir = delta_q / delta_q_norm
+
+                # Orthogonalize: gradient first, then PCA modes
+                U_full = torch.cat([g_dir.unsqueeze(1), U_pca], dim=1)
+                U_orth, _ = torch.linalg.qr(U_full)  # (dim, 1 + pca_k)
+
+                alignments_sq = (U_orth.T @ delta_q_dir) ** 2
+            else:
+                alignments_sq = torch.zeros(1 + pca_k, device=device, dtype=dtype)
+
+            total_captured = alignments_sq.sum().item()
+            print(f"Norm: {delta_q_norm}")
+            print(f"\nPCA eigenvalues (lowest {pca_k}): {[f'{e:.3e}' for e in eigenvalues[:pca_k].tolist()]}")
+            print(f"\nAlignment² with orthogonalized basis:")
+            print(f"  grad dir: {alignments_sq[0].item():.4f} {'█' * int(alignments_sq[0].item() * 50)}")
+            for i in range(pca_k):
+                a = alignments_sq[i + 1].item()
+                bar = '█' * int(a * 50)
+                print(f"  mode {i:2d} (λ={eigenvalues[i].item():+.3e}): {a:.4f} {bar}")
+            print(f"\n  Total captured: {total_captured:.4f} ({100 * total_captured:.1f}%)")
+            print(f"  Residual: {1 - total_captured:.4f} ({100 * (1 - total_captured):.1f}%)")
+
+        # =========================================================
+
+        z_new = (z_new + delta_z).detach()
+        z_dot_new = (z_dot_new + delta_v).detach()
+
+    if profile:
+        _print_profile(timings, n_iters)
     return z_new, z_dot_new, residual_norm.item()
 
+
+from torch.func import grad, jvp
+
+def _basis_and_mass(model, system, system_def, q, g):
+    """Compute basis (with gradient direction) and reduced mass matrix.
+    g: full-space energy gradient (dim,), pre-computed by the caller."""
+    with torch.no_grad():
+        U = model(q, g)   # model_eval(q, g) → network.inference(q, g) → (dim, k+1)
+        M_phys = system.physical_mass_matrix(system_def, q)
+        M_reduced = U.T @ M_phys @ U
+    return U, M_reduced
+
+@torch.inference_mode()
+def _newton_linalg(M_reduced, H_reduced, g_reduced, disp_reduced, dt2):
+    """Reduced-space linear solve — pure linear algebra, no grad."""
+    R = M_reduced @ disp_reduced + dt2 * g_reduced
+    lhs = M_reduced + dt2 * H_reduced
+    delta_reduced = torch.linalg.solve(lhs, -R)
+    return R, delta_reduced
+
+@torch.inference_mode()
+def _line_search_residual(U_model, M_reduced, q_trial, q, q_dot, g_r_trial, dt, dt2):
+    """Evaluate Newton residual at trial point — g_r_trial is already reduced (k,)."""
+    disp_trial = U_model.T @ (q_trial - q - dt * q_dot)
+    return M_reduced @ disp_trial + dt2 * g_r_trial
+
+
+def _energy_for_newton(system, system_def, q_grad):
+    """Non-gravity energy for Newton solve — uses cubature if present in system_def."""
+    cubature = system_def.get('cubature')
+    if cubature is not None:
+        return system.potential_energy_cubature_batch(
+            system_def, q_grad.unsqueeze(0), cubature
+        )[0]
+    return system.energy_springs_batch(system_def, q_grad.unsqueeze(0))[0]
+
+
 def gradient_basis_step_newton_pos_only(
-    system, system_def, model, q, q_dot, space,
-    dt=0.01, max_iters=10, tol=1e-6
+        system, system_def, model, q, q_dot, space,
+        dt=0.01, max_iters=20, tol=1e-6, profile=False
 ):
+    """Implicit Euler in the reduced basis (rolling-frame Newton).
+
+    The basis U is recomputed at the CURRENT Newton iterate q_new each
+    iteration, so the projected equation is self-consistent:
+        M_r(q*) U(q*)^T (q* - q - dt qdot) + dt^2 U(q*)^T g(q*) = 0
+    """
     q_new = q.clone().detach()
-    residual_norm = torch.tensor(float("inf"))
+    dt2 = dt * dt
+
+    residual_norm = float("inf")
+
+    timings = {"basis_model": 0.0, "energy_grad": 0.0,
+               "hessian_HU": 0.0, "newton_solve": 0.0, "line_search": 0.0}
+    n_iters = 0
+
+    # Gravity gradient is constant — precompute once.
+    g_grav = system.gravity_gradient(system_def, q)
+
+    sparse_info = system_def.get('cubature_sparse')
+    if sparse_info is not None:
+        dof_idx = sparse_info['dof_indices'].to(q_new.device)
 
     for iteration in range(max_iters):
+        n_iters += 1
 
-        U = model(q_new).squeeze(0)
-        k = U.shape[1]
+        # --- Full-space gradient at q_new (for basis construction) ---
+        t0 = _t()
+        if sparse_info is not None:
+            #print(sparse_info)
+            # Sparse: differentiate only active DOFs, scatter back to full space.
+            with torch.enable_grad():
+                q_active_g = q_new[dof_idx].clone().requires_grad_(True)
+                E_g = system.energy_cubature_sparse(system_def, q_active_g, sparse_info)
+                g_sparse = torch.autograd.grad(E_g, q_active_g)[0].detach()
+            g_spr = torch.zeros_like(q_new)
+            g_spr[dof_idx] = g_sparse
+        else:
+            with torch.enable_grad():
+                q_g = q_new.clone().requires_grad_(True)
+                E_g = _energy_for_newton(system, system_def, q_g)
+                g_spr = torch.autograd.grad(E_g, q_g)[0].detach()
+        g_total = g_spr + g_grav
+        timings["energy_grad"] += _t() - t0
 
-        M_phys = system.physical_mass_matrix(system_def, q_new)
-        M_reduced = U.T @ M_phys @ U
+        # --- Recompute basis at CURRENT iterate (rolling frame) ---
+        t0 = _t()
+        U_model, M_reduced = _basis_and_mass(model, system, system_def, q_new, g_total)
+        k = U_model.shape[1]
+        if sparse_info is not None:
+            U_cub = U_model[dof_idx, :]
+        timings["basis_model"] += _t() - t0
 
-        q_new_grad = q_new.requires_grad_(True)
-
-        E = system.potential_energy_batch(
-            system_def, q_new_grad.unsqueeze(0), space.unsqueeze(0)
-        )[0]
-
-        grad_full = torch.autograd.grad(E, q_new_grad, create_graph=True)[0]
-        g_full = grad_full.detach()
-
-        # reduced Hessian
-        HU = torch.stack([
-            torch.autograd.grad(grad_full @ U[:, i], q_new_grad,
-                                retain_graph=(i < k - 1))[0]
+        # --- Reduced gradient + Hessian via s-parameterisation ---
+        t0 = _t()
+        s = torch.zeros(k, requires_grad=True)
+        if sparse_info is not None:
+            q_act = q_new[dof_idx] + U_cub @ s
+            E = system.energy_cubature_sparse(system_def, q_act, sparse_info)
+        else:
+            E = _energy_for_newton(system, system_def, q_new + U_model @ s)
+        E_current = E.detach() + (g_grav * q_new).sum()
+        g_r_sp = torch.autograd.grad(E, s, create_graph=True)[0]
+        g_reduced = g_r_sp.detach() + U_model.T @ g_grav
+        H_reduced = torch.stack([
+            torch.autograd.grad(g_r_sp[i], s,
+                                retain_graph=(i < k - 1), create_graph=False)[0]
             for i in range(k)
-        ], dim=1)
+        ], dim=0).detach()
+        #print(H_reduced.shape)
+        timings["hessian_HU"] += _t() - t0
 
-        H_reduced = U.T @ HU
+        disp_reduced = U_model.T @ (q_new - q - dt * q_dot)
 
-        g_reduced = U.T @ g_full
+        t0 = _t()
+        R, delta_reduced = _newton_linalg(M_reduced, H_reduced, g_reduced, disp_reduced, dt2)
+        residual_norm = R.norm().item()
+        timings["newton_solve"] += _t() - t0
 
-        # residual
-        R = M_reduced @ (U.T @ (q_new - q - dt * q_dot)) + dt**2 * g_reduced
-
-        residual_norm = R.norm()
         if residual_norm < tol:
             break
 
-        lhs = M_reduced + dt**2 * H_reduced
-        delta_reduced = torch.linalg.solve(lhs, -R)
+        delta_q = (U_model @ delta_reduced).detach()
 
-        delta_q = U @ delta_reduced
+        # --- line search (energy decrease) ---
+        t0 = _t()
+        # alpha = 1.0
+        # for _ in range(5):
+        #     q_trial = (q_new + alpha * delta_q).detach()
+        #     with torch.no_grad():
+        #         if sparse_info is not None:
+        #             E_trial = system.energy_cubature_sparse(system_def, q_trial[dof_idx], sparse_info)
+        #         else:
+        #             E_trial = _energy_for_newton(system, system_def, q_trial)
+        #         E_trial = E_trial + (g_grav * q_trial).sum()
+        #     if E_trial.item() < E_current.item():
+        #         break
+        #     alpha *= 0.5
+        # timings["line_search"] += _t() - t0
 
-        q_new = (q_new + delta_q).detach()
+        # --- line search (residual decrease) --- [old version]
+        alpha = 1.0
+        for _ in range(5):
+            q_trial = (q_new + alpha * delta_q).detach()
+            s_t = torch.zeros(k, requires_grad=True)
+            if sparse_info is not None:
+                q_act_t = q_trial[dof_idx] + U_cub @ s_t
+                E_t = system.energy_cubature_sparse(system_def, q_act_t, sparse_info)
+            else:
+                E_t = _energy_for_newton(system, system_def, q_trial + U_model @ s_t)
+            g_r_trial = torch.autograd.grad(E_t, s_t)[0].detach() + U_model.T @ g_grav
+            R_trial = _line_search_residual(U_model, M_reduced, q_trial, q, q_dot, g_r_trial, dt, dt2)
+            if R_trial.norm().item() < residual_norm:
+                break
+            alpha *= 0.5
+        timings["line_search"] += _t() - t0
 
-    # velocity recovered from position change
-    q_dot_new = (q_new - q) / dt
+        q_new = (q_new + alpha * delta_q).detach()
 
-    return q_new, q_dot_new, residual_norm.item()
+    if profile:
+        _print_profile(timings, n_iters)
+
+    with torch.inference_mode():
+        q_dot_new = (q_new - q) / dt
+
+    return q_new, q_dot_new, residual_norm
 
 def gradient_basis_step_newton_new(system, system_def, model, q, q_dot, space,
                                     dt=0.01, max_iters=10, tol=1e-6):

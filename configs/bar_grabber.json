@@ -1,13 +1,14 @@
 {
     "logging": {
         "output_dir": "./experiments",
-        "experiment_name": "bar_platform"
+        "experiment_name": "bar_grabber"
     },
     "system": {
         "name": "Bar2D",
-        "problem_name": "platform",
+        "problem_name": "grabber",
         "joint_stiffness": 1e5,
-        "ground_truth_offset": [-3, 0, 0]
+        "ground_truth_offset": [-5, 0, 0],
+        "n_stages": 3
     },
     "subspace": {
         "dim": 1,

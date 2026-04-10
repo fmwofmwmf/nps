@@ -1,20 +1,28 @@
 {
     "logging": {
         "output_dir": "./experiments",
-        "experiment_name": "bar_platform"
+        "experiment_name": "bar_walker"
     },
     "system": {
         "name": "Bar2D",
-        "problem_name": "platform",
+        "problem_name": "file",
+        "mechanism_name": "objects/guy.txt",
         "joint_stiffness": 1e5,
-        "ground_truth_offset": [-3, 0, 0]
+        "ground_truth_offset": [-5, 0, 0]
     },
     "subspace": {
-        "dim": 1,
+        "dim": 2,
         "shape_space_range": [
 
         ],
         "domain_type": "normal"
+    },
+    "collection": {
+        "dt": 0.01,
+        "samples": [
+            {"torque":  512, "n_steps": 100},
+            {"torque": -512, "n_steps": 100}
+        ]
     },
     "training": {
         "n_train_iters": 200000,

@@ -1,5 +1,8 @@
+import time
+
 import torch
 from integrators import *
+from torch.func import jacrev, grad
 
 def batch_gram_schmidt(V):
     """
@@ -207,6 +210,7 @@ def compare_integration_error_basic(system, system_def, q, q_dot, q1, q_dot1, ba
         q,
         q_dot,
         space,
+        dt=0.01
     )
 
     # Compute errors against reference
@@ -230,35 +234,25 @@ def compare_integration_error_basic(system, system_def, q, q_dot, q1, q_dot1, ba
 
 def gradient_pca(system, system_def, q, k, space, add_gradient=True):
     dim = q.shape[0]
-    M_phys = system.physical_mass_matrix(system_def, q)
+    device, dtype = q.device, q.dtype
 
-    q_grad = q.clone().requires_grad_(True)
-    E = system.potential_energy_batch(system_def, q_grad.unsqueeze(0),
-                                      space.unsqueeze(0))[0]
+    def energy_fn(q_):
+        return system.potential_energy_batch(system_def, q_.unsqueeze(0),
+                                             space.unsqueeze(0))[0]
 
-    # Compute gradient and Hessian
-    grad = torch.autograd.grad(E, q_grad, create_graph=True)[0]
+    with torch.no_grad():
+        g = grad(energy_fn)(q)
+        H = jacrev(grad(energy_fn))(q)
 
-    # Hessian of potential energy
-    H = torch.zeros(dim, dim, device=q.device, dtype=q.dtype)
-    for i in range(dim):
-        H[i] = torch.autograd.grad(grad[i], q_grad, retain_graph=True)[0]
+        eigenvalues, eigenvectors = torch.linalg.eigh(H)
+        U = eigenvectors[:, :k]
 
-    # Eigendecomposition
-    L = torch.linalg.cholesky(M_phys)
-    L_inv = torch.linalg.inv(L)
-    H_transformed = L_inv @ H @ L_inv.T
-    eigenvalues, eigenvectors_w = torch.linalg.eigh(H_transformed)
-
-    U = L_inv.T @ eigenvectors_w
-    # eigenvalues, eigenvectors = torch.linalg.eigh(H)
-    U = U[:, :k]
-
-    if add_gradient:
-        U = torch.cat((U, grad.unsqueeze(1)), dim=1)
-    U, _ = torch.linalg.qr(U)
+        if add_gradient:
+            U = torch.cat((U, g.unsqueeze(1)), dim=1)
+            U, _ = torch.linalg.qr(U)
 
     return U
+
 def local_pca_one_step_random(
     system,
     system_def,

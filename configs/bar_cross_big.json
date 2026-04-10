@@ -7,10 +7,13 @@
         "name": "Bar2D",
         "problem_name": "scissor_lift",
         "joint_stiffness": 1e5,
-        "n_stages": 8
+        "ground_truth_offset": [-3, 0, 0],
+        "n_stages": 8,
+        "symmetric": true,
+        "horse_weight": 5
     },
     "subspace": {
-        "dim": 1,
+        "dim": 2,
         "shape_space_range": [
 
         ],

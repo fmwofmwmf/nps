@@ -259,6 +259,31 @@ def subspace_distance_loss(B_pred, B_target):
 
     return loss
 
+def weighted_subspace_loss(B_pred, B_target, weights):
+    """
+    B_pred: (B, dim, k_pred)
+    B_target: (B, dim, k_target)
+    weights: (k_target,) or (B, k_target)
+    """
+    B, dim, k_pred = B_pred.shape
+    _, _, k_target = B_target.shape
+
+    if weights.dim() == 1:
+        weights = weights.unsqueeze(0).expand(B, k_target)  # (B, k_target)
+
+    # Avoid materializing (B, dim, dim) projection matrix.
+    # P_pred @ B_target = B_pred @ (B_pred^T @ B_target)
+    # B_pred^T @ B_target: (B, k_pred, k_target)  — small
+    coeffs = torch.bmm(B_pred.transpose(1, 2), B_target)  # (B, k_pred, k_target)
+    residuals = B_target - torch.bmm(B_pred, coeffs)  # (B, dim, k_target)
+
+    # squared norms per target vector
+    sq_norms = (residuals ** 2).sum(dim=1)  # (B, k_target)
+    # print(sq_norms)
+    # weighted sum
+    loss = (sq_norms * weights)  # (B,)
+
+    return loss  # scalar
 
 def eigenvalue_weighted_subspace_loss(B_pred, B_target, eigenvalues, eigenvectors):
     """

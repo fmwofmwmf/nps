@@ -7,6 +7,9 @@ import hashlib
 
 import numpy as np
 import torch
+from torch.profiler import profile, record_function, ProfilerActivity
+import cProfile, pstats
+
 from loss import *
 import polyscope as ps
 import polyscope.imgui as psim
@@ -43,23 +46,49 @@ def main():
     ### Load subspace map (if given)
     #########################################################################
     k = config.subspace_dim
-
+    bonus_dim = config["subspace"].get("bonus_dim", 0)
     if args.use_subspace:
-        network = SmoothGradientBasisField(system.dim, k, config["network"]["n_hidden_layers"], config["network"]["n_neurons"])
-        model_path = os.path.join("experiments", f"{config.experiment_name}_{k}D_model_local.pt")
+        network = SmoothGradientBasisField(system.dim, k + bonus_dim, config["network"]["n_hidden_layers"], config["network"]["n_neurons"])
+        path = f"{config.experiment_name}_{k}D_{bonus_dim}P_model_local.pt" if bonus_dim > 0 else f"{config.experiment_name}_{k}D_model_local.pt"
+        model_path = os.path.join("experiments", path)
         network.load_state_dict(torch.load(model_path))
 
         network.eval()
-    def model_eval(q, log=False):
-        if not log:
-            return network.inference_recompute(system, system_def, q, space) if args.use_subspace else (
-                gradient_pca(system, system_def, q, k, space))
-        bench = gradient_pca(system, system_def, q, k, space)
-        predict = network.inference_recompute(system, system_def, q, space)
-        # print(bench, predict)
-        if log: print(f"Basis Error: {subspace_distance_loss(predict.unsqueeze(0), bench.unsqueeze(0)).mean() }")
-        #print((bench - predict).norm().item(), bench.norm().item())
-        return predict if args.use_subspace else bench
+
+        # Auto-load cubature if present
+        cubature_path = os.path.join("experiments", f"{config.experiment_name}_cubature.pt")
+        if os.path.exists(cubature_path):
+            cub = torch.load(cubature_path, map_location='cpu')
+            system_def['cubature'] = cub
+            system_def['cubature_sparse'] = system.prepare_cubature_sparse(system_def, cub)
+            n = len(cub['joint_indices'])
+            nd = len(system_def['cubature_sparse']['dof_indices'])
+            print(f"Loaded cubature: {n}/{system.num_joints} joints, "
+                  f"{nd}/{system.dim} active DOFs")
+        else:
+            system_def.pop('cubature', None)
+            system_def.pop('cubature_sparse', None)
+            print("No cubature found — using full joint evaluation")
+
+    def _compute_grad(q):
+        """Full-space energy gradient at q (springs + gravity, detached)."""
+        g_grav = system.gravity_gradient(system_def, q)
+        with torch.enable_grad():
+            q_g = q.detach().clone().requires_grad_(True)
+            E = system.energy_springs_batch(system_def, q_g.unsqueeze(0))[0]
+            g_spr = torch.autograd.grad(E, q_g)[0].detach()
+        return g_spr + g_grav
+
+    def model_eval(q, g=None, log=False):
+        if not args.use_subspace:
+            return gradient_pca(system, system_def, q, k, space)
+        if g is None:
+            g = _compute_grad(q)
+        predict = network.inference(q, g)
+        if log:
+            bench = gradient_pca(system, system_def, q, k, space)
+            print(f"Basis Error: {subspace_distance_loss(predict.unsqueeze(0), bench.unsqueeze(0)).mean()}")
+        return predict
 
     model = model_eval
 
@@ -77,6 +106,17 @@ def main():
     run_sim = False
     run_alt_sim = False
     reduced = False
+    _cubature_path = os.path.join("experiments", f"{config.experiment_name}_cubature.pt")
+    cubature_available = os.path.exists(_cubature_path) or 'cubature' in system_def
+    # Cubature mode: 0=None, 1=Trivial (all joints w=1), 2=Reduced (trained sparse)
+    cubature_mode = 2 if 'cubature' in system_def else 0
+    _trained_cub    = system_def.get('cubature')
+    _trained_sparse = system_def.get('cubature_sparse')
+    _trivial_cub = {
+        'joint_indices': torch.arange(system.num_joints, dtype=torch.long),
+        'joint_weights': torch.ones(system.num_joints, dtype=torch.float64),
+    }
+    _trivial_sparse = system.prepare_cubature_sparse(system_def, _trivial_cub) if args.use_subspace else None
     optimize = False
     show_gradient, show_pca, show_model = False, False, False
     eval_energy_every = True
@@ -97,7 +137,7 @@ def main():
         system.visualize(system_def, state_to_system(system_def, int_state['q_t'], space), space)
         system.visualize(system_def, state_to_system(system_def, int_state_gt['q_t'], space), space,
                          name_prefix="GT",
-                         offset=np.array(args.ground_truth_offset),
+                         offset=np.array(config["system"]["ground_truth_offset"]),
                          main_color=(0.8, 0.5, 0.2))
 
     def state_to_system(system_def, state, space):
@@ -134,6 +174,50 @@ def main():
         # Use your existing KE
         return system.kinetic_energy(system_def, decode(z), q_dot)
 
+    def _measure_cubature_error(system, system_def, model, q):
+        """Print gradient and Hessian relative errors: cubature vs full springs."""
+        q = q.detach()
+        B = model(q).squeeze(0)  # (dim, k)
+        k_dim = B.shape[1]
+
+        def full_springs_energy(q_):
+            return system.energy_springs_batch(system_def, q_.unsqueeze(0)).squeeze(0)
+
+        def cub_energy(q_):
+            return system.potential_energy_cubature_batch(
+                system_def, q_.unsqueeze(0), system_def['cubature']).squeeze(0)
+
+        print(f"\n{'─'*55}")
+        print(f"  Cubature error at current pose")
+        print(f"{'─'*55}")
+
+        # --- Gradient error (reduced) ---
+        s_f = torch.zeros(k_dim, dtype=q.dtype, device=q.device, requires_grad=True)
+        g_full_r = torch.autograd.grad(full_springs_energy(q + B @ s_f), s_f)[0]
+
+        s_c = torch.zeros(k_dim, dtype=q.dtype, device=q.device, requires_grad=True)
+        g_cub_r = torch.autograd.grad(cub_energy(q + B @ s_c), s_c)[0]
+
+        g_err = (g_full_r - g_cub_r).norm() / (g_full_r.norm() + 1e-12)
+        print(f"  Gradient (reduced)  rel_err = {g_err:.6f}")
+        print(f"  |g_full| = {g_full_r.norm():.4f}  |g_cub| = {g_cub_r.norm():.4f}")
+
+        # --- Hessian error (reduced k×k) via s-parameterization ---
+        s_f2 = torch.zeros(k_dim, dtype=q.dtype, device=q.device, requires_grad=True)
+        g_f2 = torch.autograd.grad(full_springs_energy(q + B @ s_f2), s_f2, create_graph=True)[0]
+        H_full_r = torch.stack([torch.autograd.grad(g_f2[i], s_f2, retain_graph=True)[0]
+                                 for i in range(k_dim)])
+
+        s_c2 = torch.zeros(k_dim, dtype=q.dtype, device=q.device, requires_grad=True)
+        g_c2 = torch.autograd.grad(cub_energy(q + B @ s_c2), s_c2, create_graph=True)[0]
+        H_cub_r = torch.stack([torch.autograd.grad(g_c2[i], s_c2, retain_graph=True)[0]
+                                for i in range(k_dim)])
+
+        H_err = (H_full_r - H_cub_r).norm() / (H_full_r.norm() + 1e-12)
+        print(f"  Hessian (reduced)   rel_err = {H_err:.6f}")
+        print(f"  |H_full| = {H_full_r.norm():.4f}  |H_cub| = {H_cub_r.norm():.4f}")
+        print(f"{'─'*55}\n")
+
     #########################################################################
     ### Main loop, sim step, and UI
     #########################################################################
@@ -146,7 +230,7 @@ def main():
     def main_loop():
 
         nonlocal run_sim, update_viz_every, eval_energy_every, optimize, space, record_count, reduced
-        nonlocal show_gradient, show_pca, show_model, run_alt_sim
+        nonlocal show_gradient, show_pca, show_model, run_alt_sim, cubature_mode, cubature_available
 
         new_space = []
         for i, (low, _, high) in enumerate(config["subspace"]["shape_space_range"]):
@@ -211,16 +295,43 @@ def main():
 
         _, run_sim = psim.Checkbox("run simulation", run_sim)
         _, reduced_n = psim.Checkbox("reduced basis mode", reduced)
-        psim.Separator()
-        psim.TextUnformatted(f"Configuration difference: {torch.norm(int_state['q_t'] - int_state_gt['q_t'])}")
-        _, run_alt_sim = psim.Checkbox("Run GT Sim", run_alt_sim)
         if reduced_n and not reduced: print("Switched to REDUCED")
         if not reduced_n and reduced: print("Switched to FULL")
         reduced = reduced_n
+
+        if reduced and args.use_subspace:
+            psim.SameLine()
+            n_red = len(_trained_cub['joint_indices']) if _trained_cub is not None else 0
+            cub_items = ["None", "Trivial",
+                         f"Reduced ({n_red}/{system.num_joints})"] if cubature_available else ["None", "Trivial"]
+            changed, new_mode = psim.Combo("cubature", cubature_mode, cub_items)
+            if changed:
+                cubature_mode = new_mode
+                if cubature_mode == 0:
+                    system_def.pop('cubature', None)
+                    system_def.pop('cubature_sparse', None)
+                    print("Cubature: None (full path)")
+                elif cubature_mode == 1:
+                    system_def.pop('cubature', None)
+                    system_def['cubature_sparse'] = _trivial_sparse
+                    print(f"Cubature: Trivial ({system.num_joints}/{system.num_joints} joints)")
+                elif cubature_mode == 2 and _trained_sparse is not None:
+                    system_def['cubature'] = _trained_cub
+                    system_def['cubature_sparse'] = _trained_sparse
+                    print(f"Cubature: Reduced ({n_red}/{system.num_joints} joints)")
+
+        psim.Separator()
+        psim.TextUnformatted(f"Configuration difference: {torch.norm(int_state['q_t'] - int_state_gt['q_t'])}")
+        _, run_alt_sim = psim.Checkbox("Run GT Sim", run_alt_sim)
         psim.SameLine()
 
         if psim.Button("Analyze Gradient Basis"):
             analyze_gradient_basis(system, system_def, model, int_state['q_t'], space, k=5)
+
+        if reduced and cubature_mode == 2 and 'cubature' in system_def:
+            psim.SameLine()
+            if psim.Button("Cubature Error"):
+                _measure_cubature_error(system, system_def, model, int_state['q_t'])
 
         if psim.TreeNode("Gradient Visualization"):
             _, show_gradient = psim.Checkbox("Show Gradient", show_gradient)
@@ -240,6 +351,35 @@ def main():
 
             psim.TreePop()
 
+        if reduced and psim.Button("Timing Test (trivial cubature)"):
+            import copy, time
+            N_STEPS = 4
+
+            def _time_steps(sd):
+                st = copy.deepcopy(int_state)
+                t0 = time.perf_counter()
+                for _ in range(N_STEPS):
+                    st['q_t'], st['qdot_t'], _ = gradient_basis_step_newton_pos_only(
+                        system, sd, model, st['q_t'], st['qdot_t'], space, dt=0.01, profile=False)
+                return (time.perf_counter() - t0) / N_STEPS * 1000  # ms/step
+
+            sd_full    = {k: v for k, v in system_def.items() if k not in ('cubature', 'cubature_sparse')}
+            sd_trivial = {**system_def, 'cubature_sparse': _trivial_sparse}
+            sd_trivial.pop('cubature', None)
+
+            t_full    = _time_steps(sd_full)
+            t_trivial = _time_steps(sd_trivial)
+
+            print(f"\n{'─'*50}")
+            print(f"  Timing test ({N_STEPS} steps each)")
+            print(f"  Full reduced:     {t_full:.1f} ms/step")
+            print(f"  Trivial cubature: {t_trivial:.1f} ms/step")
+            if _trained_sparse is not None:
+                sd_red = {**system_def, 'cubature': _trained_cub, 'cubature_sparse': _trained_sparse}
+                t_red = _time_steps(sd_red)
+                print(f"  Reduced cubature: {t_red:.1f} ms/step  ({len(_trained_cub['joint_indices'])}/{system.num_joints} joints)")
+            print(f"{'─'*50}\n")
+
         if psim.Button("generateHash"):
             print(run_sim_and_hash(
                     50,
@@ -256,14 +396,15 @@ def main():
         steps_per_frame = 1
         if run_sim or psim.Button("single step"):
             for _ in range(steps_per_frame):
-                # if len(frames) % 1500 == 0:
-                #     dists = torch.norm(targets_buffer.cpu() - int_state['q_t'], dim=1)
-                #     targ = fake_gradient_pca(system, system_def, int_state['q_t'], k, space)
-                #     min_dist, idx = dists.min(dim=0)
-                #     basis_diff = subspace_distance_loss(model(int_state['q_t']).unsqueeze(0), targ.unsqueeze(0).cpu())[0]
-                #     print("Distance to nearest reference:", min_dist.item())
-                #     print("Basis error wrt nearest reference:", basis_diff.item())
-                #     model(int_state['q_t'], True)
+
+                #dists = torch.norm(targets_buffer.cpu() - int_state['q_t'], dim=1)
+                # targ = gradient_pca(system, system_def, int_state['q_t'], k, space, add_gradient=False)
+                # #min_dist, idx = dists.min(dim=0)
+                # basis_diff = weighted_subspace_loss(network(int_state['q_t']).unsqueeze(0), targ.unsqueeze(0).cpu(), torch.ones(k))[0]
+                # #print("Distance to nearest reference:", min_dist.item())
+                # print("Basis error:", basis_diff)
+
+                #model(int_state['q_t'], True)
                 # if len(frames) % 5 == 1:
                 #     print("Integration analysis=====")
                 #     targ = local_pca_one_step_random(
@@ -294,10 +435,28 @@ def main():
                 #         int_state['qdot_t'],
                 #     )
                 #     data.append([error1, error2])
+                int_state['q_t'] = int_state['q_t'].detach()
+                int_state['q_t'][2::3].remainder_(2 * torch.pi)
+
                 frames.append(int_state['q_t'].detach().cpu())
                 # frames.append(1)
                 ppos, pvel = int_state['q_t'], int_state['qdot_t']
-                int_state['q_t'], int_state['qdot_t'], n = run_sim_step(system, system_def, model, state_to_system, int_state, space, reduced, integrator)
+
+
+                # profiler = cProfile.Profile()
+                # profiler.enable()
+                int_state['q_t'], int_state['qdot_t'], residual = run_sim_step(system, system_def, model, state_to_system,
+                                                                        int_state, space, reduced, integrator,
+        dt=0.01)
+                # print(f"Residual: {residual}")
+                # profiler.disable()
+                #
+                # # Print stats
+                # stats = pstats.Stats(profiler)
+                # stats.strip_dirs()  # clean up paths
+                # stats.sort_stats("cumulative")  # or "time"
+                # stats.print_stats(20)  # top 20 functions
+
                 if run_alt_sim:
                     pos_err, vel_err, pos_pct, vel_pct, bpos_pct, bvel_pct = compare_integration_error_basic(system,
                                                                                                              system_def, ppos, pvel, int_state['q_t'], int_state['qdot_t'],
@@ -305,14 +464,20 @@ def main():
                     vel_err_percent = vel_err / (int_state['qdot_t'].norm() + 1e-12) * 100
 
                     # Display
+                    print(f"Error: {pos_err:.5e} q, {vel_err:.5e} ({vel_err_percent:.3f}%) q_dot")
+                    print(f"Error as percent of Delta: {pos_pct:.3f}% q, {vel_pct:.3f}% q_dot")
+                    print(f"Basis span Error: {100-bpos_pct:.3e}% q, {100-bvel_pct:.3e}% q_dot")
                     psim.TextUnformatted(f"Error: {pos_err:.5e} q, {vel_err:.5e} ({vel_err_percent:.3f}%) q_dot")
                     psim.TextUnformatted(f"Error as percent of Delta: {pos_pct:.3f}% q, {vel_pct:.3f}% q_dot")
-                    psim.TextUnformatted(f"Basis span: {bpos_pct:.3f}% q, {bvel_pct:.3f}% q_dot")
+                    psim.TextUnformatted(f"Basis span Error: {100-bpos_pct:.3e}% q, {100-bvel_pct:.3e}% q_dot")
+
+                    int_state_gt['q_t'] = int_state_gt['q_t'].detach()
+                    int_state_gt['q_t'][2::3].remainder_(2 * torch.pi)
 
                     int_state_gt['q_t'], int_state_gt['qdot_t'], _ = run_sim_step(system, system_def, model, state_to_system,
                                                                             int_state_gt, space, False, integrator)
 
-            psim.LabelText("Newton Residual", f"{n:.3e}")
+            psim.LabelText("Newton Residual", f"{residual:.3e}")
 
             if run_alt_sim:
                 system.visualize(system_def, state_to_system(system_def, int_state_gt['q_t'], space), space, return_transforms=True,
@@ -321,7 +486,7 @@ def main():
                                 main_color=(0.8, 0.5, 0.2),)
                 system.visualize(system_def, state_to_system(system_def, int_state_gt['q_t'], space), space,
                                  name_prefix="GT",
-                                 offset=np.array(args.ground_truth_offset),
+                                 offset=np.array(config["system"]["ground_truth_offset"]),
                                  main_color=(0.8, 0.5, 0.2))
             pos = system.visualize(system_def, state_to_system(system_def, int_state['q_t'], space), space, return_transforms=True)
 
@@ -395,19 +560,20 @@ def run_sim_and_hash(
     sim_hash = hashlib.sha256(q_bytes).hexdigest()
 
     return sim_hash
-def run_sim_step(system, system_def, model, state_to_system, int_state, space, reduced, integrator):
+def run_sim_step(system, system_def, model, state_to_system, int_state, space, reduced, integrator,
+        dt=0.01):
     if reduced:
         return gradient_basis_step_newton_pos_only(system,
                                               system_def,
                                               model,
                                               int_state['q_t'],
-                                              int_state['qdot_t'], space)
+                                              int_state['qdot_t'], space, dt=dt, profile=True)
     else:
         return integrator(system,
                           system_def,
                           state_to_system,
                           int_state['q_t'],
-                          int_state['qdot_t'], space)
+                          int_state['qdot_t'], space, dt=dt, profile=True)
 
 if __name__ == '__main__':
     device = "cpu"
