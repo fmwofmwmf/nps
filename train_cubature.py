@@ -39,8 +39,10 @@ MATCH_HESSIAN = True
 # OMP: stop when relative residual drops below this threshold.
 OMP_TOL = 1e-3   # tighter than default 1e-2
 
-# Maximum cubature points (OMP stops here or at OMP_TOL, whichever first).
-MAX_CUBATURE_POINTS = 30
+# Cubature fractions to solve and save simultaneously.
+# Each entry produces a separate file: {name}_cubature_{pct}pct.pt
+# The first entry is also saved as {name}_cubature.pt (the default loaded at runtime).
+CUBATURE_FRACS = [0.05, 0.1, 0.20, 0.30, 0.67]
 
 # Samples processed per vmap call for the Hessian rows.
 # Each sample needs ~n_joints × dim × 8 bytes of GPU memory during the nested
@@ -162,7 +164,7 @@ def _nnls_l1(A, b, lam, threshold=1e-3):
     return w
 
 
-def solve_cubature(A, b, max_points=MAX_CUBATURE_POINTS, tol=OMP_TOL):
+def solve_cubature(A, b, max_frac=CUBATURE_FRACS[0], tol=OMP_TOL):
     """L1-regularised NNLS with binary search on λ.
 
     Finds the globally optimal sparse non-negative weights (vs. greedy OMP).
@@ -172,9 +174,10 @@ def solve_cubature(A, b, max_points=MAX_CUBATURE_POINTS, tol=OMP_TOL):
     Returns (indices, weights) as numpy arrays.
     """
     n_joints = A.shape[1]
+    max_points = max(1, int(round(n_joints * max_frac)))
     b_norm = np.linalg.norm(b) + 1e-12
     print(f"L1-NNLS cubature: A={A.shape}, {n_joints} joints, "
-          f"tol={tol:.1e}, max_pts={max_points}")
+          f"tol={tol:.1e}, max_pts={max_points} ({max_frac*100:.0f}%)")
 
     def eval_lam(lam):
         w = _nnls_l1(A, b, lam)
@@ -218,12 +221,22 @@ def solve_cubature(A, b, max_points=MAX_CUBATURE_POINTS, tol=OMP_TOL):
     indices = np.where(w_best > 0)[0]
     weights = w_best[indices]
 
-    # Hard-enforce max_points: if still too many, restrict to top-weight joints
-    # and re-solve NNLS on just those columns.
+    # Hard-enforce max_points only when the binary search found a genuinely
+    # sparse solution (weights are non-uniform).  If all weights are nearly
+    # equal the search fell back to the trivial all-joints solution — keep it
+    # as-is so accuracy is preserved; pruning to max_points here would just
+    # pick an arbitrary bad subset.
     if len(indices) > max_points:
-        top = np.argsort(weights)[::-1][:max_points]
-        indices = indices[top]
-        weights, _ = nnls(A[:, indices], b)
+        cv = weights.std() / (weights.mean() + 1e-12)
+        if cv > 0.2:
+            # Non-uniform weights: a real sparse solution that happened to be
+            # slightly over budget.  Prune to the top-weight joints.
+            top = np.argsort(weights)[::-1][:max_points]
+            indices = indices[top]
+            weights, _ = nnls(A[:, indices], b)
+        else:
+            print(f"  ⚠ No sparse solution found (weights near-uniform, cv={cv:.3f}); "
+                  f"keeping all {len(indices)} joints (trivial fallback)")
 
     r_final = b - A[:, indices] @ weights
     final_err = np.linalg.norm(r_final) / b_norm
@@ -288,18 +301,28 @@ def main(args=None):
     A, b = build_nnls_matrix(system, system_def, model, q_samples,
                              match_hessian=MATCH_HESSIAN)
 
-    # --- Solve ---
-    indices, weights = solve_cubature(A, b)
+    # --- Solve at each requested sparsity level ---
+    for i, frac in enumerate(CUBATURE_FRACS):
+        pct = int(round(frac * 100))
+        print(f"\n{'═'*60}")
+        print(f"  Solving cubature at {pct}% ({int(round(system.num_joints * frac))}/{system.num_joints} joints max)")
+        print(f"{'═'*60}")
+        indices, weights = solve_cubature(A, b, max_frac=frac)
 
-    # --- Save ---
-    out_path = os.path.join("experiments", f"{name}_cubature.pt")
-    torch.save({
-        "joint_indices": torch.tensor(indices, dtype=torch.long),
-        "joint_weights": torch.tensor(weights, dtype=torch.float64),
-    }, out_path)
-    print(f"Saved cubature → {out_path}")
-    print(f"  joint_indices: {indices.tolist()}")
-    print(f"  joint_weights: {weights.round(3).tolist()}")
+        # Save per-fraction file: {name}_cubature_{pct}pct.pt
+        pct_path = os.path.join("experiments", f"{name}_cubature_{pct}pct.pt")
+        payload = {
+            "joint_indices": torch.tensor(indices, dtype=torch.long),
+            "joint_weights": torch.tensor(weights, dtype=torch.float64),
+        }
+        torch.save(payload, pct_path)
+        print(f"Saved → {pct_path}")
+
+        # Also save the first fraction as the default {name}_cubature.pt
+        if i == 0:
+            default_path = os.path.join("experiments", f"{name}_cubature.pt")
+            torch.save(payload, default_path)
+            print(f"Saved → {default_path}  (default)")
 
 
 if __name__ == "__main__":

@@ -31,8 +31,8 @@
     "collection": {
         "dt": 0.01,
         "samples": [
-            {"torque":  512, "n_steps": 100},
-            {"torque": -512, "n_steps": 100}
+            {"torque":  512, "n_steps": 150},
+            {"torque": -512, "n_steps": 150}
         ]
     },
     "training": {

@@ -1369,18 +1369,16 @@ class BarJoint2DSystem:
                 spec['b1_fixed_pos'] = fixed_joint_pos[-1 - b1g].clone()
             joint_specs.append(spec)
 
-        # ── Torque spec ──────────────────────────────────────────────────────
+        # ── Torque spec — always store bar indices; strength is read live ────────
         torque_spec = None
-        if ext.get('torque_strength', 0.0) != 0.0:
-            j_idx = ext.get('torque_joint_idx', 0)
-            if j_idx < self.num_joints:
-                b1t, b2t, _, _ = self.joints[j_idx]
-                b1t, b2t = int(b1t), int(b2t)
-                torque_spec = {
-                    'strength': float(ext['torque_strength']),
-                    'b1_local': bar_to_local[b1t] if b1t >= 0 else None,
-                    'b2_local': bar_to_local[b2t],
-                }
+        j_idx = ext.get('torque_joint_idx', None)
+        if j_idx is not None and j_idx < self.num_joints:
+            b1t, b2t, _, _ = self.joints[j_idx]
+            b1t, b2t = int(b1t), int(b2t)
+            torque_spec = {
+                'b1_local': bar_to_local[b1t] if b1t >= 0 else None,
+                'b2_local': bar_to_local[b2t],
+            }
 
         # ── Special constraint specs (y_bar, x_bar, sliding, gear, rotation) ─
         special = {
@@ -1519,9 +1517,11 @@ class BarJoint2DSystem:
         # ── Torque ───────────────────────────────────────────────────────────
         ts = sparse_info['torque_spec']
         if ts is not None:
-            a2 = ang[ts['b2_local']]
-            rel = a2 - ang[ts['b1_local']] if ts['b1_local'] is not None else a2
-            E = E - ts['strength'] * rel
+            strength = system_def.get('external_forces', {}).get('torque_strength', 0.0)
+            if strength != 0.0:
+                a2 = ang[ts['b2_local']]
+                rel = a2 - ang[ts['b1_local']] if ts['b1_local'] is not None else a2
+                E = E - strength * rel
 
         # ── Y-bar constraints (batched) ──────────────────────────────────────
         if 'yb_loc' in vec:

@@ -235,7 +235,7 @@ def compare_integration_error_basic(system, system_def, q, q_dot, q1, q_dot1, ba
 def gradient_pca(system, system_def, q, k, space, add_gradient=True):
     dim = q.shape[0]
     device, dtype = q.device, q.dtype
-
+    print("gras")
     def energy_fn(q_):
         return system.potential_energy_batch(system_def, q_.unsqueeze(0),
                                              space.unsqueeze(0))[0]

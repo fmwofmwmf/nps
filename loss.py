@@ -207,24 +207,25 @@ def orthonormality_loss(B_batch):
     return loss
 
 
-def subspace_distance_loss(B_pred, B_target):
+def subspace_distance_loss(B_pred, B_target, checkDims=True):
     """
-    Order-invariant subspace distance using projection matrices.
+    Measures how well B_pred spans B_target via the residual after projection.
 
-    Distance between two k-dimensional subspaces is measured by
-    the Frobenius norm of the difference of their projection matrices.
+    Loss = ||(I - P_pred) B_target||_F^2
+         = sum of squared residuals of each target vector outside B_pred.
 
-    This is invariant to:
-    - Ordering of basis vectors
-    - Rotation within the subspace
-    - Sign flips of basis vectors
+    - 0 when every column of B_target lies in span(B_pred).
+    - k_t (worst case) when B_pred and B_target are fully orthogonal.
+    - Supports k_pred >= k_target (predicted subspace may be larger).
+    - Invariant to ordering, rotations, and sign flips within each subspace.
+    - Does not materialize the (dim, dim) projection matrix.
 
     Args:
-        B_pred: (B, dim, k) - predicted bases
-        B_target: (B, dim, k) - target PCA bases
+        B_pred:   (B, dim, k_pred)  - predicted bases, k_pred >= k_target
+        B_target: (B, dim, k_target) - target bases
 
     Returns:
-        loss: scalar
+        loss: (B,) per-sample residual in [0, k_target]
     """
     if B_pred.dim() != 3 or B_target.dim() != 3:
         raise ValueError(
@@ -235,27 +236,24 @@ def subspace_distance_loss(B_pred, B_target):
     Bp, dim_p, k_p = B_pred.shape
     Bt, dim_t, k_t = B_target.shape
 
-    if Bp != Bt or dim_p != dim_t:
-        raise ValueError(
-            f"Batch or ambient dimension mismatch: "
-            f"{B_pred.shape} vs {B_target.shape}"
-        )
+    if checkDims:
+        if Bp != Bt or dim_p != dim_t:
+            raise ValueError(
+                f"Batch or ambient dimension mismatch: "
+                f"{B_pred.shape} vs {B_target.shape}"
+            )
+        if k_p < k_t:
+            raise ValueError(
+                f"k_pred ({k_p}) < k_target ({k_t}): predicted subspace is too small to span target"
+            )
 
-    if k_p != k_t:
-        raise ValueError(
-            f"Subspace dimension mismatch: "
-            f"pred k={k_p}, target k={k_t}"
-        )
+    # Project B_target onto B_pred and compute residual.
+    # residuals = B_target - B_pred @ (B_pred^T @ B_target)
+    # Avoids forming the (dim, dim) projection matrix.
+    coeffs = torch.bmm(B_pred.transpose(1, 2), B_target)  # (B, k_pred, k_target)
+    residuals = B_target - torch.bmm(B_pred, coeffs)       # (B, dim, k_target)
 
-    # Compute projection matrices P = B @ B^T
-    # P projects onto the subspace spanned by columns of B
-
-    P_pred = torch.bmm(B_pred, B_pred.transpose(1, 2))  # (B, dim, dim)
-    P_target = torch.bmm(B_target, B_target.transpose(1, 2))  # (B, dim, dim)
-
-    # Frobenius norm of difference
-    diff = P_pred - P_target  # (B, dim, dim)
-    loss = (diff ** 2).sum(dim=(1, 2)) # Mean over batch
+    loss = (residuals ** 2).sum(dim=(1, 2))  # (B,), range [0, k_target]
 
     return loss
 

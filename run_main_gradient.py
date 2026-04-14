@@ -34,6 +34,7 @@ ROOT_DIR = os.path.join(SRC_DIR, "..")
 
 def main():
     args = Args()
+    print(args.use_subspace)
     config = load_config(args.config_file)
     system, system_def = system_to_name(config)
     system.training = False
@@ -55,16 +56,24 @@ def main():
 
         network.eval()
 
-        # Auto-load cubature if present
-        cubature_path = os.path.join("experiments", f"{config.experiment_name}_cubature.pt")
-        if os.path.exists(cubature_path):
-            cub = torch.load(cubature_path, map_location='cpu')
-            system_def['cubature'] = cub
-            system_def['cubature_sparse'] = system.prepare_cubature_sparse(system_def, cub)
-            n = len(cub['joint_indices'])
-            nd = len(system_def['cubature_sparse']['dof_indices'])
-            print(f"Loaded cubature: {n}/{system.num_joints} joints, "
-                  f"{nd}/{system.dim} active DOFs")
+        # Auto-load all cubature files matching this experiment
+        import glob as _glob
+        _cub_pattern = os.path.join("experiments", f"{config.experiment_name}_cubature*.pt")
+        _cub_files = sorted(_glob.glob(_cub_pattern))
+        _all_cubatures = []  # list of (label, cub_dict, sparse_dict)
+        for _cf in _cub_files:
+            _cub = torch.load(_cf, map_location='cpu')
+            _sparse = system.prepare_cubature_sparse(system_def, _cub)
+            _n = len(_cub['joint_indices'])
+            _nd = len(_sparse['dof_indices'])
+            _suffix = os.path.basename(_cf)[len(f"{config.experiment_name}_cubature"):-3]
+            _label = f"Reduced{_suffix} ({_n}/{system.num_joints})"
+            _all_cubatures.append((_label, _cub, _sparse))
+            print(f"Loaded cubature {_label}: {_nd}/{system.dim} active DOFs")
+        if _all_cubatures:
+            # Default: use first (usually the main _cubature.pt)
+            system_def['cubature']        = _all_cubatures[0][1]
+            system_def['cubature_sparse'] = _all_cubatures[0][2]
         else:
             system_def.pop('cubature', None)
             system_def.pop('cubature_sparse', None)
@@ -106,17 +115,23 @@ def main():
     run_sim = False
     run_alt_sim = False
     reduced = False
-    _cubature_path = os.path.join("experiments", f"{config.experiment_name}_cubature.pt")
-    cubature_available = os.path.exists(_cubature_path) or 'cubature' in system_def
-    # Cubature mode: 0=None, 1=Trivial (all joints w=1), 2=Reduced (trained sparse)
-    cubature_mode = 2 if 'cubature' in system_def else 0
-    _trained_cub    = system_def.get('cubature')
-    _trained_sparse = system_def.get('cubature_sparse')
+    # _all_cubatures: list of (label, cub_dict, sparse_dict) from loading block above
+    # If loading block didn't run (no subspace), ensure list exists
+    if not args.use_subspace:
+        _all_cubatures = []
+    cubature_available = len(_all_cubatures) > 0
     _trivial_cub = {
         'joint_indices': torch.arange(system.num_joints, dtype=torch.long),
         'joint_weights': torch.ones(system.num_joints, dtype=torch.float64),
     }
     _trivial_sparse = system.prepare_cubature_sparse(system_def, _trivial_cub) if args.use_subspace else None
+
+    # Cubature mode: 0=None (legacy slow), 1=Trivial, 2+ = _all_cubatures[mode-2]
+    # Always use the fast vectorized path by default
+    if args.use_subspace and _trivial_sparse is not None and 'cubature_sparse' not in system_def:
+        system_def['cubature_sparse'] = _trivial_sparse
+    cubature_mode = 2 if cubature_available else 1
+
     optimize = False
     show_gradient, show_pca, show_model = False, False, False
     eval_energy_every = True
@@ -301,9 +316,7 @@ def main():
 
         if reduced and args.use_subspace:
             psim.SameLine()
-            n_red = len(_trained_cub['joint_indices']) if _trained_cub is not None else 0
-            cub_items = ["None", "Trivial",
-                         f"Reduced ({n_red}/{system.num_joints})"] if cubature_available else ["None", "Trivial"]
+            cub_items = ["None", "Trivial"] + [lbl for lbl, _, _ in _all_cubatures]
             changed, new_mode = psim.Combo("cubature", cubature_mode, cub_items)
             if changed:
                 cubature_mode = new_mode
@@ -315,10 +328,11 @@ def main():
                     system_def.pop('cubature', None)
                     system_def['cubature_sparse'] = _trivial_sparse
                     print(f"Cubature: Trivial ({system.num_joints}/{system.num_joints} joints)")
-                elif cubature_mode == 2 and _trained_sparse is not None:
-                    system_def['cubature'] = _trained_cub
-                    system_def['cubature_sparse'] = _trained_sparse
-                    print(f"Cubature: Reduced ({n_red}/{system.num_joints} joints)")
+                elif cubature_mode >= 2:
+                    _lbl, _cub, _spar = _all_cubatures[cubature_mode - 2]
+                    system_def['cubature']        = _cub
+                    system_def['cubature_sparse'] = _spar
+                    print(f"Cubature: {_lbl}")
 
         psim.Separator()
         psim.TextUnformatted(f"Configuration difference: {torch.norm(int_state['q_t'] - int_state_gt['q_t'])}")
@@ -328,7 +342,7 @@ def main():
         if psim.Button("Analyze Gradient Basis"):
             analyze_gradient_basis(system, system_def, model, int_state['q_t'], space, k=5)
 
-        if reduced and cubature_mode == 2 and 'cubature' in system_def:
+        if reduced and cubature_mode >= 2 and 'cubature' in system_def:
             psim.SameLine()
             if psim.Button("Cubature Error"):
                 _measure_cubature_error(system, system_def, model, int_state['q_t'])
@@ -374,10 +388,10 @@ def main():
             print(f"  Timing test ({N_STEPS} steps each)")
             print(f"  Full reduced:     {t_full:.1f} ms/step")
             print(f"  Trivial cubature: {t_trivial:.1f} ms/step")
-            if _trained_sparse is not None:
-                sd_red = {**system_def, 'cubature': _trained_cub, 'cubature_sparse': _trained_sparse}
+            for _lbl, _cub, _spar in _all_cubatures:
+                sd_red = {**system_def, 'cubature': _cub, 'cubature_sparse': _spar}
                 t_red = _time_steps(sd_red)
-                print(f"  Reduced cubature: {t_red:.1f} ms/step  ({len(_trained_cub['joint_indices'])}/{system.num_joints} joints)")
+                print(f"  {_lbl}: {t_red:.1f} ms/step")
             print(f"{'─'*50}\n")
 
         if psim.Button("generateHash"):
@@ -460,14 +474,19 @@ def main():
                 if run_alt_sim:
                     pos_err, vel_err, pos_pct, vel_pct, bpos_pct, bvel_pct = compare_integration_error_basic(system,
                                                                                                              system_def, ppos, pvel, int_state['q_t'], int_state['qdot_t'],
-                                                                                                             model(int_state['q_t']), space)
+                                                                                                             model(ppos), space)
                     vel_err_percent = vel_err / (int_state['qdot_t'].norm() + 1e-12) * 100
+                    dim = int_state['q_t'].numel()
+                    pos_mse = (pos_err ** 2) / dim
+                    vel_mse = (vel_err ** 2) / dim
 
                     # Display
                     print(f"Error: {pos_err:.5e} q, {vel_err:.5e} ({vel_err_percent:.3f}%) q_dot")
+                    print(f"MSE:   {pos_mse:.5e} q, {vel_mse:.5e} q_dot")
                     print(f"Error as percent of Delta: {pos_pct:.3f}% q, {vel_pct:.3f}% q_dot")
                     print(f"Basis span Error: {100-bpos_pct:.3e}% q, {100-bvel_pct:.3e}% q_dot")
                     psim.TextUnformatted(f"Error: {pos_err:.5e} q, {vel_err:.5e} ({vel_err_percent:.3f}%) q_dot")
+                    psim.TextUnformatted(f"MSE:   {pos_mse:.5e} q, {vel_mse:.5e} q_dot")
                     psim.TextUnformatted(f"Error as percent of Delta: {pos_pct:.3f}% q, {vel_pct:.3f}% q_dot")
                     psim.TextUnformatted(f"Basis span Error: {100-bpos_pct:.3e}% q, {100-bvel_pct:.3e}% q_dot")
 

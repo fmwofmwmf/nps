@@ -750,6 +750,7 @@ def compute_pca_bases_from_buffer(
 
 def train_gradient_basis_field(
         model,
+        config,
         system,
         system_def,
         k,
@@ -819,8 +820,9 @@ def train_gradient_basis_field(
     #     vel_scale=1e-2,
     # )
     # basis_fn_a(system, system_def, q0, space)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
+    total_iters = n_iters_per_epoch * n_epochs
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_iters, eta_min=1e-7)
 
     N = config_buffer.shape[0]
 
@@ -859,24 +861,9 @@ def train_gradient_basis_field(
     print(pca_targets_buffer_new, k)
     pbar = tqdm(total=n_iters_per_epoch * n_epochs, desc="Training", unit="iter")
 
-    loss_weights = 4 ** np.arange(k, dtype=np.float64)  # [1, 2, 4, 8, 16]
-    loss_weights = torch.tensor(loss_weights[::-1].copy())  # flip → [16, 8, 4, 2, 1]
+    worst_case = float(k)  # residual loss ∈ [0, k_target] for orthonormal bases
 
     for epoch in range(n_epochs):
-        # samples = 2
-        # config_buffer_new, pca_targets_buffer_new, eigenvalues_buffer_new, eigenvectors_buffer_new = upsample_buffer_with_noise(
-        #     config_buffer,
-        #     system,
-        #     system_def,
-        #     space,
-        #     k_pca=k,
-        #     samples_per_point=samples,
-        #     noise_std=0.1,
-        #     batch_size=1024,
-        # )
-        # print(pca_targets_buffer_new.shape, eigenvectors_buffer_new.shape, eigenvalues_buffer_new.shape)
-        # print(pca_targets_buffer_new[3].shape, model(config_buffer[3]).shape)
-        # print(subspace_distance_loss(pca_targets_buffer_new[3].unsqueeze(0), model(config_buffer[3]).unsqueeze(0)).mean())
         for iteration in range(n_iters_per_epoch):
             q_batch, V_target = sample_batch(
                         config_buffer,
@@ -886,29 +873,28 @@ def train_gradient_basis_field(
 
             # === 4. Predict basis from model ===
             B_pred = model(q_batch)  # (B, dim, k)
-            # print(B_pred.shape)
 
-            # === 5. Compute losses ===
-            loss_subspace = weighted_subspace_loss(B_pred, V_target, loss_weights).sum(dim=1).mean()
-            #loss_ortho = orthonormality_loss(B_pred)
+            # === 5. Compute loss ===
+            # subspace_distance_loss returns ||P_pred - P_target||_F^2 per sample ∈ [0, 2k]
+            per_sample = subspace_distance_loss(B_pred, V_target, checkDims=False)  # (B,)
+            total_loss = per_sample.mean()
 
-            # === 6. Combine losses ===
-            total_loss = (
-                    1.0 * loss_subspace
-            )
-
-            # === 7. Optimize ===
+            # === 6. Optimize ===
             optimizer.zero_grad()
             total_loss.backward()
-            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             scheduler.step()
+
+            # Interpretable metrics
+            frob_norm = total_loss.item() ** 0.5          # Frobenius dist, ∈ [0, sqrt(2k)]
+            pct_error = 100.0 * total_loss.item() / worst_case  # % of worst-case
 
             pbar.update(1)
             pbar.set_postfix({
                 "Epoch": epoch,
-                'Loss': f"{total_loss.item():.6f}",
-                'Subspace': f"{loss_subspace.item():.6f}",
+                'Loss²': f"{total_loss.item():.6f}",
+                'Frob': f"{frob_norm:.3e}",
+                'Err%': f"{pct_error:.3e}",
             })
     path = f"{config.experiment_name}_{k}D_{bonus_dim}P_model_local.pt" if bonus_dim > 0 else f"{config.experiment_name}_{k}D_model_local.pt"
     model_path = os.path.join("experiments", path)
@@ -936,6 +922,7 @@ def main(args=None):
 
     train_gradient_basis_field(
         model,
+        config,
         system,
         system_def,
         k,

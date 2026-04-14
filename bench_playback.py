@@ -33,8 +33,8 @@ PLAYBACK = True   # open Polyscope after saving; set False to just save and exit
 
 # Each entry: (torque_strength, n_steps)
 SAMPLES = [
-    (2**9,  100),
-    (-2**9, 100)
+    (2**9,  150),
+    (-2**9, 150)
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
