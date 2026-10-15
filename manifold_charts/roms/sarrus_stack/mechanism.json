@@ -1,0 +1,1091 @@
+{
+  "format": "atlas_case_v1",
+  "name": "sarrus_stack",
+  "mechanism": {
+    "bodies": [
+      {
+        "name": "ground",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.035,
+                  "height": 0.49497474683058323,
+                  "center": [
+                    0.175,
+                    0.175,
+                    0.0
+                  ],
+                  "axis": [
+                    -0.35,
+                    0.35,
+                    0.0
+                  ],
+                  "sections": 16
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.035,
+                  "height": 0.16,
+                  "center": [
+                    0.175,
+                    0.175,
+                    0.0
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    0.16
+                  ],
+                  "sections": 16
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "fixed",
+        "fixed": true,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.45,
+          0.47,
+          0.5
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage1_link1a",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6,
+            "center": [
+              0.35,
+              0.21213203435596426,
+              0.21213203435596426
+            ],
+            "axis": [
+              0.0,
+              0.4242640687119285,
+              0.4242640687119285
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage1_link1b",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6,
+            "center": [
+              0.35,
+              0.21213203435596426,
+              0.6363961030678927
+            ],
+            "axis": [
+              0.0,
+              -0.4242640687119285,
+              0.4242640687119285
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage1_link2a",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6,
+            "center": [
+              0.21213203435596426,
+              0.35,
+              0.21213203435596426
+            ],
+            "axis": [
+              0.4242640687119285,
+              0.0,
+              0.4242640687119285
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage1_link2b",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6,
+            "center": [
+              0.21213203435596426,
+              0.35,
+              0.6363961030678927
+            ],
+            "axis": [
+              -0.4242640687119285,
+              0.0,
+              0.4242640687119285
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "mid_plate",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.035,
+                  "height": 0.49497474683058323,
+                  "center": [
+                    0.175,
+                    0.175,
+                    0.848528137423857
+                  ],
+                  "axis": [
+                    -0.35,
+                    0.35,
+                    0.0
+                  ],
+                  "sections": 16
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.035,
+                  "height": 0.15999999999999992,
+                  "center": [
+                    0.175,
+                    0.175,
+                    0.848528137423857
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    0.15999999999999992
+                  ],
+                  "sections": 16
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.35,
+          0.72,
+          0.45
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage2_link1a",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6,
+            "center": [
+              0.35,
+              0.21213203435596426,
+              1.0606601717798212
+            ],
+            "axis": [
+              0.0,
+              0.4242640687119285,
+              0.42426406871192845
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage2_link1b",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6000000000000001,
+            "center": [
+              0.35,
+              0.21213203435596426,
+              1.4849242404917498
+            ],
+            "axis": [
+              0.0,
+              -0.4242640687119285,
+              0.42426406871192857
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage2_link2a",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6,
+            "center": [
+              0.21213203435596426,
+              0.35,
+              1.0606601717798212
+            ],
+            "axis": [
+              0.4242640687119285,
+              0.0,
+              0.42426406871192845
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "stage2_link2b",
+        "mesh": {
+          "kind": "cylinder",
+          "params": {
+            "radius": 0.035,
+            "height": 0.6000000000000001,
+            "center": [
+              0.21213203435596426,
+              0.35,
+              1.4849242404917498
+            ],
+            "axis": [
+              -0.4242640687119285,
+              0.0,
+              0.42426406871192857
+            ],
+            "sections": 16
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "top_plate",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.035,
+                  "height": 0.49497474683058323,
+                  "center": [
+                    0.175,
+                    0.175,
+                    1.697056274847714
+                  ],
+                  "axis": [
+                    -0.35,
+                    0.35,
+                    0.0
+                  ],
+                  "sections": 16
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.035,
+                  "height": 0.16000000000000014,
+                  "center": [
+                    0.175,
+                    0.175,
+                    1.697056274847714
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    0.16000000000000014
+                  ],
+                  "sections": 16
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.8,
+          0.45,
+          0.75
+        ],
+        "render_only": false
+      }
+    ],
+    "joints": [
+      {
+        "name": "stage1_h1",
+        "kind": "revolute",
+        "body_a": "ground",
+        "body_b": "stage1_link1a",
+        "pivot": [
+          0.35,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage1_h2",
+        "kind": "revolute",
+        "body_a": "stage1_link1a",
+        "body_b": "stage1_link1b",
+        "pivot": [
+          0.35,
+          0.4242640687119285,
+          0.4242640687119285
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage1_h3",
+        "kind": "revolute",
+        "body_a": "stage1_link1b",
+        "body_b": "mid_plate",
+        "pivot": [
+          0.35,
+          0.0,
+          0.848528137423857
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage1_h4",
+        "kind": "revolute",
+        "body_a": "ground",
+        "body_b": "stage1_link2a",
+        "pivot": [
+          0.0,
+          0.35,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage1_h5",
+        "kind": "revolute",
+        "body_a": "stage1_link2a",
+        "body_b": "stage1_link2b",
+        "pivot": [
+          0.4242640687119285,
+          0.35,
+          0.4242640687119285
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage1_h6",
+        "kind": "revolute",
+        "body_a": "stage1_link2b",
+        "body_b": "mid_plate",
+        "pivot": [
+          0.0,
+          0.35,
+          0.848528137423857
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage2_h1",
+        "kind": "revolute",
+        "body_a": "mid_plate",
+        "body_b": "stage2_link1a",
+        "pivot": [
+          0.35,
+          0.0,
+          0.848528137423857
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage2_h2",
+        "kind": "revolute",
+        "body_a": "stage2_link1a",
+        "body_b": "stage2_link1b",
+        "pivot": [
+          0.35,
+          0.4242640687119285,
+          1.2727922061357855
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage2_h3",
+        "kind": "revolute",
+        "body_a": "stage2_link1b",
+        "body_b": "top_plate",
+        "pivot": [
+          0.35,
+          0.0,
+          1.697056274847714
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage2_h4",
+        "kind": "revolute",
+        "body_a": "mid_plate",
+        "body_b": "stage2_link2a",
+        "pivot": [
+          0.0,
+          0.35,
+          0.848528137423857
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage2_h5",
+        "kind": "revolute",
+        "body_a": "stage2_link2a",
+        "body_b": "stage2_link2b",
+        "pivot": [
+          0.4242640687119285,
+          0.35,
+          1.2727922061357855
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "stage2_h6",
+        "kind": "revolute",
+        "body_a": "stage2_link2b",
+        "body_b": "top_plate",
+        "pivot": [
+          0.0,
+          0.35,
+          1.697056274847714
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      }
+    ],
+    "up_axis": "z",
+    "render_up_axis": "z",
+    "gravity": 9.8,
+    "units": "m",
+    "workspace_bounds": [],
+    "contact_pairs": null
+  },
+  "coordinates": [
+    {
+      "name": "stage1_angle",
+      "topology": "bounded",
+      "period": null,
+      "min": -0.5759586531581287,
+      "max": 0.5759586531581287,
+      "source": "joint_angle",
+      "args": {
+        "joint": "stage1_h1"
+      }
+    },
+    {
+      "name": "stage2_angle",
+      "topology": "bounded",
+      "period": null,
+      "min": -0.5759586531581287,
+      "max": 0.5759586531581287,
+      "source": "joint_angle",
+      "args": {
+        "joint": "stage2_h1"
+      }
+    }
+  ],
+  "seeds": [],
+  "contact_model": "none",
+  "actuators": [],
+  "build": {
+    "sampling": {
+      "n_samples": 2000,
+      "step": 0.43,
+      "seed": 0,
+      "max_seconds": 3600,
+      "reuse": null,
+      "target_grid": null,
+      "seed_reuse": null,
+      "seed_index": 0,
+      "representation": "packed",
+      "tangent_rel_tol": 0.1,
+      "tangent_eps": null,
+      "graph_k": 16,
+      "probe_count": null,
+      "drive_iters": null,
+      "relax_iters": null,
+      "predictor_body_displacement": null,
+      "hold_drive_during_projection": false,
+      "fault_tolerant": false,
+      "continuation_timeout": 90.0,
+      "continuation_min_step": null,
+      "continuation_replay_window": 8,
+      "d_hat": null,
+      "max_kappa": null,
+      "newton_max_iter": null,
+      "actuated_bodies": null
+    },
+    "charts": {
+      "mode": "single",
+      "n_charts": null,
+      "overlap": 0.25,
+      "import_mesh": null,
+      "split_centres": null,
+      "split_half_width": 0.0
+    },
+    "canonical": {
+      "enabled": false,
+      "dimension": null,
+      "n_candidates": 40,
+      "far_hops": 4,
+      "refine_steps": 1500,
+      "target_separation": 2.5,
+      "target_sigma": 0.75,
+      "planarity": 0.12,
+      "max_slope": 0.5,
+      "height_only": false,
+      "residual_discovery": false,
+      "autoencoder_charts": false,
+      "autoencoder_width": 128,
+      "autoencoder_depth": 3,
+      "autoencoder_seed_epochs": 1500,
+      "autoencoder_ring_epochs": 1500,
+      "autoencoder_tangent_weight": 0.3,
+      "autoencoder_plane_weight": 1.0
+    },
+    "decoder": {
+      "epochs": 5000,
+      "lr": 0.002,
+      "hidden_width": 128,
+      "hidden_layers": 4,
+      "n_harmonics": 1,
+      "rot_weight": 1.0,
+      "smooth_lambda": 0.001,
+      "smooth_eps": 0.05,
+      "edge_tangent_weight": 0.0,
+      "holdout": 0.2,
+      "holdout_regions": 8,
+      "seed": 0,
+      "closure_weight": 1.0,
+      "seam_weight": 5.0,
+      "val_every": 25
+    },
+    "dynamics": {
+      "distill": true,
+      "epochs": 4000,
+      "width": 64,
+      "layers": 3,
+      "lr": 0.001,
+      "n_teacher": 4000
+    },
+    "boundary": {
+      "kind": "sdf",
+      "k": 10000000.0,
+      "margin": 0.0,
+      "damping": 0.0,
+      "epochs": 3000,
+      "width": 64,
+      "layers": 3
+    },
+    "expect": {
+      "dimension": 2,
+      "n_charts": null,
+      "n_bodies": 10,
+      "contact_pairs": null
+    },
+    "tolerances": {
+      "decoder_translation_rmse": 0.05,
+      "decoder_rotation_deg": 3.0,
+      "mass_min_eigenvalue": 1e-09,
+      "closure": 0.05,
+      "handoff_energy_drift": 0.06,
+      "free_energy_drift": 0.3,
+      "energy_work_residual": 0.5,
+      "validation_energy_err": 1e-06
+    }
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "initial_u": [
+        0.0,
+        0.0
+      ],
+      "boundary_solver": "damped"
+    }
+  },
+  "plugin": null
+}

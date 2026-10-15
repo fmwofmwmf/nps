@@ -1,0 +1,121 @@
+{
+  "status": "pass",
+  "n_patches": 1,
+  "max_patches": null,
+  "patch_sizes": [
+    2000
+  ],
+  "patches": [
+    {
+      "recon_ok": true,
+      "max_score": 0.128728062684776,
+      "constraint_applicable": true,
+      "constraint_ok": true,
+      "constraint_max": 0.06669673890615278,
+      "rank": {
+        "cond_a": 1.4576738600691812,
+        "cond_b": 1.4292934432995208,
+        "gain_min": 4.6465113768505315,
+        "pass": true
+      },
+      "tangent": {
+        "max_principal_angle_deg": 7.36535632113221,
+        "rms_principal_angle_deg": 1.1316990767163566,
+        "projector_rms": 0.027921710395971508,
+        "angle_tol_deg": 12.0,
+        "pass": true
+      },
+      "inverse_ok": true,
+      "inverse_rms": 0.001526960117913892,
+      "collision_ok": true,
+      "collision_count": 0,
+      "pass": true
+    }
+  ],
+  "overlap": {},
+  "coverage_ok": true,
+  "n_uncovered": 0,
+  "all_pass": true,
+  "support_coverage_ok": true,
+  "simplify": {
+    "merge_attempts_used": 0,
+    "merge_budget": 8,
+    "merges_accepted": 0,
+    "merges_rejected": 0,
+    "budget_exhausted": false,
+    "n_cached_failed_unions": 0,
+    "n_pruned": 0
+  },
+  "overlap_replay": {
+    "pairs": 0,
+    "replay_mse": null
+  },
+  "unchecked_constraint_patches": [],
+  "physical_validity_checked": true,
+  "learned_fields": [
+    {
+      "mass_mse": 3.3002273953002232,
+      "potential_mse": 424.9494126096466,
+      "support_bce": 0.441015712464586,
+      "boundary_margin": 0.04335366561322479,
+      "transition_support_positive": 0,
+      "transition_support_negative": 0,
+      "support_reconstruction_tol": 0.0015274996076340113,
+      "boundary_witnesses": 0,
+      "boundary_mode": "neutral_no_physical_witness",
+      "owner_support_min_before": -8.846902107431251,
+      "owner_support_min_after": 0.40433060246762703,
+      "owner_support_nonpositive_after": 0,
+      "union_support_nonpositive_before": 103,
+      "union_support_nonpositive_after": 0,
+      "union_support_min_after": 0.40433060246762703
+    }
+  ],
+  "support_coverage": {
+    "owner_support_min_before": -8.846902107431251,
+    "owner_support_min_after": 0.40433060246762703,
+    "owner_support_nonpositive_after": 0,
+    "union_support_nonpositive_before": 103,
+    "union_support_nonpositive_after": 0,
+    "union_support_min_after": 0.40433060246762703
+  },
+  "timing": {
+    "started_at": "2026-08-19T03:25:10.420682+00:00",
+    "finished_at": "2026-08-19T03:36:58.617600+00:00",
+    "build_wall_seconds": 708.1962348999987,
+    "patch_construction_seconds": 2.2925085999995645,
+    "simplify_seconds": 1.1699999959091656e-05,
+    "overlap_replay_seconds": 1.199999860546086e-05,
+    "overlap_certification_seconds": 6.800000846851617e-06,
+    "per_patch": [
+      {
+        "patch": 0,
+        "n_vertices": 63,
+        "train_seconds": 36.28562260000035,
+        "certify_seconds": 0.02155779999884544,
+        "total_seconds": 38.26707840000017
+      },
+      {
+        "patch": 1,
+        "n_vertices": 268,
+        "train_seconds": 70.29003919999923,
+        "certify_seconds": 0.039484999999331194,
+        "total_seconds": 71.32191280000006
+      },
+      {
+        "patch": 2,
+        "n_vertices": 769,
+        "train_seconds": 117.43436959999963,
+        "certify_seconds": 0.08609320000141452,
+        "total_seconds": 119.39418359999945
+      },
+      {
+        "patch": 3,
+        "n_vertices": 2000,
+        "train_seconds": 314.31096330000037,
+        "certify_seconds": 0.30268509999950766,
+        "total_seconds": 316.9458485999985
+      }
+    ]
+  }
+}

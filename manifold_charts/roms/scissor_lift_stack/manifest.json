@@ -1,0 +1,54 @@
+{
+  "format": "patch_rom_v2",
+  "case": "scissor_lift_stack",
+  "label": null,
+  "n_bodies": 19,
+  "body_order": [
+    "platform_top",
+    "leg_a_0",
+    "leg_b_0",
+    "roller_bottom",
+    "leg_a_1",
+    "leg_b_1",
+    "leg_a_2",
+    "leg_b_2",
+    "leg_a_3",
+    "leg_b_3",
+    "leg_a_4",
+    "leg_b_4",
+    "leg_a_5",
+    "leg_b_5",
+    "leg_a_6",
+    "leg_b_6",
+    "leg_a_7",
+    "leg_b_7",
+    "roller_top"
+  ],
+  "latent_dim": 1,
+  "width": 64,
+  "n_patches": 1,
+  "control_schema": [],
+  "actuator_maps": [],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": "patch_atlas_rollout_report.json",
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\scissor_lift_stack",
+    "artifact_sha256": "eab9b17e6a5fa6311a86e098937351fb62899cf564ce08bd8e9996a1f317ec8f",
+    "build_report_sha256": "7c7151e668c455ce0fd378ac554282e77e5f1d2447865858c297a87be42fb424"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "rollout": {
+      "n_trajectories": 0,
+      "n_pass": 0,
+      "all_pass": false
+    },
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-08-19T09:00:18.634390+00:00"
+}

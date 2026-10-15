@@ -1,0 +1,59 @@
+{
+  "format": "patch_rom_v2",
+  "case": "jansen",
+  "label": "experimental: learned non-fold atlas with explicit owner-support and valid-sample union-coverage calibration; rollout evidence recorded, not required",
+  "n_bodies": 7,
+  "body_order": [
+    "crank",
+    "AC",
+    "AD",
+    "BD",
+    "BCE",
+    "EF",
+    "DFG"
+  ],
+  "latent_dim": 1,
+  "width": 96,
+  "n_patches": 2,
+  "control_schema": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "O",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "O",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": "patch_atlas_rollout_report.json",
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\jansen",
+    "artifact_sha256": "51fcd8fedce33887758a8f506b3a0b0b18f45bee646c9f22618b8fdc4bfdabb4",
+    "build_report_sha256": "c8e1cefccbcd45c3a80d9ecf8369d313175cfff2f96dd031f7079e120691e87f"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "rollout": {
+      "n_trajectories": 5,
+      "n_pass": 0,
+      "all_pass": false
+    },
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-08-18T05:03:06.988152+00:00"
+}

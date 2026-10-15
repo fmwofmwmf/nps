@@ -1,0 +1,573 @@
+{
+  "format": "atlas_case_v1",
+  "name": "jansen",
+  "mechanism": {
+    "bodies": [
+      {
+        "name": "crank",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.075,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              0.075,
+              0.0,
+              0.0
+            ],
+            "thick": 0.03
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "AC",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.25,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              0.25,
+              0.0,
+              0.0
+            ],
+            "thick": 0.03
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "AD",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.3095,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              0.3095,
+              0.0,
+              0.0
+            ],
+            "thick": 0.03
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.24,
+          0.47,
+          0.74
+        ],
+        "render_only": false
+      },
+      {
+        "name": "BD",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.1965,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              0.1965,
+              0.0,
+              0.0
+            ],
+            "thick": 0.03
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.55,
+          0.72,
+          0.92
+        ],
+        "render_only": false
+      },
+      {
+        "name": "BCE",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    -0.156049398,
+                    -0.139644704,
+                    0.0
+                  ],
+                  "p1": [
+                    0.258950602,
+                    -0.139644704,
+                    0.0
+                  ],
+                  "thick": 0.03
+                }
+              },
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    0.258950602,
+                    -0.139644704,
+                    0.0
+                  ],
+                  "p1": [
+                    -0.129950602,
+                    0.260505084,
+                    0.0
+                  ],
+                  "thick": 0.03
+                }
+              },
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    -0.156049398,
+                    -0.139644704,
+                    0.0
+                  ],
+                  "p1": [
+                    -0.129950602,
+                    0.260505084,
+                    0.0
+                  ],
+                  "thick": 0.03
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.35,
+          0.74,
+          0.55
+        ],
+        "render_only": false
+      },
+      {
+        "name": "EF",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.197,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              0.197,
+              0.0,
+              0.0
+            ],
+            "thick": 0.03
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.72,
+          0.6,
+          0.88
+        ],
+        "render_only": false
+      },
+      {
+        "name": "DFG",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    -0.09476703,
+                    -0.18327674,
+                    0.0
+                  ],
+                  "p1": [
+                    0.27223297,
+                    -0.18327674,
+                    0.0
+                  ],
+                  "thick": 0.03
+                }
+              },
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    0.27223297,
+                    -0.18327674,
+                    0.0
+                  ],
+                  "p1": [
+                    -0.17223297,
+                    0.300561071,
+                    0.0
+                  ],
+                  "thick": 0.03
+                }
+              },
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    -0.09476703,
+                    -0.18327674,
+                    0.0
+                  ],
+                  "p1": [
+                    -0.17223297,
+                    0.300561071,
+                    0.0
+                  ],
+                  "thick": 0.03
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.85,
+          0.32,
+          0.36
+        ],
+        "render_only": false
+      }
+    ],
+    "joints": [],
+    "up_axis": "y",
+    "render_up_axis": "y",
+    "gravity": 9.8,
+    "units": "m",
+    "workspace_bounds": [],
+    "contact_pairs": null
+  },
+  "coordinates": [
+    {
+      "name": "phi",
+      "topology": "periodic",
+      "period": 6.283185307179586,
+      "min": null,
+      "max": null,
+      "source": "sample_field",
+      "args": {
+        "key": "phases"
+      }
+    }
+  ],
+  "seeds": [],
+  "contact_model": "none",
+  "actuators": [
+    {
+      "name": "crank torque",
+      "kind": "coordinate_force",
+      "target": "phi",
+      "lo": -40.0,
+      "hi": 40.0
+    }
+  ],
+  "build": {
+    "sampling": {
+      "n_samples": 2000,
+      "step": 0.08,
+      "seed": 0,
+      "max_seconds": 1800.0,
+      "reuse": "output/jansen_cycle_si.npz",
+      "representation": "packed",
+      "tangent_rel_tol": 0.05
+    },
+    "charts": {
+      "mode": "single",
+      "n_charts": null,
+      "overlap": 0.25
+    },
+    "decoder": {
+      "epochs": 6000,
+      "lr": 0.002,
+      "hidden_width": 128,
+      "hidden_layers": 4,
+      "n_harmonics": 6,
+      "rot_weight": 1.0,
+      "smooth_lambda": 0.0001,
+      "smooth_eps": 0.05,
+      "holdout": 0.2,
+      "seed": 0,
+      "closure_weight": 0.0,
+      "val_every": 25
+    },
+    "dynamics": {
+      "distill": true,
+      "epochs": 3000,
+      "width": 64,
+      "layers": 3,
+      "lr": 0.001,
+      "n_teacher": 721
+    },
+    "boundary": {
+      "kind": "none",
+      "k": 100000000.0,
+      "margin": 0.0,
+      "epochs": 3000,
+      "width": 128,
+      "layers": 4
+    },
+    "expect": {
+      "dimension": 1,
+      "n_charts": 1,
+      "n_bodies": 7,
+      "contact_pairs": null
+    },
+    "tolerances": {
+      "decoder_translation_rmse": 0.005,
+      "decoder_rotation_deg": 1.0,
+      "mass_min_eigenvalue": 1e-09,
+      "closure": 0.001,
+      "handoff_energy_drift": 0.06,
+      "free_energy_drift": 0.3,
+      "energy_work_residual": 0.5,
+      "validation_energy_err": 1e-06
+    }
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "initial_u": [
+        0.0
+      ]
+    }
+  },
+  "plugin": null
+}

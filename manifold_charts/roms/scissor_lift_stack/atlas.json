@@ -1,0 +1,89 @@
+{
+  "format": "atlas_rom_v1",
+  "case": "scissor_lift_stack",
+  "dimension": 1,
+  "n_bodies": 19,
+  "body_order": [
+    "platform_top",
+    "leg_a_0",
+    "leg_b_0",
+    "roller_bottom",
+    "leg_a_1",
+    "leg_b_1",
+    "leg_a_2",
+    "leg_b_2",
+    "leg_a_3",
+    "leg_b_3",
+    "leg_a_4",
+    "leg_b_4",
+    "leg_a_5",
+    "leg_b_5",
+    "leg_a_6",
+    "leg_b_6",
+    "leg_a_7",
+    "leg_b_7",
+    "roller_top"
+  ],
+  "up_axis": "y",
+  "units": "m",
+  "charts": [
+    {
+      "id": 0,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "stage_angle_0",
+          "topology": "bounded",
+          "min": 0.3046926540153975,
+          "max": 1.43
+        }
+      ]
+    }
+  ],
+  "overlap_graph": [],
+  "models": {
+    "decoder": {
+      "kind": "atlas_decoder",
+      "path": "decoder.pt"
+    },
+    "mass": {
+      "kind": "atlas_mass",
+      "path": "mass.pt"
+    },
+    "potential": {
+      "kind": "atlas_potential",
+      "path": "potential.pt"
+    },
+    "boundary_field": {
+      "kind": "sdf_net",
+      "path": "boundary.pt"
+    }
+  },
+  "boundary": {
+    "type": "sdf",
+    "model": "boundary_field",
+    "k": 100000000.0,
+    "margin": 0.0
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "initial_u": [
+        0.9272952180016123
+      ],
+      "boundary_solver": "damped"
+    }
+  },
+  "tolerances": {
+    "decoder_translation_rmse": 0.05,
+    "decoder_rotation_deg": 3.0,
+    "mass_min_eigenvalue": 1e-09,
+    "closure": 0.05,
+    "handoff_energy_drift": 0.06,
+    "free_energy_drift": 0.3,
+    "energy_work_residual": 0.5,
+    "validation_energy_err": 1e-06
+  },
+  "assembly": "generic",
+  "mechanism": "mechanism.json"
+}

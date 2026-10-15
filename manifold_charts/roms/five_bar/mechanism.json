@@ -1,0 +1,515 @@
+{
+  "format": "atlas_case_v1",
+  "name": "five_bar",
+  "mechanism": {
+    "bodies": [
+      {
+        "name": "a1",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -1.0,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              -1.488927,
+              1.41808,
+              0.0
+            ],
+            "thick": 0.12
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "a2",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              1.488927,
+              1.41808,
+              0.0
+            ],
+            "thick": 0.12
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "b1",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -1.488927,
+              1.41808,
+              0.0
+            ],
+            "p1": [
+              0.0,
+              1.6,
+              0.0
+            ],
+            "thick": 0.12
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "b2",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              1.488927,
+              1.41808,
+              0.0
+            ],
+            "p1": [
+              0.0,
+              1.6,
+              0.0
+            ],
+            "thick": 0.12
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "__ground",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -1.25,
+              0.0,
+              0.0
+            ],
+            "p1": [
+              1.25,
+              0.0,
+              0.0
+            ],
+            "thick": 0.156
+          }
+        },
+        "configuration": "fixed",
+        "fixed": true,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.45,
+          0.47,
+          0.5
+        ],
+        "render_only": false
+      }
+    ],
+    "joints": [
+      {
+        "name": "A",
+        "kind": "revolute",
+        "body_a": "__ground",
+        "body_b": "a1",
+        "pivot": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "B",
+        "kind": "revolute",
+        "body_a": "__ground",
+        "body_b": "a2",
+        "pivot": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "C",
+        "kind": "revolute",
+        "body_a": "a1",
+        "body_b": "b1",
+        "pivot": [
+          -1.488927,
+          1.41808,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "D",
+        "kind": "revolute",
+        "body_a": "a2",
+        "body_b": "b2",
+        "pivot": [
+          1.488927,
+          1.41808,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "E",
+        "kind": "revolute",
+        "body_a": "b1",
+        "body_b": "b2",
+        "pivot": [
+          0.0,
+          1.6,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      }
+    ],
+    "up_axis": "y",
+    "render_up_axis": "z",
+    "gravity": 9.8,
+    "units": "m",
+    "workspace_bounds": [],
+    "contact_pairs": null
+  },
+  "coordinates": [
+    {
+      "name": "u0",
+      "topology": "euclidean",
+      "period": null,
+      "min": null,
+      "max": null,
+      "source": "isomap",
+      "args": {
+        "component": 0,
+        "n_neighbors": 10
+      }
+    },
+    {
+      "name": "u1",
+      "topology": "euclidean",
+      "period": null,
+      "min": null,
+      "max": null,
+      "source": "isomap",
+      "args": {
+        "component": 1,
+        "n_neighbors": 10
+      }
+    }
+  ],
+  "seeds": [],
+  "contact_model": "none",
+  "actuators": [
+    {
+      "name": "driver A torque",
+      "kind": "joint_torque",
+      "target": "A",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0
+    },
+    {
+      "name": "driver B torque",
+      "kind": "joint_torque",
+      "target": "B",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0
+    }
+  ],
+  "build": {
+    "sampling": {
+      "n_samples": 2000,
+      "step": 0.08,
+      "seed": 0,
+      "max_seconds": 1800.0,
+      "reuse": "output/five_bar_stratified_atlas.npz",
+      "seed_reuse": null,
+      "seed_index": 0,
+      "representation": "planar_xytheta",
+      "tangent_rel_tol": 0.05,
+      "probe_count": null,
+      "drive_iters": null,
+      "relax_iters": null,
+      "predictor_body_displacement": null,
+      "hold_drive_during_projection": false,
+      "fault_tolerant": false,
+      "continuation_timeout": 90.0,
+      "continuation_min_step": null,
+      "continuation_replay_window": 8,
+      "actuated_bodies": null
+    },
+    "charts": {
+      "mode": "mesh_atlas",
+      "n_charts": null,
+      "overlap": 0.25,
+      "import_mesh": "output/five_bar_four_chart_cover.npz"
+    },
+    "canonical": {
+      "enabled": true,
+      "dimension": 5,
+      "n_candidates": 40,
+      "far_hops": 4,
+      "refine_steps": 1500,
+      "target_separation": 2.5,
+      "target_sigma": 0.75,
+      "planarity": 0.2
+    },
+    "decoder": {
+      "epochs": 6000,
+      "lr": 0.002,
+      "hidden_width": 128,
+      "hidden_layers": 4,
+      "n_harmonics": 1,
+      "rot_weight": 1.0,
+      "smooth_lambda": 0.001,
+      "smooth_eps": 0.05,
+      "holdout": 0.2,
+      "seed": 0,
+      "closure_weight": 1.0,
+      "seam_weight": 5.0,
+      "val_every": 25
+    },
+    "dynamics": {
+      "distill": true,
+      "epochs": 3000,
+      "width": 64,
+      "layers": 3,
+      "lr": 0.001,
+      "n_teacher": 1500
+    },
+    "boundary": {
+      "kind": "none",
+      "k": 100000000.0,
+      "margin": 0.0,
+      "epochs": 3000,
+      "width": 128,
+      "layers": 4
+    },
+    "expect": {
+      "dimension": 2,
+      "n_charts": null,
+      "n_bodies": 4,
+      "contact_pairs": null
+    },
+    "tolerances": {
+      "decoder_translation_rmse": 0.05,
+      "decoder_rotation_deg": 3.0,
+      "mass_min_eigenvalue": 1e-09,
+      "closure": 0.05,
+      "handoff_energy_drift": 0.06,
+      "free_energy_drift": 0.3,
+      "energy_work_residual": 0.5,
+      "validation_energy_err": 1e-06
+    }
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "dynamics_backend": "analytic"
+    }
+  },
+  "plugin": null
+}

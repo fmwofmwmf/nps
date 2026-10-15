@@ -1,0 +1,80 @@
+{
+  "trajectories": [
+    {
+      "kind": "farthest_point",
+      "start": 19,
+      "goal": 373,
+      "path_len": 355,
+      "max_config_error": 1.6066159353645242,
+      "mean_config_error": 0.28517296256370095,
+      "config_error_tol": 1.0,
+      "n_switches": 0,
+      "n_escapes": 32,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.22196540000732057
+    },
+    {
+      "kind": "farthest_point",
+      "start": 639,
+      "goal": 317,
+      "path_len": 323,
+      "max_config_error": 4.142384221393473,
+      "mean_config_error": 2.5706099321674274,
+      "config_error_tol": 1.0,
+      "n_switches": 0,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.21824079999350943
+    },
+    {
+      "kind": "farthest_point",
+      "start": 463,
+      "goal": 150,
+      "path_len": 314,
+      "max_config_error": 0.3077922947595388,
+      "mean_config_error": 0.12024069302089245,
+      "config_error_tol": 1.0,
+      "n_switches": 1,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": true,
+      "wall_seconds": 0.20289550002780743
+    },
+    {
+      "kind": "farthest_point",
+      "start": 57,
+      "goal": 397,
+      "path_len": 341,
+      "max_config_error": 2.525594174594708,
+      "mean_config_error": 0.3854342851785643,
+      "config_error_tol": 1.0,
+      "n_switches": 0,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.24767859998974018
+    },
+    {
+      "kind": "farthest_point",
+      "start": 16,
+      "goal": 371,
+      "path_len": 356,
+      "max_config_error": 1.5319792485415802,
+      "mean_config_error": 0.27841077968732914,
+      "config_error_tol": 1.0,
+      "n_switches": 0,
+      "n_escapes": 32,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.2664160999993328
+    }
+  ],
+  "timing": {
+    "started_at": "2026-08-18T01:37:20.814588+00:00",
+    "finished_at": "2026-08-18T01:51:32.255620+00:00",
+    "rollout_wall_seconds": 1.384805999987293,
+    "run_wall_seconds": 851.4407049999863
+  }
+}

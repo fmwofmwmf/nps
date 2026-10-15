@@ -1,0 +1,625 @@
+{
+  "format": "atlas_case_v1",
+  "name": "scissor_lift",
+  "mechanism": {
+    "bodies": [
+      {
+        "name": "ground_pin",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "half": [
+              0.03,
+              0.03,
+              0.03
+            ]
+          }
+        },
+        "configuration": "fixed",
+        "fixed": true,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            -0.3
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.45,
+          0.47,
+          0.5
+        ],
+        "render_only": false
+      },
+      {
+        "name": "ground_rail",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "half": [
+              0.03,
+              0.03,
+              0.03
+            ]
+          }
+        },
+        "configuration": "fixed",
+        "fixed": true,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.3
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.45,
+          0.47,
+          0.5
+        ],
+        "render_only": false
+      },
+      {
+        "name": "roller_bottom",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "half": [
+              0.03,
+              0.03,
+              0.03
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.3
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.72,
+          0.74,
+          0.78
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.06
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            0.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.06
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            0.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "roller_top",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "half": [
+              0.03,
+              0.03,
+              0.03
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            -0.3
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.8
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.72,
+          0.74,
+          0.78
+        ],
+        "render_only": false
+      },
+      {
+        "name": "platform",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.3,
+              0,
+              0
+            ],
+            "p1": [
+              0.3,
+              0,
+              0
+            ],
+            "thick": 0.06
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.8
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.35,
+          0.72,
+          0.45
+        ],
+        "render_only": false
+      }
+    ],
+    "joints": [
+      {
+        "name": "base_pin",
+        "kind": "revolute",
+        "body_a": "ground_pin",
+        "body_b": "leg_a",
+        "pivot": [
+          -0.3,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "base_rail",
+        "kind": "prismatic",
+        "body_a": "ground_rail",
+        "body_b": "roller_bottom",
+        "pivot": [
+          0.3,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "bottom_roller",
+        "kind": "revolute",
+        "body_a": "roller_bottom",
+        "body_b": "leg_b",
+        "pivot": [
+          0.3,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_pin",
+        "kind": "revolute",
+        "body_a": "leg_a",
+        "body_b": "leg_b",
+        "pivot": [
+          0.0,
+          0.4,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "platform_pin",
+        "kind": "revolute",
+        "body_a": "leg_a",
+        "body_b": "platform",
+        "pivot": [
+          0.3,
+          0.8,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "top_roller",
+        "kind": "revolute",
+        "body_a": "leg_b",
+        "body_b": "roller_top",
+        "pivot": [
+          -0.3,
+          0.8,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "platform_rail",
+        "kind": "prismatic",
+        "body_a": "roller_top",
+        "body_b": "platform",
+        "pivot": [
+          -0.3,
+          0.8,
+          0.0
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true
+      }
+    ],
+    "up_axis": "y",
+    "render_up_axis": "z",
+    "gravity": 9.8,
+    "units": "m",
+    "workspace_bounds": [
+      {
+        "name": "platform_height",
+        "body": "platform",
+        "axis": "y",
+        "lo": 0.5,
+        "hi": 1.02
+      }
+    ],
+    "contact_pairs": null
+  },
+  "coordinates": [
+    {
+      "name": "lift_angle",
+      "topology": "bounded",
+      "period": null,
+      "min": 0.5235987755982989,
+      "max": 1.43,
+      "source": "body_angle",
+      "args": {
+        "body": "leg_a",
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "reference": "identity"
+      }
+    }
+  ],
+  "seeds": [],
+  "contact_model": "none",
+  "actuators": [
+    {
+      "name": "lift torque",
+      "kind": "joint_torque",
+      "target": "cross_pin",
+      "lo": -40.0,
+      "hi": 40.0
+    }
+  ],
+  "build": {
+    "sampling": {
+      "n_samples": 192,
+      "step": 0.012,
+      "seed": 0,
+      "max_seconds": 1800.0,
+      "reuse": null,
+      "representation": "packed",
+      "tangent_rel_tol": 0.05
+    },
+    "charts": {
+      "mode": "single",
+      "n_charts": null,
+      "overlap": 0.25
+    },
+    "decoder": {
+      "epochs": 5000,
+      "lr": 0.002,
+      "hidden_width": 128,
+      "hidden_layers": 4,
+      "n_harmonics": 1,
+      "rot_weight": 1.0,
+      "smooth_lambda": 0.001,
+      "smooth_eps": 0.05,
+      "holdout": 0.2,
+      "seed": 0,
+      "closure_weight": 1.0,
+      "val_every": 25
+    },
+    "dynamics": {
+      "distill": true,
+      "epochs": 2500,
+      "width": 64,
+      "layers": 3,
+      "lr": 0.001,
+      "n_teacher": 1200
+    },
+    "boundary": {
+      "kind": "sdf",
+      "k": 10000.0,
+      "margin": 0.0,
+      "epochs": 3000,
+      "width": 64,
+      "layers": 3
+    },
+    "expect": {
+      "dimension": 1,
+      "n_charts": null,
+      "n_bodies": 5,
+      "contact_pairs": null
+    },
+    "tolerances": {
+      "decoder_translation_rmse": 0.05,
+      "decoder_rotation_deg": 3.0,
+      "mass_min_eigenvalue": 1e-09,
+      "closure": 0.05,
+      "handoff_energy_drift": 0.06,
+      "free_energy_drift": 0.3,
+      "energy_work_residual": 0.5,
+      "validation_energy_err": 1e-06
+    }
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.0001,
+      "initial_u": [
+        1.5707963267948966
+      ]
+    }
+  },
+  "plugin": null
+}

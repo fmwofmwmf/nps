@@ -1,0 +1,2757 @@
+{
+  "format": "atlas_rom_v1",
+  "case": "five_bar",
+  "dimension": 2,
+  "n_bodies": 4,
+  "body_order": [
+    "a1",
+    "a2",
+    "b1",
+    "b2"
+  ],
+  "up_axis": "y",
+  "units": "m",
+  "charts": [
+    {
+      "id": 0,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 62,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 66,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 67,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 68,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 69,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 73,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 74,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 75,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 76,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 77,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 78,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 79,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 82,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 83,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 84,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 85,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 86,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 87,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 88,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 89,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 90,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 91,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 92,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 93,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 94,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 95,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 96,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 97,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 98,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 99,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 100,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 107,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 108,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 109,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 110,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 111,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 112,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 114,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 115,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 116,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 117,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 118,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 119,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 120,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 121,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 122,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 123,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 124,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 125,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 126,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 127,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 128,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 129,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 130,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 131,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 132,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 133,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 134,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 135,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 136,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 137,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 138,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 139,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 140,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 141,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 142,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 143,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 144,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 145,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 146,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 147,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 148,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 149,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 150,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 151,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 152,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 153,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 154,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 155,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 156,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 157,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 158,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 159,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 160,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 161,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 162,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 163,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 164,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 165,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 166,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 167,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 168,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 169,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 170,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 171,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 172,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 173,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 174,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 175,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 176,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 177,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 178,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 179,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 180,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 181,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 182,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 183,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 184,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 185,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    },
+    {
+      "id": 186,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "u0",
+          "topology": "euclidean"
+        },
+        {
+          "name": "u1",
+          "topology": "euclidean"
+        }
+      ]
+    }
+  ],
+  "overlap_graph": [],
+  "models": {
+    "decoder": {"kind": "four_chart_decoder", "path": "four_chart_decoder.pt"},
+    "mass": {"kind": "four_chart_mass", "path": "four_chart_mass.pt"},
+    "potential": {"kind": "four_chart_potential", "path": "four_chart_potential.pt"},
+    "physical_inverse": {"kind": "four_chart_pose_inverse", "path": "four_chart_physical_inverse.pt"}
+  },
+  "transitions": {"kind": "aligned_cache", "path": "four_chart_transitions.npz"},
+  "boundary": {
+    "type": "none"
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "dynamics_backend": "exact_canonical"
+    },
+    "exact": {
+      "dt": 0.001,
+      "dynamics_backend": "exact_canonical"
+    },
+    "distilled": {
+      "dt": 0.001,
+      "dynamics_backend": "distilled_canonical"
+    },
+    "projected": {
+      "dt": 0.001,
+      "dynamics_backend": "exact_canonical",
+      "projected_patch": true
+    },
+    "direct": {
+      "dt": 0.001,
+      "dynamics_backend": "direct_constrained"
+    },
+    "graph": {
+      "dt": 0.001,
+      "dynamics_backend": "graph_constrained",
+      "kinematic_decoder": true
+    }
+  },
+  "tolerances": {
+    "decoder_translation_rmse": 0.05,
+    "decoder_rotation_deg": 3.0,
+    "mass_min_eigenvalue": 1e-09,
+    "closure": 0.05,
+    "handoff_energy_drift": 0.06,
+    "free_energy_drift": 0.3,
+    "energy_work_residual": 0.5,
+    "validation_energy_err": 1e-06
+  },
+  "assembly": "four_chart",
+  "mechanism": "mechanism.json",
+  "actuators": [
+    {
+      "name": "driver A torque",
+      "kind": "joint_torque",
+      "target": "A",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0
+    },
+    {
+      "name": "driver B torque",
+      "kind": "joint_torque",
+      "target": "B",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0
+    }
+  ],
+  "canonical": {
+    "dimension": 5,
+    "patches": 187,
+    "chart_maps": "chart_maps.pt",
+    "decoder": "canonical_decoder.pt",
+    "physics": "canonical_physics.pt",
+    "constraint": "canonical_constraint.pt",
+    "graph": "canonical_graph.npz",
+    "validity": "chart_maps.pt",
+    "runtime_state": "local_with_canonical_identity",
+    "certificate": {
+      "n_samples": 626,
+      "dimension": 5,
+      "edge_length_z": 1.097520755961571,
+      "edge_length_q": 1.0975207559615707,
+      "sigma_min": 0.6097997605403049,
+      "sigma_min_median": 0.7495646200294994,
+      "sigma_max": 1.6293536498263963,
+      "jacobian_covered": 626,
+      "separation": 2.7113947354955643,
+      "separation_ratio": 2.4704723995128735,
+      "neighbour_purity": 1.0,
+      "impure_samples": 0,
+      "purity_k": 8,
+      "worst_pair": [
+        543,
+        558
+      ],
+      "far_hops": 4,
+      "modes": [
+        0,
+        5,
+        1,
+        26,
+        21
+      ],
+      "eigenvalues": [
+        0.08797909253536063,
+        0.12711810249148264,
+        0.08998707956566884,
+        0.5102056667788428,
+        0.4450137453498525
+      ],
+      "score": 0.8135386119428983,
+      "spectral_only": {
+        "sigma_min": 0.16618224254262295,
+        "separation_ratio": 0.31908410950468996,
+        "neighbour_purity": 0.6277955271565495,
+        "score": 0.30296988035810934
+      },
+      "target_separation": 2.5,
+      "target_sigma": 0.75
+    }
+  }
+}

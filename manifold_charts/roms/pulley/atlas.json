@@ -1,0 +1,89 @@
+{
+  "format": "atlas_rom_v1",
+  "case": "pulley",
+  "dimension": 1,
+  "n_bodies": 13,
+  "body_order": [
+    "crank1",
+    "crank2",
+    "crank3",
+    "crank4",
+    "crank5",
+    "rod1",
+    "rod2",
+    "rod3",
+    "rod4",
+    "rod5",
+    "rod6",
+    "sliderA",
+    "sliderB"
+  ],
+  "up_axis": "y",
+  "units": "m",
+  "charts": [
+    {
+      "id": 0,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "pull",
+          "topology": "bounded",
+          "min": -0.5,
+          "max": 0.5
+        }
+      ]
+    }
+  ],
+  "overlap_graph": [],
+  "models": {
+    "decoder": {
+      "kind": "atlas_decoder",
+      "path": "decoder.pt"
+    },
+    "mass": {
+      "kind": "atlas_mass",
+      "path": "mass.pt"
+    },
+    "potential": {
+      "kind": "atlas_potential",
+      "path": "potential.pt"
+    }
+  },
+  "boundary": {
+    "type": "interval",
+    "lo": -0.5,
+    "hi": 0.5,
+    "k": 100000000.0,
+    "margin": 0.0
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "initial_u": [
+        0.0
+      ]
+    }
+  },
+  "tolerances": {
+    "decoder_translation_rmse": 0.05,
+    "decoder_rotation_deg": 3.0,
+    "mass_min_eigenvalue": 1e-09,
+    "closure": 0.05,
+    "handoff_energy_drift": 0.06,
+    "free_energy_drift": 0.3,
+    "energy_work_residual": 0.5,
+    "validation_energy_err": 1e-06
+  },
+  "assembly": "generic",
+  "mechanism": "mechanism.json",
+  "actuators": [
+    {
+      "name": "pull force",
+      "kind": "coordinate_force",
+      "target": "pull",
+      "lo": -200.0,
+      "hi": 200.0,
+      "gain": 1.0
+    }
+  ]
+}

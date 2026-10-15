@@ -1,0 +1,90 @@
+{
+  "trajectories": [
+    {
+      "kind": "farthest_point",
+      "start": 2,
+      "goal": 41,
+      "path_len": 40,
+      "max_config_error": 3.738583972990816,
+      "mean_config_error": 0.9282959823963403,
+      "config_error_tol": 1.0,
+      "max_handoff_fullspace_rms": 0.0,
+      "handoff_fullspace_rms_tol": 0.05,
+      "n_switches": 0,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.03084599999965576
+    },
+    {
+      "kind": "farthest_point",
+      "start": 70,
+      "goal": 34,
+      "path_len": 37,
+      "max_config_error": 3.961815422651464,
+      "mean_config_error": 1.543289346192924,
+      "config_error_tol": 1.0,
+      "max_handoff_fullspace_rms": 0.0,
+      "handoff_fullspace_rms_tol": 0.05,
+      "n_switches": 0,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.02906779999830178
+    },
+    {
+      "kind": "farthest_point",
+      "start": 50,
+      "goal": 16,
+      "path_len": 35,
+      "max_config_error": 3.9898417395997443,
+      "mean_config_error": 2.278127216155468,
+      "config_error_tol": 1.0,
+      "max_handoff_fullspace_rms": 0.0,
+      "handoff_fullspace_rms_tol": 0.05,
+      "n_switches": 0,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.02084160000049451
+    },
+    {
+      "kind": "farthest_point",
+      "start": 6,
+      "goal": 43,
+      "path_len": 38,
+      "max_config_error": 3.756927706103755,
+      "mean_config_error": 1.1975777702365737,
+      "config_error_tol": 1.0,
+      "max_handoff_fullspace_rms": 0.0,
+      "handoff_fullspace_rms_tol": 0.05,
+      "n_switches": 0,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.026905599999736296
+    },
+    {
+      "kind": "farthest_point",
+      "start": 1,
+      "goal": 40,
+      "path_len": 40,
+      "max_config_error": 3.6818713737258513,
+      "mean_config_error": 0.8326940165618943,
+      "config_error_tol": 1.0,
+      "max_handoff_fullspace_rms": 0.0,
+      "handoff_fullspace_rms_tol": 0.05,
+      "n_switches": 0,
+      "n_escapes": 0,
+      "n_constraint_violations": 0,
+      "pass": false,
+      "wall_seconds": 0.028348100000584964
+    }
+  ],
+  "timing": {
+    "started_at": "2026-08-19T07:41:23.624655+00:00",
+    "finished_at": "2026-08-19T07:46:17.177192+00:00",
+    "rollout_wall_seconds": 0.1414669000005233,
+    "run_wall_seconds": 293.5525644999998
+  }
+}

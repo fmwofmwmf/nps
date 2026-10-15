@@ -1,0 +1,71 @@
+{
+  "format": "patch_rom_v2",
+  "case": "twin_independent_pistons",
+  "label": null,
+  "n_bodies": 6,
+  "body_order": [
+    "piston_a_crank",
+    "piston_a_rod",
+    "piston_a_piston",
+    "piston_b_crank",
+    "piston_b_rod",
+    "piston_b_piston"
+  ],
+  "latent_dim": 2,
+  "width": 288,
+  "n_patches": 4,
+  "control_schema": [
+    {
+      "name": "piston A crank torque",
+      "kind": "joint_torque",
+      "target": "piston_a_crank_axle",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "piston B crank torque",
+      "kind": "joint_torque",
+      "target": "piston_b_crank_axle",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "piston A crank torque",
+      "kind": "joint_torque",
+      "target": "piston_a_crank_axle",
+      "status": "analytic"
+    },
+    {
+      "name": "piston B crank torque",
+      "kind": "joint_torque",
+      "target": "piston_b_crank_axle",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": null,
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\analytic_gt_grids_20260923\\twin_independent_pistons_cae",
+    "artifact_sha256": "9b48c975548170ad36381f52be8cfd243f96743e0a321057a4bee1b7d6b1fb4b",
+    "build_report_sha256": "d198259cce5a590b29ab970a89ed68af85f34325a00de66976907702f4a57ab0"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": null,
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-09-23T12:58:42.738249+00:00"
+}

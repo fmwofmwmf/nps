@@ -1,0 +1,83 @@
+{
+  "format": "atlas_rom_v1",
+  "case": "scissor_lift",
+  "dimension": 1,
+  "n_bodies": 5,
+  "body_order": [
+    "roller_bottom",
+    "leg_a",
+    "leg_b",
+    "roller_top",
+    "platform"
+  ],
+  "up_axis": "y",
+  "units": "m",
+  "charts": [
+    {
+      "id": 0,
+      "type": "euclidean",
+      "coordinates": [
+        {
+          "name": "lift_angle",
+          "topology": "bounded",
+          "min": 0.5235987755982989,
+          "max": 1.43
+        }
+      ]
+    }
+  ],
+  "overlap_graph": [],
+  "models": {
+    "decoder": {
+      "kind": "atlas_decoder",
+      "path": "decoder.pt"
+    },
+    "mass": {
+      "kind": "atlas_mass",
+      "path": "mass.pt"
+    },
+    "potential": {
+      "kind": "atlas_potential",
+      "path": "potential.pt"
+    },
+    "boundary_field": {
+      "kind": "sdf_net",
+      "path": "boundary.pt"
+    }
+  },
+  "boundary": {
+    "type": "sdf",
+    "model": "boundary_field",
+    "k": 10000.0,
+    "margin": 0.0
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.0001,
+      "initial_u": [
+        1.5707963267948966
+      ]
+    }
+  },
+  "tolerances": {
+    "decoder_translation_rmse": 0.05,
+    "decoder_rotation_deg": 3.0,
+    "mass_min_eigenvalue": 1e-09,
+    "closure": 0.05,
+    "handoff_energy_drift": 0.06,
+    "free_energy_drift": 0.3,
+    "energy_work_residual": 0.5,
+    "validation_energy_err": 1e-06
+  },
+  "assembly": "generic",
+  "mechanism": "mechanism.json",
+  "actuators": [
+    {
+      "name": "lift torque",
+      "kind": "joint_torque",
+      "target": "cross_pin",
+      "lo": -40.0,
+      "hi": 40.0
+    }
+  ]
+}

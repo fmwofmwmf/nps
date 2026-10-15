@@ -1,0 +1,1684 @@
+{
+  "format": "atlas_case_v1",
+  "name": "scissor_lift_stack",
+  "mechanism": {
+    "bodies": [
+      {
+        "name": "ground",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.3,
+              0,
+              0
+            ],
+            "p1": [
+              0.3,
+              0,
+              0
+            ],
+            "thick": 0.06
+          }
+        },
+        "configuration": "fixed",
+        "fixed": true,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.45,
+          0.47,
+          0.5
+        ],
+        "render_only": false
+      },
+      {
+        "name": "platform_top",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.3,
+              0,
+              0
+            ],
+            "p1": [
+              0.3,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            6.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.35,
+          0.72,
+          0.45
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_0",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            0.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_0",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            0.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "roller_bottom",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "half": [
+              0.03,
+              0.03,
+              0.03
+            ]
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.3
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.7,
+          0.7,
+          0.7
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_1",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            1.2000000000000002
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_1",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            1.2000000000000002
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_2",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            2.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_2",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            2.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_3",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            2.8000000000000003
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_3",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            2.8000000000000003
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_4",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            3.6
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_4",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            3.6
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_5",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            4.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_5",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            4.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_6",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            5.200000000000001
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_6",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            5.200000000000001
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_a_7",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            0.6,
+            -0.8,
+            0.0,
+            0.0
+          ],
+          [
+            0.8,
+            0.6,
+            0.0,
+            6.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "leg_b_7",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -0.5,
+              0,
+              0
+            ],
+            "p1": [
+              0.5,
+              0,
+              0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            -0.5999999999999999,
+            -0.8000000000000002,
+            0.0,
+            0.0
+          ],
+          [
+            0.8000000000000002,
+            -0.5999999999999999,
+            0.0,
+            6.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "roller_top",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              0,
+              0,
+              0
+            ],
+            "half": [
+              0.03,
+              0.03,
+              0.03
+            ]
+          }
+        },
+        "configuration": "planar_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            -0.3
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            6.4
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.7,
+          0.7,
+          0.7
+        ],
+        "render_only": false
+      }
+    ],
+    "joints": [
+      {
+        "name": "cross_0",
+        "kind": "revolute",
+        "body_a": "leg_a_0",
+        "body_b": "leg_b_0",
+        "pivot": [
+          0.0,
+          0.4,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "base_pin",
+        "kind": "revolute",
+        "body_a": "ground",
+        "body_b": "leg_a_0",
+        "pivot": [
+          -0.3,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "base_rail",
+        "kind": "prismatic",
+        "body_a": "ground",
+        "body_b": "roller_bottom",
+        "pivot": [
+          0.3,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "bottom",
+        "kind": "revolute",
+        "body_a": "roller_bottom",
+        "body_b": "leg_b_0",
+        "pivot": [
+          0.3,
+          0.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_1",
+        "kind": "revolute",
+        "body_a": "leg_a_1",
+        "body_b": "leg_b_1",
+        "pivot": [
+          0.0,
+          1.2000000000000002,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "right_hinge_0_1",
+        "kind": "revolute",
+        "body_a": "leg_a_0",
+        "body_b": "leg_b_1",
+        "pivot": [
+          0.3,
+          0.8,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "left_hinge_0_1",
+        "kind": "revolute",
+        "body_a": "leg_b_0",
+        "body_b": "leg_a_1",
+        "pivot": [
+          -0.3,
+          0.8,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_2",
+        "kind": "revolute",
+        "body_a": "leg_a_2",
+        "body_b": "leg_b_2",
+        "pivot": [
+          0.0,
+          2.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "right_hinge_1_2",
+        "kind": "revolute",
+        "body_a": "leg_a_1",
+        "body_b": "leg_b_2",
+        "pivot": [
+          0.3,
+          1.6,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "left_hinge_1_2",
+        "kind": "revolute",
+        "body_a": "leg_b_1",
+        "body_b": "leg_a_2",
+        "pivot": [
+          -0.3,
+          1.6,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_3",
+        "kind": "revolute",
+        "body_a": "leg_a_3",
+        "body_b": "leg_b_3",
+        "pivot": [
+          0.0,
+          2.8000000000000003,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "right_hinge_2_3",
+        "kind": "revolute",
+        "body_a": "leg_a_2",
+        "body_b": "leg_b_3",
+        "pivot": [
+          0.3,
+          2.4000000000000004,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "left_hinge_2_3",
+        "kind": "revolute",
+        "body_a": "leg_b_2",
+        "body_b": "leg_a_3",
+        "pivot": [
+          -0.3,
+          2.4000000000000004,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_4",
+        "kind": "revolute",
+        "body_a": "leg_a_4",
+        "body_b": "leg_b_4",
+        "pivot": [
+          0.0,
+          3.6,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "right_hinge_3_4",
+        "kind": "revolute",
+        "body_a": "leg_a_3",
+        "body_b": "leg_b_4",
+        "pivot": [
+          0.3,
+          3.2,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "left_hinge_3_4",
+        "kind": "revolute",
+        "body_a": "leg_b_3",
+        "body_b": "leg_a_4",
+        "pivot": [
+          -0.3,
+          3.2,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_5",
+        "kind": "revolute",
+        "body_a": "leg_a_5",
+        "body_b": "leg_b_5",
+        "pivot": [
+          0.0,
+          4.4,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "right_hinge_4_5",
+        "kind": "revolute",
+        "body_a": "leg_a_4",
+        "body_b": "leg_b_5",
+        "pivot": [
+          0.3,
+          4.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "left_hinge_4_5",
+        "kind": "revolute",
+        "body_a": "leg_b_4",
+        "body_b": "leg_a_5",
+        "pivot": [
+          -0.3,
+          4.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_6",
+        "kind": "revolute",
+        "body_a": "leg_a_6",
+        "body_b": "leg_b_6",
+        "pivot": [
+          0.0,
+          5.200000000000001,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "right_hinge_5_6",
+        "kind": "revolute",
+        "body_a": "leg_a_5",
+        "body_b": "leg_b_6",
+        "pivot": [
+          0.3,
+          4.800000000000001,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "left_hinge_5_6",
+        "kind": "revolute",
+        "body_a": "leg_b_5",
+        "body_b": "leg_a_6",
+        "pivot": [
+          -0.3,
+          4.800000000000001,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "cross_7",
+        "kind": "revolute",
+        "body_a": "leg_a_7",
+        "body_b": "leg_b_7",
+        "pivot": [
+          0.0,
+          6.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "right_hinge_6_7",
+        "kind": "revolute",
+        "body_a": "leg_a_6",
+        "body_b": "leg_b_7",
+        "pivot": [
+          0.3,
+          5.6000000000000005,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "left_hinge_6_7",
+        "kind": "revolute",
+        "body_a": "leg_b_6",
+        "body_b": "leg_a_7",
+        "pivot": [
+          -0.3,
+          5.6000000000000005,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "top_pin",
+        "kind": "revolute",
+        "body_a": "leg_a_7",
+        "body_b": "platform_top",
+        "pivot": [
+          0.3,
+          6.4,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "top",
+        "kind": "revolute",
+        "body_a": "leg_b_7",
+        "body_b": "roller_top",
+        "pivot": [
+          -0.3,
+          6.4,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true
+      },
+      {
+        "name": "top_rail",
+        "kind": "prismatic",
+        "body_a": "roller_top",
+        "body_b": "platform_top",
+        "pivot": [
+          -0.3,
+          6.4,
+          0.0
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "exclude_collision": true
+      }
+    ],
+    "up_axis": "y",
+    "render_up_axis": "z",
+    "gravity": 9.8,
+    "units": "m",
+    "workspace_bounds": [],
+    "contact_pairs": null
+  },
+  "coordinates": [
+    {
+      "name": "stage_angle_0",
+      "topology": "bounded",
+      "period": null,
+      "min": 0.3046926540153975,
+      "max": 1.43,
+      "source": "body_angle",
+      "args": {
+        "body": "leg_a_0",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "reference": "identity"
+      }
+    }
+  ],
+  "seeds": [],
+  "contact_model": "none",
+  "actuators": [],
+  "build": {
+    "sampling": {
+      "n_samples": 192,
+      "step": 0.02,
+      "seed": 0,
+      "max_seconds": 1800,
+      "reuse": null,
+      "representation": "packed",
+      "tangent_rel_tol": 0.8
+    },
+    "charts": {
+      "mode": "single",
+      "n_charts": null,
+      "overlap": 0.25
+    },
+    "decoder": {
+      "epochs": 5000,
+      "lr": 0.002,
+      "hidden_width": 128,
+      "hidden_layers": 4,
+      "n_harmonics": 1,
+      "rot_weight": 1.0,
+      "smooth_lambda": 0.001,
+      "smooth_eps": 0.05,
+      "holdout": 0.2,
+      "seed": 0,
+      "closure_weight": 1.0,
+      "val_every": 25
+    },
+    "dynamics": {
+      "distill": true,
+      "epochs": 4000,
+      "width": 64,
+      "layers": 3,
+      "lr": 0.001,
+      "n_teacher": 4000
+    },
+    "boundary": {
+      "kind": "sdf",
+      "k": 100000000.0,
+      "margin": 0.0,
+      "epochs": 3000,
+      "width": 64,
+      "layers": 3
+    },
+    "expect": {
+      "dimension": 1,
+      "n_charts": null,
+      "n_bodies": 19,
+      "contact_pairs": null
+    },
+    "tolerances": {
+      "decoder_translation_rmse": 0.05,
+      "decoder_rotation_deg": 3.0,
+      "mass_min_eigenvalue": 1e-09,
+      "closure": 0.05,
+      "handoff_energy_drift": 0.06,
+      "free_energy_drift": 0.3,
+      "energy_work_residual": 0.5,
+      "validation_energy_err": 1e-06
+    }
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "initial_u": [
+        0.9272952180016123
+      ],
+      "boundary_solver": "damped"
+    }
+  },
+  "plugin": null
+}

@@ -1,0 +1,9 @@
+{
+  "trajectories": [],
+  "timing": {
+    "started_at": "2026-08-28T01:14:16.554785+00:00",
+    "finished_at": "2026-08-28T01:16:52.113561+00:00",
+    "rollout_wall_seconds": 9.00006853044033e-07,
+    "run_wall_seconds": 155.55875849997392
+  }
+}

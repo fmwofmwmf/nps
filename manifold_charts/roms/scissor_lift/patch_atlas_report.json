@@ -1,0 +1,86 @@
+{
+  "status": "pass",
+  "n_patches": 1,
+  "max_patches": null,
+  "patch_sizes": [
+    75
+  ],
+  "patches": [
+    {
+      "recon_ok": true,
+      "max_score": 0.01799365242956124,
+      "constraint_applicable": true,
+      "constraint_ok": true,
+      "constraint_max": 0.0013094461025079712,
+      "rank": {
+        "cond_a": 1.0,
+        "cond_b": 1.0,
+        "gain_min": 5.480762067600083,
+        "pass": true
+      },
+      "tangent": {
+        "max_principal_angle_deg": 1.9459670557575128,
+        "rms_principal_angle_deg": 0.6680487237386238,
+        "projector_rms": 0.011658797128067187,
+        "angle_tol_deg": 12.0,
+        "pass": true
+      },
+      "inverse_ok": true,
+      "inverse_rms": 0.001314489159555988,
+      "pass": true
+    }
+  ],
+  "overlap": {},
+  "coverage_ok": true,
+  "n_uncovered": 0,
+  "all_pass": true,
+  "simplify": {
+    "merge_attempts_used": 0,
+    "merge_budget": 8,
+    "merges_accepted": 0,
+    "merges_rejected": 0,
+    "budget_exhausted": false,
+    "n_cached_failed_unions": 0,
+    "n_pruned": 0
+  },
+  "unchecked_constraint_patches": [],
+  "physical_validity_checked": true,
+  "timing": {
+    "started_at": "2026-08-12T04:34:15.597637+00:00",
+    "finished_at": "2026-08-12T04:37:31.731380+00:00",
+    "build_wall_seconds": 196.13407249999,
+    "patch_construction_seconds": 0.006088100024498999,
+    "simplify_seconds": 9.90001717582345e-06,
+    "overlap_certification_seconds": 2.300017513334751e-06,
+    "per_patch": [
+      {
+        "patch": 0,
+        "n_vertices": 60,
+        "train_seconds": 44.322077099990565,
+        "certify_seconds": 0.023220499977469444,
+        "total_seconds": 45.969763199973386
+      },
+      {
+        "patch": 1,
+        "n_vertices": 64,
+        "train_seconds": 45.69126170000527,
+        "certify_seconds": 0.020646999997552484,
+        "total_seconds": 46.05855799996061
+      },
+      {
+        "patch": 2,
+        "n_vertices": 64,
+        "train_seconds": 53.097423999977764,
+        "certify_seconds": 0.0202358000096865,
+        "total_seconds": 53.50818760000402
+      },
+      {
+        "patch": 3,
+        "n_vertices": 75,
+        "train_seconds": 50.1774551999988,
+        "certify_seconds": 0.024491799995303154,
+        "total_seconds": 50.5741740000085
+      }
+    ]
+  }
+}

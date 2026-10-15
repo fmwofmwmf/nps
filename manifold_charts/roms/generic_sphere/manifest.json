@@ -1,0 +1,36 @@
+{
+  "format": "patch_rom_v2",
+  "case": "generic_sphere",
+  "label": null,
+  "n_bodies": 1,
+  "body_order": [
+    "probe"
+  ],
+  "latent_dim": 2,
+  "width": 64,
+  "n_patches": 2,
+  "control_schema": [],
+  "actuator_maps": [],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": "patch_atlas_rollout_report.json",
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\generic_sphere_cae",
+    "artifact_sha256": "914c24a2079e00027fa41a656451972539dec34bf8ffae0ef0488ee2a1bd7f15",
+    "build_report_sha256": "0fbb7da9f5e78603f9031f098807105964a3fe28c75d278379b2f305ea5ba1f3"
+  },
+  "gates": {
+    "build_status": "incomplete",
+    "build_all_pass": false,
+    "n_uncovered": 0,
+    "rollout": {
+      "n_trajectories": 0,
+      "n_pass": 0,
+      "all_pass": false
+    },
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": false,
+  "staged_at": "2026-08-28T03:33:52.175361+00:00"
+}

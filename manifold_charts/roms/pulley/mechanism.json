@@ -1,0 +1,1412 @@
+{
+  "format": "atlas_case_v1",
+  "name": "pulley",
+  "mechanism": {
+    "bodies": [
+      {
+        "name": "crank1",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    -2.0,
+                    2.0,
+                    0.0
+                  ],
+                  "p1": [
+                    -2.0,
+                    1.7,
+                    0.0
+                  ],
+                  "thick": 0.06
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.35,
+                  "height": 0.12,
+                  "center": [
+                    -2.0,
+                    2.0,
+                    0.0
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ],
+                  "sections": 24
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.85,
+          0.32,
+          0.36
+        ],
+        "render_only": false
+      },
+      {
+        "name": "crank2",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    -1.0,
+                    2.0,
+                    0.0
+                  ],
+                  "p1": [
+                    -1.0,
+                    1.7,
+                    0.0
+                  ],
+                  "thick": 0.06
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.35,
+                  "height": 0.12,
+                  "center": [
+                    -1.0,
+                    2.0,
+                    0.0
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ],
+                  "sections": 24
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.85,
+          0.32,
+          0.36
+        ],
+        "render_only": false
+      },
+      {
+        "name": "crank3",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    0.0,
+                    2.0,
+                    0.0
+                  ],
+                  "p1": [
+                    0.0,
+                    1.7,
+                    0.0
+                  ],
+                  "thick": 0.06
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.35,
+                  "height": 0.12,
+                  "center": [
+                    0.0,
+                    2.0,
+                    0.0
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ],
+                  "sections": 24
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.85,
+          0.32,
+          0.36
+        ],
+        "render_only": false
+      },
+      {
+        "name": "crank4",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    1.0,
+                    2.0,
+                    0.0
+                  ],
+                  "p1": [
+                    1.0,
+                    1.7,
+                    0.0
+                  ],
+                  "thick": 0.06
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.35,
+                  "height": 0.12,
+                  "center": [
+                    1.0,
+                    2.0,
+                    0.0
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ],
+                  "sections": 24
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.85,
+          0.32,
+          0.36
+        ],
+        "render_only": false
+      },
+      {
+        "name": "crank5",
+        "mesh": {
+          "kind": "compound",
+          "params": {
+            "parts": [
+              {
+                "kind": "link",
+                "params": {
+                  "p0": [
+                    2.0,
+                    2.0,
+                    0.0
+                  ],
+                  "p1": [
+                    2.0,
+                    1.7,
+                    0.0
+                  ],
+                  "thick": 0.06
+                }
+              },
+              {
+                "kind": "cylinder",
+                "params": {
+                  "radius": 0.35,
+                  "height": 0.12,
+                  "center": [
+                    2.0,
+                    2.0,
+                    0.0
+                  ],
+                  "axis": [
+                    0.0,
+                    0.0,
+                    1.0
+                  ],
+                  "sections": 24
+                }
+              }
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.85,
+          0.32,
+          0.36
+        ],
+        "render_only": false
+      },
+      {
+        "name": "rod1",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -3.0,
+              1.7,
+              0.0
+            ],
+            "p1": [
+              -2.0,
+              1.7,
+              0.0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "rod2",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -2.0,
+              1.7,
+              0.0
+            ],
+            "p1": [
+              -1.0,
+              1.7,
+              0.0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "rod3",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -1.0,
+              1.7,
+              0.0
+            ],
+            "p1": [
+              0.0,
+              1.7,
+              0.0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "rod4",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              0.0,
+              1.7,
+              0.0
+            ],
+            "p1": [
+              1.0,
+              1.7,
+              0.0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "rod5",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              1.0,
+              1.7,
+              0.0
+            ],
+            "p1": [
+              2.0,
+              1.7,
+              0.0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "rod6",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              2.0,
+              1.7,
+              0.0
+            ],
+            "p1": [
+              2.7,
+              0.9858571571457155,
+              0.0
+            ],
+            "thick": 0.05
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.36,
+          0.62,
+          0.86
+        ],
+        "render_only": false
+      },
+      {
+        "name": "sliderA",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              -3.0,
+              1.7,
+              0.0
+            ],
+            "half": [
+              0.15,
+              0.15,
+              0.15
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "sliderB",
+        "mesh": {
+          "kind": "box",
+          "params": {
+            "center": [
+              2.7,
+              0.9858571571457155,
+              0.0
+            ],
+            "half": [
+              0.15,
+              0.15,
+              0.15
+            ]
+          }
+        },
+        "configuration": "free_rigid",
+        "fixed": false,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.93,
+          0.53,
+          0.18
+        ],
+        "render_only": false
+      },
+      {
+        "name": "__frame",
+        "mesh": {
+          "kind": "link",
+          "params": {
+            "p0": [
+              -2.0,
+              2.0,
+              0.0
+            ],
+            "p1": [
+              2.0,
+              2.0,
+              0.0
+            ],
+            "thick": 0.15
+          }
+        },
+        "configuration": "fixed",
+        "fixed": true,
+        "density": 1000.0,
+        "initial_transform": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "sweep_radius": 0.0,
+        "color": [
+          0.45,
+          0.47,
+          0.5
+        ],
+        "render_only": false
+      }
+    ],
+    "joints": [
+      {
+        "name": "axle1",
+        "kind": "revolute",
+        "body_a": "__frame",
+        "body_b": "crank1",
+        "pivot": [
+          -2.0,
+          2.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "axle2",
+        "kind": "revolute",
+        "body_a": "__frame",
+        "body_b": "crank2",
+        "pivot": [
+          -1.0,
+          2.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "axle3",
+        "kind": "revolute",
+        "body_a": "__frame",
+        "body_b": "crank3",
+        "pivot": [
+          0.0,
+          2.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "axle4",
+        "kind": "revolute",
+        "body_a": "__frame",
+        "body_b": "crank4",
+        "pivot": [
+          1.0,
+          2.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "axle5",
+        "kind": "revolute",
+        "body_a": "__frame",
+        "body_b": "crank5",
+        "pivot": [
+          2.0,
+          2.0,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod1_a",
+        "kind": "revolute",
+        "body_a": "sliderA",
+        "body_b": "rod1",
+        "pivot": [
+          -3.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod2_a",
+        "kind": "revolute",
+        "body_a": "crank1",
+        "body_b": "rod2",
+        "pivot": [
+          -2.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod3_a",
+        "kind": "revolute",
+        "body_a": "crank2",
+        "body_b": "rod3",
+        "pivot": [
+          -1.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod4_a",
+        "kind": "revolute",
+        "body_a": "crank3",
+        "body_b": "rod4",
+        "pivot": [
+          0.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod5_a",
+        "kind": "revolute",
+        "body_a": "crank4",
+        "body_b": "rod5",
+        "pivot": [
+          1.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod6_a",
+        "kind": "revolute",
+        "body_a": "crank5",
+        "body_b": "rod6",
+        "pivot": [
+          2.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod1_b",
+        "kind": "revolute",
+        "body_a": "crank1",
+        "body_b": "rod1",
+        "pivot": [
+          -2.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod2_b",
+        "kind": "revolute",
+        "body_a": "crank2",
+        "body_b": "rod2",
+        "pivot": [
+          -1.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod3_b",
+        "kind": "revolute",
+        "body_a": "crank3",
+        "body_b": "rod3",
+        "pivot": [
+          0.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod4_b",
+        "kind": "revolute",
+        "body_a": "crank4",
+        "body_b": "rod4",
+        "pivot": [
+          1.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod5_b",
+        "kind": "revolute",
+        "body_a": "crank5",
+        "body_b": "rod5",
+        "pivot": [
+          2.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "rod6_b",
+        "kind": "revolute",
+        "body_a": "sliderB",
+        "body_b": "rod6",
+        "pivot": [
+          2.7,
+          0.9858571571457155,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": null,
+        "limit_hi": null
+      },
+      {
+        "name": "railA",
+        "kind": "prismatic",
+        "body_a": "__frame",
+        "body_b": "sliderA",
+        "pivot": [
+          -3.0,
+          1.7,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": -0.5,
+        "limit_hi": 0.5
+      },
+      {
+        "name": "railB",
+        "kind": "prismatic",
+        "body_a": "__frame",
+        "body_b": "sliderB",
+        "pivot": [
+          2.7,
+          0.9858571571457155,
+          0.0
+        ],
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "exclude_collision": true,
+        "limit_lo": -0.5,
+        "limit_hi": 0.5
+      }
+    ],
+    "up_axis": "y",
+    "render_up_axis": "z",
+    "gravity": 9.8,
+    "units": "m",
+    "workspace_bounds": [],
+    "contact_pairs": null
+  },
+  "coordinates": [
+    {
+      "name": "pull",
+      "topology": "bounded",
+      "period": null,
+      "min": -0.5,
+      "max": 0.5,
+      "source": "body_translation",
+      "args": {
+        "body": "sliderA",
+        "axis": "y"
+      }
+    }
+  ],
+  "seeds": [],
+  "contact_model": "none",
+  "actuators": [
+    {
+      "name": "pull force",
+      "kind": "coordinate_force",
+      "target": "pull",
+      "lo": -200.0,
+      "hi": 200.0,
+      "gain": 1.0
+    }
+  ],
+  "build": {
+    "sampling": {
+      "n_samples": 2000,
+      "step": 0.08,
+      "seed": 0,
+      "max_seconds": 1800.0,
+      "reuse": "output/pulley_cycle_si.npz",
+      "target_grid": null,
+      "seed_reuse": null,
+      "seed_index": 0,
+      "representation": "packed",
+      "tangent_rel_tol": 0.05,
+      "tangent_eps": null,
+      "graph_k": 16,
+      "probe_count": null,
+      "drive_iters": null,
+      "relax_iters": null,
+      "predictor_body_displacement": null,
+      "hold_drive_during_projection": false,
+      "fault_tolerant": false,
+      "continuation_timeout": 90.0,
+      "continuation_min_step": null,
+      "continuation_replay_window": 8,
+      "d_hat": null,
+      "max_kappa": null,
+      "newton_max_iter": null,
+      "actuated_bodies": null
+    },
+    "charts": {
+      "mode": "single",
+      "n_charts": null,
+      "overlap": 0.25,
+      "import_mesh": null,
+      "split_centres": null,
+      "split_half_width": 0.0
+    },
+    "canonical": {
+      "enabled": false,
+      "dimension": null,
+      "n_candidates": 40,
+      "far_hops": 4,
+      "refine_steps": 1500,
+      "target_separation": 2.5,
+      "target_sigma": 0.75,
+      "planarity": 0.12,
+      "max_slope": 0.5,
+      "height_only": false,
+      "residual_discovery": false,
+      "autoencoder_charts": false,
+      "autoencoder_width": 128,
+      "autoencoder_depth": 3,
+      "autoencoder_seed_epochs": 1500,
+      "autoencoder_ring_epochs": 1500,
+      "autoencoder_tangent_weight": 0.3,
+      "autoencoder_plane_weight": 1.0
+    },
+    "decoder": {
+      "epochs": 6000,
+      "lr": 0.002,
+      "hidden_width": 128,
+      "hidden_layers": 4,
+      "n_harmonics": 1,
+      "rot_weight": 1.0,
+      "smooth_lambda": 0.0001,
+      "smooth_eps": 0.05,
+      "edge_tangent_weight": 0.0,
+      "holdout": 0.2,
+      "holdout_regions": 8,
+      "seed": 0,
+      "closure_weight": 1.0,
+      "seam_weight": 5.0,
+      "val_every": 25
+    },
+    "dynamics": {
+      "distill": true,
+      "epochs": 3000,
+      "width": 64,
+      "layers": 3,
+      "lr": 0.001,
+      "n_teacher": 800
+    },
+    "boundary": {
+      "kind": "interval",
+      "k": 100000000.0,
+      "margin": 0.0,
+      "damping": 0.0,
+      "epochs": 3000,
+      "width": 128,
+      "layers": 4
+    },
+    "expect": {
+      "dimension": 1,
+      "n_charts": 1,
+      "n_bodies": 13,
+      "contact_pairs": null
+    },
+    "tolerances": {
+      "decoder_translation_rmse": 0.05,
+      "decoder_rotation_deg": 3.0,
+      "mass_min_eigenvalue": 1e-09,
+      "closure": 0.05,
+      "handoff_energy_drift": 0.06,
+      "free_energy_drift": 0.3,
+      "energy_work_residual": 0.5,
+      "validation_energy_err": 1e-06
+    }
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "initial_u": [
+        0.0
+      ]
+    }
+  },
+  "plugin": null
+}

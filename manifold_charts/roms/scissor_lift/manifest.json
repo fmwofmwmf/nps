@@ -1,0 +1,56 @@
+{
+  "format": "patch_rom_v2",
+  "case": "scissor_lift",
+  "label": null,
+  "n_bodies": 5,
+  "body_order": [
+    "roller_bottom",
+    "leg_a",
+    "leg_b",
+    "roller_top",
+    "platform"
+  ],
+  "latent_dim": 1,
+  "width": 96,
+  "n_patches": 1,
+  "control_schema": [
+    {
+      "name": "lift torque",
+      "kind": "joint_torque",
+      "target": "cross_pin",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "lift torque",
+      "kind": "joint_torque",
+      "target": "cross_pin",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": "patch_atlas_rollout_report.json",
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\scissor_lift",
+    "artifact_sha256": "7f0ac42cf649a63ba737c99cf49fbf1b40c0daa619787e0c181f0dad34a0b41c",
+    "build_report_sha256": "f280f718457fc31f6843fb07402fac6a18f4e67449410855b61a79ac0cb197cb"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "rollout": {
+      "n_trajectories": 10,
+      "n_pass": 10,
+      "all_pass": true
+    },
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-08-17T03:00:03.816801+00:00"
+}

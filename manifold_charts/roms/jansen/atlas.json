@@ -1,0 +1,77 @@
+{
+  "format": "atlas_rom_v1",
+  "case": "jansen",
+  "dimension": 1,
+  "n_bodies": 7,
+  "body_order": [
+    "crank",
+    "AC",
+    "AD",
+    "BD",
+    "BCE",
+    "EF",
+    "DFG"
+  ],
+  "up_axis": "y",
+  "units": "m",
+  "charts": [
+    {
+      "id": 0,
+      "type": "periodic",
+      "coordinates": [
+        {
+          "name": "phi",
+          "topology": "periodic",
+          "period": 6.283185307179586
+        }
+      ]
+    }
+  ],
+  "overlap_graph": [],
+  "models": {
+    "decoder": {
+      "kind": "atlas_decoder",
+      "path": "decoder.pt"
+    },
+    "mass": {
+      "kind": "atlas_mass",
+      "path": "mass.pt"
+    },
+    "potential": {
+      "kind": "atlas_potential",
+      "path": "potential.pt"
+    }
+  },
+  "boundary": {
+    "type": "none"
+  },
+  "scenarios": {
+    "default": {
+      "dt": 0.001,
+      "initial_u": [
+        0.0
+      ]
+    }
+  },
+  "tolerances": {
+    "decoder_translation_rmse": 0.005,
+    "decoder_rotation_deg": 1.0,
+    "mass_min_eigenvalue": 1e-09,
+    "closure": 0.001,
+    "handoff_energy_drift": 0.06,
+    "free_energy_drift": 0.3,
+    "energy_work_residual": 0.5,
+    "validation_energy_err": 1e-06
+  },
+  "assembly": "generic",
+  "mechanism": "mechanism.json",
+  "actuators": [
+    {
+      "name": "crank torque",
+      "kind": "coordinate_force",
+      "target": "phi",
+      "lo": -40.0,
+      "hi": 40.0
+    }
+  ]
+}

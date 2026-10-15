@@ -1,0 +1,359 @@
+{
+  "status": "pass",
+  "n_patches": 3,
+  "max_patches": null,
+  "patch_sizes": [
+    50,
+    50,
+    31
+  ],
+  "patches": [
+    {
+      "recon_ok": true,
+      "max_score": 0.09447618712113426,
+      "constraint_applicable": true,
+      "constraint_ok": true,
+      "constraint_max": 0.006773660610413907,
+      "rank": {
+        "cond_a": 1.0,
+        "cond_b": 1.0,
+        "gain_min": 0.6291823807011366,
+        "pass": true
+      },
+      "tangent": {
+        "max_principal_angle_deg": 4.659803529083831,
+        "rms_principal_angle_deg": 1.4549912033239778,
+        "projector_rms": 0.02538199019559005,
+        "angle_tol_deg": 12.0,
+        "pass": true
+      },
+      "inverse_ok": true,
+      "inverse_rms": 0.006430518115306747,
+      "collision_ok": true,
+      "collision_count": 0,
+      "pass": true
+    },
+    {
+      "recon_ok": true,
+      "max_score": 0.22062743561558348,
+      "constraint_applicable": true,
+      "constraint_ok": true,
+      "constraint_max": 0.020948517306183682,
+      "rank": {
+        "cond_a": 1.0,
+        "cond_b": 1.0,
+        "gain_min": 0.49856892531153363,
+        "pass": true
+      },
+      "tangent": {
+        "max_principal_angle_deg": 8.581402541772126,
+        "rms_principal_angle_deg": 3.174402829777513,
+        "projector_rms": 0.055316681726071494,
+        "angle_tol_deg": 12.0,
+        "pass": true
+      },
+      "inverse_ok": true,
+      "inverse_rms": 0.007822035444318911,
+      "collision_ok": true,
+      "collision_count": 0,
+      "pass": true
+    },
+    {
+      "recon_ok": true,
+      "max_score": 0.11238839116915354,
+      "constraint_applicable": true,
+      "constraint_ok": true,
+      "constraint_max": 0.007381199783476121,
+      "rank": {
+        "cond_a": 1.0,
+        "cond_b": 1.0,
+        "gain_min": 0.6406099074582151,
+        "pass": true
+      },
+      "tangent": {
+        "max_principal_angle_deg": 3.826300445899969,
+        "rms_principal_angle_deg": 1.5873382267783034,
+        "projector_rms": 0.027695382885630237,
+        "angle_tol_deg": 12.0,
+        "pass": true
+      },
+      "inverse_ok": true,
+      "inverse_rms": 0.01189034409077119,
+      "collision_ok": true,
+      "collision_count": 0,
+      "pass": true
+    }
+  ],
+  "overlap": {
+    "0-1": {
+      "n_shared": 30,
+      "max_score": 0.12261423176992754,
+      "probe_max_score": 0.226272339941036,
+      "pass": true
+    },
+    "0-2": {
+      "n_shared": 18,
+      "max_score": 0.09587274929976847,
+      "probe_max_score": 0.24446317115227575,
+      "pass": true
+    },
+    "1-2": {
+      "n_shared": 4,
+      "max_score": 0.21308062088974367,
+      "probe_max_score": 0.1624042477299672,
+      "pass": true
+    }
+  },
+  "coverage_ok": true,
+  "n_uncovered": 0,
+  "all_pass": true,
+  "support_coverage_ok": true,
+  "simplify": {
+    "merge_attempts_used": 6,
+    "merge_budget": 16,
+    "merges_accepted": 0,
+    "merges_rejected": 6,
+    "budget_exhausted": false,
+    "n_cached_failed_unions": 6,
+    "n_pruned": 1
+  },
+  "overlap_replay": {
+    "pairs": 3,
+    "objective": 0.49410286500547057,
+    "objective_pose": 0.008605070347726408,
+    "objective_tangent": 1.9194205773053115,
+    "objective_exact_seam": 0.004555129751268627,
+    "objective_anchor": 0.004770942026425195,
+    "transition_support": {
+      "0": {
+        "positive": 138,
+        "negative": 39
+      },
+      "1": {
+        "positive": 98,
+        "negative": 51
+      },
+      "2": {
+        "positive": 66,
+        "negative": 78
+      }
+    }
+  },
+  "unchecked_constraint_patches": [],
+  "physical_validity_checked": true,
+  "learned_fields": [
+    {
+      "mass_mse": 0.00011339102675825516,
+      "potential_mse": 0.0007123546542231192,
+      "support_bce": 0.5371167198220941,
+      "boundary_margin": 0.029005024711083762,
+      "transition_support_positive": 0,
+      "transition_support_negative": 0,
+      "support_reconstruction_tol": 0.0018101387110023908,
+      "boundary_witnesses": 105,
+      "joint_limit_witnesses": 0,
+      "boundary_mode": "neutral_no_physical_witness",
+      "owner_support_min_before": -0.470537980844025,
+      "owner_support_min_after": 1.633354626208574,
+      "owner_support_nonpositive_after": 0,
+      "union_support_nonpositive_before": 0,
+      "union_support_nonpositive_after": 0,
+      "union_support_min_after": 1.9489218659227832
+    },
+    {
+      "mass_mse": 9.135585462036346e-05,
+      "potential_mse": 0.003635655795518054,
+      "support_bce": 0.36333717178111813,
+      "boundary_margin": 0.029680897127014973,
+      "transition_support_positive": 0,
+      "transition_support_negative": 0,
+      "support_reconstruction_tol": 0.0052200331110778845,
+      "boundary_witnesses": 116,
+      "joint_limit_witnesses": 0,
+      "boundary_mode": "neutral_no_physical_witness",
+      "owner_support_min_before": -0.470537980844025,
+      "owner_support_min_after": 1.633354626208574,
+      "owner_support_nonpositive_after": 0,
+      "union_support_nonpositive_before": 0,
+      "union_support_nonpositive_after": 0,
+      "union_support_min_after": 1.9489218659227832
+    },
+    {
+      "mass_mse": 4.111125361906191e-05,
+      "potential_mse": 0.004857100438443192,
+      "support_bce": 0.49281155598578236,
+      "boundary_margin": 0.025155994556131402,
+      "transition_support_positive": 0,
+      "transition_support_negative": 0,
+      "support_reconstruction_tol": 0.0018415682385542285,
+      "boundary_witnesses": 64,
+      "joint_limit_witnesses": 0,
+      "boundary_mode": "neutral_no_physical_witness",
+      "owner_support_min_before": -0.470537980844025,
+      "owner_support_min_after": 1.633354626208574,
+      "owner_support_nonpositive_after": 0,
+      "union_support_nonpositive_before": 0,
+      "union_support_nonpositive_after": 0,
+      "union_support_min_after": 1.9489218659227832
+    }
+  ],
+  "support_coverage": {
+    "owner_support_min_before": -0.470537980844025,
+    "owner_support_min_after": 1.633354626208574,
+    "owner_support_nonpositive_after": 0,
+    "union_support_nonpositive_before": 0,
+    "union_support_nonpositive_after": 0,
+    "union_support_min_after": 1.9489218659227832
+  },
+  "timing": {
+    "started_at": "2026-08-19T07:41:23.625655+00:00",
+    "finished_at": "2026-08-19T07:46:17.027193+00:00",
+    "build_wall_seconds": 293.4016525999996,
+    "patch_construction_seconds": 0.0017454999997426057,
+    "simplify_seconds": 71.76167970000097,
+    "overlap_replay_seconds": 61.20781790000001,
+    "overlap_certification_seconds": 0.00675529999898572,
+    "per_patch": [
+      {
+        "patch": 0,
+        "n_vertices": 20,
+        "train_seconds": 11.00504809999984,
+        "certify_seconds": 0.008394299999054056,
+        "total_seconds": 12.306811200000084
+      },
+      {
+        "patch": 1,
+        "n_vertices": 31,
+        "train_seconds": 10.061188000001493,
+        "certify_seconds": 0.009577300001183175,
+        "total_seconds": 10.341317399999753
+      },
+      {
+        "patch": 2,
+        "n_vertices": 50,
+        "train_seconds": 11.040767999998934,
+        "certify_seconds": 0.010243500000797212,
+        "total_seconds": 11.407236600000033
+      },
+      {
+        "patch": 3,
+        "n_vertices": 79,
+        "train_seconds": 11.645916299999953,
+        "certify_seconds": 0.011375500000212924,
+        "total_seconds": 12.009341099999801
+      },
+      {
+        "patch": 4,
+        "n_vertices": 20,
+        "train_seconds": 9.780231700000513,
+        "certify_seconds": 0.008759700000155135,
+        "total_seconds": 10.049549699999261
+      },
+      {
+        "patch": 5,
+        "n_vertices": 31,
+        "train_seconds": 11.726982099999077,
+        "certify_seconds": 0.011360200000126497,
+        "total_seconds": 12.03195919999962
+      },
+      {
+        "patch": 6,
+        "n_vertices": 50,
+        "train_seconds": 10.737563599999703,
+        "certify_seconds": 0.010867199998756405,
+        "total_seconds": 11.060184899999513
+      },
+      {
+        "patch": 7,
+        "n_vertices": 20,
+        "train_seconds": 9.96023310000055,
+        "certify_seconds": 0.010011399999712012,
+        "total_seconds": 10.234638899999482
+      },
+      {
+        "patch": 8,
+        "n_vertices": 31,
+        "train_seconds": 9.797393099999681,
+        "certify_seconds": 0.008900400000129594,
+        "total_seconds": 10.058584299998984
+      },
+      {
+        "patch": 9,
+        "n_vertices": 50,
+        "train_seconds": 10.388955099999293,
+        "certify_seconds": 0.009556000000884524,
+        "total_seconds": 10.726775299999645
+      },
+      {
+        "patch": 10,
+        "n_vertices": 79,
+        "train_seconds": 10.983850299999176,
+        "certify_seconds": 0.013011500001084642,
+        "total_seconds": 11.328171699999075
+      },
+      {
+        "patch": 11,
+        "n_vertices": 20,
+        "train_seconds": 8.932005599999684,
+        "certify_seconds": 0.009989100000893814,
+        "total_seconds": 9.195241400000668
+      },
+      {
+        "patch": 12,
+        "n_vertices": 31,
+        "train_seconds": 9.174655599999824,
+        "certify_seconds": 0.008759900001678034,
+        "total_seconds": 9.447458700000425
+      },
+      {
+        "patch": 13,
+        "n_vertices": 50,
+        "train_seconds": 10.080192100000204,
+        "certify_seconds": 0.011943299999984447,
+        "total_seconds": 10.37368349999997
+      },
+      {
+        "patch": 14,
+        "n_vertices": 70,
+        "train_seconds": 11.692319600000701,
+        "certify_seconds": 0.012661599999773898,
+        "total_seconds": 12.045150699999795
+      },
+      {
+        "patch": 15,
+        "n_vertices": 79,
+        "train_seconds": 11.757842500001061,
+        "certify_seconds": 0.016250999999101623,
+        "total_seconds": 12.109123799998997
+      },
+      {
+        "patch": 16,
+        "n_vertices": 63,
+        "train_seconds": 11.000116999999591,
+        "certify_seconds": 0.012549699998999131,
+        "total_seconds": 11.365242900001249
+      },
+      {
+        "patch": 17,
+        "n_vertices": 60,
+        "train_seconds": 11.585689499999717,
+        "certify_seconds": 0.011972399999649497,
+        "total_seconds": 11.911371399999553
+      },
+      {
+        "patch": 18,
+        "n_vertices": 77,
+        "train_seconds": 12.126760400000421,
+        "certify_seconds": 0.01337710000007064,
+        "total_seconds": 12.493753900000229
+      },
+      {
+        "patch": 19,
+        "n_vertices": 48,
+        "train_seconds": 11.510896400001002,
+        "certify_seconds": 0.009693300000435556,
+        "total_seconds": 11.835965999998734
+      }
+    ]
+  }
+}

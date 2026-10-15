@@ -1,0 +1,61 @@
+{
+  "format": "patch_rom_v2",
+  "case": "jansen",
+  "label": null,
+  "n_bodies": 7,
+  "body_order": [
+    "crank",
+    "AC",
+    "AD",
+    "BD",
+    "BCE",
+    "EF",
+    "DFG"
+  ],
+  "latent_dim": 1,
+  "width": 64,
+  "n_patches": 3,
+  "control_schema": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "O",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "O",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": "patch_atlas_rollout_report.json",
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\jansen",
+    "artifact_sha256": "4288be05743fbd4eb8da148314cc7d4cce5fe2897b48cc435bf97e299407276c",
+    "build_report_sha256": "c3fa732dbf6abbd93a7a05c969aa19c490fcc2a0cad8b03ab0753d681a772a1a"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": {
+      "n_trajectories": 5,
+      "n_pass": 0,
+      "all_pass": false
+    },
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-09-23T14:27:11.512668+00:00"
+}

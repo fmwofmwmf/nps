@@ -1,0 +1,77 @@
+{
+  "format": "patch_rom_v2",
+  "case": "sarrus_stack",
+  "label": null,
+  "n_bodies": 10,
+  "body_order": [
+    "stage1_link1a",
+    "stage1_link1b",
+    "stage1_link2a",
+    "stage1_link2b",
+    "mid_plate",
+    "stage2_link1a",
+    "stage2_link1b",
+    "stage2_link2a",
+    "stage2_link2b",
+    "top_plate"
+  ],
+  "latent_dim": 2,
+  "width": 96,
+  "n_patches": 1,
+  "control_schema": [
+    {
+      "name": "middle_platform_up",
+      "kind": "joint_torque",
+      "target": "stage1_h1",
+      "lo": -50.0,
+      "hi": 50.0,
+      "gain": -1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "top_platform_up",
+      "kind": "joint_torque",
+      "target": "stage2_h1",
+      "lo": -50.0,
+      "hi": 50.0,
+      "gain": -1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "middle_platform_up",
+      "kind": "joint_torque",
+      "target": "stage1_h1",
+      "status": "analytic"
+    },
+    {
+      "name": "top_platform_up",
+      "kind": "joint_torque",
+      "target": "stage2_h1",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": "patch_atlas_rollout_report.json",
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\sarrus_stack_outward",
+    "artifact_sha256": "c4efadec110e436f765fdb185119bdb090f822b9c5a13f7d30ab35db1d266433",
+    "build_report_sha256": "60a251f129f0e932be32fd01dfa2a642dbf2ea26c5fc70cb0cad8416376151ef"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "rollout": {
+      "n_trajectories": 7,
+      "n_pass": 7,
+      "all_pass": true
+    },
+    "rollout_required": true,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-08-19T06:33:11.450368+00:00"
+}
