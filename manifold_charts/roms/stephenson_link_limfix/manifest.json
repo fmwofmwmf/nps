@@ -1,0 +1,75 @@
+{
+  "format": "patch_rom_v2",
+  "case": "stephenson_link",
+  "label": null,
+  "n_bodies": 10,
+  "body_order": [
+    "shaft",
+    "rod_fore",
+    "rod_back",
+    "expansion_link",
+    "die_block",
+    "rocker",
+    "valve_link",
+    "valve_rod",
+    "lifting_link",
+    "reverse_lever"
+  ],
+  "latent_dim": 2,
+  "width": 96,
+  "n_patches": 3,
+  "control_schema": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "crank",
+      "lo": -400.0,
+      "hi": 400.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "reverser torque",
+      "kind": "joint_torque",
+      "target": "reverser",
+      "lo": -200.0,
+      "hi": 200.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "crank",
+      "status": "analytic"
+    },
+    {
+      "name": "reverser torque",
+      "kind": "joint_torque",
+      "target": "reverser",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": null,
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\stephenson_link_native_limfix",
+    "artifact_sha256": "742bc160de393abc10f555a79bbde3dd449b44b198df515f3057faf89c13e834",
+    "build_report_sha256": "4a1b2d01a3e5949b9d13249b24a13fb5bb59223901e6e4c1eaeea6d8427ecaa4"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": null,
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-10-14T11:20:48.193213+00:00"
+}

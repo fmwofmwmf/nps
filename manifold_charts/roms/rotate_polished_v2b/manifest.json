@@ -1,0 +1,69 @@
+{
+  "format": "patch_rom_v2",
+  "case": "rotate",
+  "label": null,
+  "n_bodies": 4,
+  "body_order": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "latent_dim": 2,
+  "width": 96,
+  "n_patches": 8,
+  "control_schema": [
+    {
+      "name": "crank A torque",
+      "kind": "joint_torque",
+      "target": "crank_A",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "crank D torque",
+      "kind": "joint_torque",
+      "target": "crank_D",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "crank A torque",
+      "kind": "joint_torque",
+      "target": "crank_A",
+      "status": "analytic"
+    },
+    {
+      "name": "crank D torque",
+      "kind": "joint_torque",
+      "target": "crank_D",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": null,
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\AppData\\Local\\Temp\\claude\\C--Users-fmwof-Desktop-computersigns-learning-libuipc-samples\\13fffcf8-223a-4440-bf5f-3c59a3a2e7ea\\scratchpad\\work_v2",
+    "artifact_sha256": "6e016e96247f994943a10226686ac25276ee87a09cda04109de1c52236131476",
+    "build_report_sha256": "45930b71e21862e4ef4c6c696f1783d8ae44feee1c85fbf57412236e8da57476"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": null,
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-10-07T05:15:28.953936+00:00"
+}

@@ -1,0 +1,69 @@
+{
+  "format": "patch_rom_v2",
+  "case": "pantograph_2d",
+  "label": null,
+  "n_bodies": 4,
+  "body_order": [
+    "crank",
+    "arm",
+    "link_b",
+    "link_d"
+  ],
+  "latent_dim": 2,
+  "width": 96,
+  "n_patches": 8,
+  "control_schema": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "O",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "elbow torque",
+      "kind": "joint_torque",
+      "target": "A",
+      "lo": -20.0,
+      "hi": 20.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "O",
+      "status": "analytic"
+    },
+    {
+      "name": "elbow torque",
+      "kind": "joint_torque",
+      "target": "A",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": null,
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\pantograph_2d_native_pruned",
+    "artifact_sha256": "d467b35ba731dcdd85b2905459dc6ec99ac3877ed7f10094da90236392f82214",
+    "build_report_sha256": "126dc9b366fbe575afde328ea924c53d85cf8461e58ba510ef0ce88406ff2641"
+  },
+  "gates": {
+    "build_status": "incomplete",
+    "build_all_pass": false,
+    "n_uncovered": 0,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": null,
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": false,
+  "staged_at": "2026-10-14T07:19:34.282458+00:00"
+}

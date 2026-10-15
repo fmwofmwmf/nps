@@ -1,0 +1,53 @@
+{
+  "rom_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\polished_pipeline_20261007\\roms\\pantograph_2d_pruned",
+  "case": "pantograph_2d",
+  "dataset": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\pantograph_2d_dense_x4",
+  "eps": 0.0006076937369412234,
+  "n_charts": 8,
+  "n_states": {
+    "territory": 2400,
+    "overlap": 12000,
+    "wide": 4800,
+    "labelled": 19200
+  },
+  "n_per": 300,
+  "epochs": 4000,
+  "held_out": {
+    "territory": {
+      "rows": 3318,
+      "rmse_A": 0.7596227155388856,
+      "corr": 0.9571525962311722,
+      "median_abs_A": 6.392840623318259
+    },
+    "overlap": {
+      "rows": 17297,
+      "rmse_A": 0.8588378283108192,
+      "corr": 0.9618723005433366,
+      "median_abs_A": 5.436932434418929
+    },
+    "wide": {
+      "rows": 6265,
+      "rmse_A": 1.1521635275866793,
+      "corr": 0.9480787462013753,
+      "median_abs_A": 5.467868089983764
+    }
+  },
+  "held_out_decisions": {
+    "states": 3840,
+    "margin": 1.0986122886681098,
+    "exact_switch_fraction": 0.2875,
+    "net_switch_fraction": 0.3203125,
+    "switches_when_it_should": 0.8605072463768116,
+    "false_switch_when_exact_best_A_below_0": 0.008019740900678593,
+    "pick_true_A_above_0": 0.9861788617886179,
+    "pick_true_A_above_half_margin": 0.9146341463414634
+  },
+  "timing": {
+    "noise_floor_seconds": 17.66477942466736,
+    "labels_seconds": 118.92246389389038,
+    "train_seconds": 407.92286014556885,
+    "started_at": "2026-10-14T03:19:37",
+    "finished_at": "2026-10-14T03:29:04",
+    "wall_seconds": 566.5435829162598
+  }
+}

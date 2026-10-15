@@ -1,0 +1,53 @@
+{
+  "competent_per_chart": [
+    926,
+    817
+  ],
+  "old_patch_sizes": [
+    926,
+    817
+  ],
+  "shared": 686,
+  "metrics": [
+    {
+      "chart": 0,
+      "n_anchor": 926,
+      "seconds": 22.011040449142456,
+      "mass_mse": 3.3972510830668665e-05,
+      "potential_mse": 3.345249589998032e-06,
+      "potential_grad_rel_mse": 3.37502245331915e-05,
+      "support_bce": 0.28936822662028217,
+      "boundary_margin": 0.06724114253572704,
+      "transition_support_positive": 686,
+      "transition_support_negative": 0,
+      "local_map_support_negative": 131,
+      "support_reconstruction_tol": 0.00680544615957732,
+      "boundary_witnesses": 3678,
+      "joint_limit_witnesses": 3002
+    },
+    {
+      "chart": 1,
+      "n_anchor": 817,
+      "seconds": 18.764772176742554,
+      "mass_mse": 0.00043835353080380585,
+      "potential_mse": 5.156985311736063e-06,
+      "potential_grad_rel_mse": 5.328295370900668e-05,
+      "support_bce": 0.3328532582833845,
+      "boundary_margin": 0.08327749530321445,
+      "transition_support_positive": 686,
+      "transition_support_negative": 0,
+      "local_map_support_negative": 240,
+      "support_reconstruction_tol": 0.014263181278725874,
+      "boundary_witnesses": 3445,
+      "joint_limit_witnesses": 2392
+    }
+  ],
+  "timing": {
+    "competence_seconds": 0.02078700065612793,
+    "field_fit_seconds": 40.78494572639465,
+    "write_seconds": 0.023720979690551758,
+    "started_at": "2026-10-14T06:50:58",
+    "finished_at": "2026-10-14T06:51:39",
+    "wall_seconds": 40.90270662307739
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "format": "patch_rom_v2",
+  "case": "stephenson_link",
+  "label": null,
+  "n_bodies": 10,
+  "body_order": [
+    "shaft",
+    "rod_fore",
+    "rod_back",
+    "expansion_link",
+    "die_block",
+    "rocker",
+    "valve_link",
+    "valve_rod",
+    "lifting_link",
+    "reverse_lever"
+  ],
+  "latent_dim": 2,
+  "width": 96,
+  "n_patches": 2,
+  "control_schema": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "crank",
+      "lo": -400.0,
+      "hi": 400.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "reverser torque",
+      "kind": "joint_torque",
+      "target": "reverser",
+      "lo": -200.0,
+      "hi": 200.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "crank torque",
+      "kind": "joint_torque",
+      "target": "crank",
+      "status": "analytic"
+    },
+    {
+      "name": "reverser torque",
+      "kind": "joint_torque",
+      "target": "reverser",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": null,
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\stephenson_link_native_dcover",
+    "artifact_sha256": "9ff7a2294dcda5b987e7e13472a23a45b07ae41d3abd6bb4e31fd5c4379b5425",
+    "build_report_sha256": "36671d0c4b04b3c9f92a170765af3125d7418f415fb852c7d8f8b7221b0c5eb4",
+    "fields_refit": {
+      "from": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\testing\\manifold_charts\\work\\polished_pipeline_20261007\\roms\\stephenson_link_dcover",
+      "patches": "competent domain",
+      "script": "C:\\Users\\fmwof\\AppData\\Local\\Temp\\claude\\C--Users-fmwof-Desktop-computersigns-learning-libuipc-samples\\c44ca3fb-ac87-4caa-966d-971df8c47dcd\\scratchpad\\refit_fields_sdffix.py"
+    }
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": null,
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-10-14T10:42:32.282222+00:00"
+}
