@@ -1,7 +1,7 @@
 """Closed genus-2 surface: one smooth union of two ordinary tori."""
 from __future__ import annotations
 
-from atlas_rom.cases._generic_surface_common import (observed_pose3,
+from manifold_charts.atlas_rom.cases.generic._generic_surface_common import (observed_pose3,
                                                      smooth_min_sdf, torus_sdf,
                                                      state_from_observation3, surface_case)
 from atlas_rom.simulate.sdf_oracle import SDFSystem

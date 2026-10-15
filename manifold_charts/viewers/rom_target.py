@@ -25,6 +25,7 @@ from atlas_rom.rom.loader import PatchAtlasROM  # noqa: E402
 from atlas_rom.rom import routing_test_tracks as T, ops  # noqa: E402
 from atlas_rom.charts.validity import validity_from_case  # noqa: E402
 from viewers.view_routing_test import joint_pd_controls  # noqa: E402
+from viewers.ps_widgets import FrameRecorder, energy_panel  # noqa: E402
 from atlas_rom.rom.adv_router import AdvRouterTrack  # noqa: E402
 
 def pen_target(case):
@@ -374,7 +375,21 @@ def run(args):
         net.set_color(color)
         net.set_radius(0.004, relative=False)
 
-    ui = {"clicked_off": False, "running": True, "spf": args.spf, "mouse": True, "dragging": False, "trails": {n: [] for n in sim.pens}, "gravity": float(rom.mechanism.gravity),
+    rec = FrameRecorder(args.replay_frames)
+
+    def snapshot(rows):
+        """One replay frame: pose, pen points, target, controller rows and the track diagnostics (balls / curve / wind stay live)."""
+        return {"time": sim.trk.state["time"], "pose": sim.pose().copy(), "pens": {n: p.copy() for n, p in sim.pen_points().items()},
+                "target": None if sim.target_pt is None else np.asarray(sim.target_pt, float).copy(), "rows": list(rows),
+                "diag": {"adv": sim.trk.diagnostics()}}
+
+    def do_reset():
+        sim.reset()
+        ui["trails"] = {n: [] for n in sim.pens}
+        rec.clear()
+        rec.push(snapshot([]))
+
+    ui = {"energy_q": "total", "energy_window": 400, "clicked_off": False, "running": True, "spf": args.spf, "mouse": True, "dragging": False, "trails": {n: [] for n in sim.pens}, "gravity": float(rom.mechanism.gravity),
           "drawing": False, "draw_pts": [], "msg": "", "wind_mag": 0.0, "wind_dir": 0.0, "gust": False}
 
     def callback():
@@ -389,12 +404,12 @@ def run(args):
             ui["clicked_off"] = False
         imgui.SameLine()
         if imgui.Button("Reset"):
-            sim.reset()
-            ui["trails"] = {n: [] for n in sim.pens}
+            do_reset()
         imgui.SameLine()
         if imgui.Button("Clear trails"):
             ui["trails"] = {n: [] for n in sim.pens}
         _, ui["mouse"] = imgui.Checkbox("mouse click / drag sets the target (off: orbit the camera)", ui["mouse"])
+        rec.panel(imgui, lambda _f: None, pause_live=lambda: ui.update(running=False))
 
         imgui.Separator()
         if imgui.Button("Stop drawing" if ui["drawing"] else "Draw closed curve (drag in the viewport)"):
@@ -467,22 +482,27 @@ def run(args):
         sim.wind = ui["wind_mag"] * gust * np.array([np.cos(a), np.sin(a)])
 
         rows = sim.rows
-        if ui["running"] and not sim.error:
+        if ui["running"] and not sim.error and rec.live:
             rows = sim.step(ui["spf"])
+            rec.push(snapshot(rows))
         if sim.error:
             imgui.TextColored((1.0, 0.4, 0.3, 1.0), f"stopped: {sim.error}")
         if not sim.control_on:
             imgui.TextColored((1.0, 0.7, 0.2, 1.0), "controller OFF: no torque, free dynamics under gravity (the router still hands off).  Clicks still place the target.")
 
-        adapter.update(sim.pose())
-        pens = sim.pen_points()
+        shown = rec.shown()
+        adapter.update(shown["pose"])
+        pens, target_pt = shown["pens"], shown["target"]
         for i, (n, pt) in enumerate(pens.items()):
             post(f"pen_{n}", pt, colors[i % len(colors)])
-            tr = ui["trails"][n]
-            if not tr or np.linalg.norm(pt - tr[-1]) > 0.004:
-                tr.append(pt.copy())
-                if len(tr) > 2500:
-                    tr.pop(0)
+            if rec.live:
+                tr = ui["trails"][n]
+                if not tr or np.linalg.norm(pt - tr[-1]) > 0.004:
+                    tr.append(pt.copy())
+                    if len(tr) > 2500:
+                        tr.pop(0)
+            else:                                                      # replay: the trail is the recorded pen path up to the shown frame
+                tr = [rec.frames[k]["pens"][n] for k in range(0, rec.idx + 1, max(rec.idx // 2500, 1))]
             trail(f"pen_{n} trail", tr, colors[i % len(colors)])
         if len(sim.rain.x):
             bp = ps.register_point_cloud("balls", np.column_stack((sim.rain.x, np.zeros(len(sim.rain.x)))).astype(np.float32))
@@ -513,9 +533,13 @@ def run(args):
             seg("wind", p0, tip, (0.30, 0.85, 0.95))
         elif ps.has_curve_network("wind"):
             ps.remove_curve_network("wind")
-        if sim.target_pt is not None:
-            post("target",sim.target_pt, (0.20, 0.80, 0.30), h=0.25, r=0.02)
-            seg("pen -> target", pens[sim.drag_pen], sim.target_pt, (0.20, 0.80, 0.30))
+        if target_pt is not None:
+            post("target", target_pt, (0.20, 0.80, 0.30), h=0.25, r=0.02)
+            seg("pen -> target", pens[sim.drag_pen], target_pt, (0.20, 0.80, 0.30))
+        elif ps.has_curve_network("target"):
+            ps.remove_curve_network("target")
+            if ps.has_curve_network("pen -> target"):
+                ps.remove_curve_network("pen -> target")
 
         imgui.Separator()
         ch, v = imgui.SliderInt("steps per frame", ui["spf"], 1, 8)
@@ -536,6 +560,7 @@ def run(args):
         ch, v = imgui.Checkbox("gravity compensation (from the learned potential)", sim.gcomp)
         if ch:
             sim.gcomp = bool(v)
+        energy_panel(imgui, rec, ["adv"], {"adv": True}, ui)
         imgui.Separator()
         ra = sim.rain
         _, ra.on = imgui.Checkbox("rain balls", ra.on)
@@ -558,6 +583,7 @@ def run(args):
             imgui.Text(f"pen {sim.drag_pen} distance to the clicked target: {np.linalg.norm(pens[sim.drag_pen][:2] - sim.target_pt[:2]):.4f}")
         imgui.Text(f"joint closure of the decoded pose (diagnostic): {sim.closure(sim.pose()):.2e}")
 
+    rec.push(snapshot([]))
     ps.set_user_callback(callback)
     print("click or drag in the viewport to set the target for the pen; the ROM's dynamics drive it there.")
     ps.show()
@@ -571,6 +597,7 @@ def main():
     ap.add_argument("--dt", type=float, default=0.01)
     ap.add_argument("--damping", type=float, default=0.0)
     ap.add_argument("--spf", type=int, default=2, help="ROM steps per rendered frame")
+    ap.add_argument("--replay-frames", type=int, default=3000, help="rendered frames kept for the live replayer")
     run(ap.parse_args())
 
 

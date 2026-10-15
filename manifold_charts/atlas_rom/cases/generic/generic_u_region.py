@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from atlas_rom.cases._generic_surface_common import observed_pose3, state_from_observation3, surface_case
+from manifold_charts.atlas_rom.cases.generic._generic_surface_common import observed_pose3, state_from_observation3, surface_case
 from atlas_rom.simulate.sdf_oracle import SDFSystem
 
 _RADIUS, _HALF_WIDTH, _OPENING = 1.5, .42, .62

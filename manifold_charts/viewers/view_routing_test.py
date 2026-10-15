@@ -13,7 +13,6 @@ is optional and adds error readouts, a ghost column and control replay.
 from __future__ import annotations
 
 import argparse
-import collections
 import hashlib
 import json
 import os
@@ -30,6 +29,7 @@ for _p in (_ROOT, _HERE):
 from atlas_rom.rom.loader import PatchAtlasROM  # noqa: E402
 from atlas_rom.rom.routing_test_tracks import Settings, load_references  # noqa: E402
 from atlas_rom.rom.adv_router import AdvRouterTrack  # noqa: E402
+from viewers.ps_widgets import FrameRecorder, energy_panel, fmt as _fmt, translation as _translation  # noqa: E402
 
 # "adv" is the shipped learned advantage router (the support-field / closure-oracle tracks were retired).
 TRACK_TYPES = {"adv": AdvRouterTrack}
@@ -72,16 +72,6 @@ def _layout(adapter, rom, n_columns):
         t[lateral] = i * spacing
         offsets.append(t)
     return offsets
-
-
-def _translation(t):
-    m = np.eye(4)
-    m[:3, 3] = t
-    return m
-
-
-def _fmt(x, spec="+.4f"):
-    return "—" if x is None else format(x, spec)
 
 
 def joint_pd_controls(rom, track, targets, w0, zeta, lim_mult, gcomp, manual):
@@ -231,9 +221,7 @@ def main():
     # track, the reference pose, and the controls in force).  Replay only reads
     # this buffer; the tracks' own states are never touched, so "Resume live"
     # continues exactly where the simulation stopped.
-    frames = collections.deque(maxlen=max(int(args.replay_frames), 2))
-    replay = {"idx": None, "playing": False,    # idx None = live
-              "speed": 1.0, "acc": 0.0}         # speed: frames per redraw, <0 = backwards
+    rec = FrameRecorder(args.replay_frames)
 
     ui = {"energy_q": "total", "energy_window": 400, "running": False, "spf": 4, "replay": bool(references and references[0].controls is not None),
           "error": ""}
@@ -254,14 +242,13 @@ def main():
                  "diag": {n: t.diagnostics() for n, t in tracks.items()},
                  "reference": (references[ref_index].pose_at(first.state["time"]).copy()
                                if references else None)}
-        frames.append(frame)
+        rec.push(frame)
         show(frame)
 
     def do_reset():
         for t in tracks.values():
             t.reset()
-        frames.clear()
-        replay["idx"], replay["playing"] = None, False
+        rec.clear()
         ui["error"] = ""
         refresh()
 
@@ -281,85 +268,9 @@ def main():
                 break
         refresh()
 
-    def replay_panel():
-        n = len(frames)
-        if replay["idx"] is None:
-            if imgui.Button("Replay") and n > 1:
-                ui["running"] = False
-                replay["idx"], replay["playing"] = n - 1, False
-            imgui.SameLine()
-            imgui.Text(f"live  (buffer {n}/{frames.maxlen})")
-            return
-        i = replay["idx"] = min(replay["idx"], n - 1)
-        if imgui.Button("Resume live"):
-            replay["idx"], replay["playing"] = None, False
-            show(frames[-1])
-            return
-        imgui.SameLine()
-        if imgui.Button("Pause replay" if replay["playing"] else "Play replay"):
-            replay["playing"] = not replay["playing"]
-        imgui.SameLine()
-        if imgui.Button("<"):
-            i, replay["playing"] = max(i - 1, 0), False
-        imgui.SameLine()
-        if imgui.Button(">"):
-            i, replay["playing"] = min(i + 1, n - 1), False
-        if replay["playing"]:
-            # Fractional speeds accumulate, so 0.1x advances one frame per 10 redraws.
-            replay["acc"] += replay["speed"]
-            whole = int(replay["acc"])
-            replay["acc"] -= whole
-            i = min(max(i + whole, 0), n - 1)
-            if i in (0, n - 1) and whole != 0:
-                replay["playing"] = False
-        changed, v = imgui.SliderFloat("replay speed (frames/redraw)", replay["speed"], -8.0, 8.0)
-        if changed:
-            replay["speed"] = float(v)
-        changed, v = imgui.SliderInt("replay frame", i, 0, n - 1)
-        if changed:
-            i, replay["playing"] = int(v), False
-        replay["idx"] = i
-        show(frames[i])
-        imgui.TextColored((0.4, 0.8, 1.0, 1.0),
-                          f"REPLAY frame {i}/{n - 1}  t={frames[i]['time']:.4f}  "
-                          f"(tracks are paused; Resume live continues the simulation)")
-
-    ENERGY_Q = (("total", "energy", "total energy (change over the window)"),
-                ("kinetic", "kinetic", "kinetic energy"),
-                ("potential", "potential", "potential energy (change over the window)"))
-
-    def energy_panel():
-        """Energy of every enabled track over the recorded frames (follows the replay frame).  Total / potential are shown as a change from
-        the first frame of the window: the absolute levels are huge (V ~ m g h) and a handoff teleport shows up as a jump."""
-        if not frames:
-            return
-        imgui.Separator()
-        imgui.Text("energy")
-        for key, _attr, label in ENERGY_Q:
-            imgui.SameLine()
-            if imgui.RadioButton(key, ui["energy_q"] == key):
-                ui["energy_q"] = key
-        attr, label = next((a, l) for k, a, l in ENERGY_Q if k == ui["energy_q"])
-        end = replay["idx"] if replay["idx"] is not None else len(frames) - 1
-        end = min(end, len(frames) - 1)
-        start = max(0, end - ui["energy_window"] + 1)
-        for n in names:
-            if not enabled[n]:
-                continue
-            vals = np.array([frames[k]["diag"][n][attr] for k in range(start, end + 1)], dtype=float)
-            if attr != "kinetic":
-                vals = vals - vals[0]
-            handoffs = frames[end]["diag"][n]["handoffs"]
-            cur = vals[-1]
-            try:
-                imgui.PlotLines(f"{n}  {label}##energy_{n}", vals.astype(np.float32), graph_size=(0, 60),
-                                overlay_text=f"{cur:+.3g}   (handoffs {handoffs})")
-            except Exception:
-                imgui.Text(f"{n}: {cur:+.3g}")
-
     def callback():
         nonlocal ref_index
-        if replay["idx"] is None:
+        if rec.live:
             if imgui.Button("Pause" if ui["running"] else "Play"):
                 ui["running"] = not ui["running"]
             imgui.SameLine()
@@ -368,7 +279,7 @@ def main():
             imgui.SameLine()
         if imgui.Button("Reset"):
             do_reset()
-        replay_panel()
+        rec.panel(imgui, show, pause_live=lambda: ui.update(running=False))
         changed, spf = imgui.SliderInt("steps/frame", ui["spf"], 1, 40)
         if changed:
             ui["spf"] = int(spf)
@@ -378,7 +289,7 @@ def main():
             changed, value = imgui.Checkbox(f"track: {n}", enabled[n])
             if changed:
                 enabled[n] = value
-                show(frames[replay["idx"]] if replay["idx"] is not None else frames[-1])
+                show(rec.shown())
 
         imgui.Separator()
         if references:
@@ -428,7 +339,7 @@ def main():
                                            0.0, 0.1, format="%.4f")
             if changed:
                 settings.oracle_tol = float(v)
-        energy_panel()
+        energy_panel(imgui, rec, names, enabled, ui)
         for label, attr in (("Enable SDF boundary", "sdf_enabled"),
                             ("Project/retract at boundary", "project_boundary"),
                             ("Stall guard", "stall_guard")):
@@ -474,13 +385,13 @@ def main():
                     for (an, th, err, cmd, sat) in drive["last"].get(name, []):
                         imgui.Text(f"  {name:8s} {an}: angle {th:+.3f}  error {err:+.3f}  torque {cmd:+.2f}{'  SATURATED' if sat else ''}")
 
-        if ui["running"] and replay["idx"] is None:
+        if ui["running"] and rec.live:
             advance(ui["spf"])
 
         imgui.Separator()
         if ui["error"]:
             imgui.TextColored((1.0, 0.3, 0.3, 1.0), ui["error"])
-        shown = frames[replay["idx"]] if replay["idx"] is not None else frames[-1]
+        shown = rec.shown()
         for n in tracks:
             d = shown["diag"][n]
             imgui.Separator()

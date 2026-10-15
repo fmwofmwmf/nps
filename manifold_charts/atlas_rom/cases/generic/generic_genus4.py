@@ -1,7 +1,7 @@
 """Closed genus-4 surface: rounded cube frame with one square face filled."""
 from __future__ import annotations
 
-from atlas_rom.cases._generic_surface_common import (observed_pose3, rounded_box_sdf,
+from manifold_charts.atlas_rom.cases.generic._generic_surface_common import (observed_pose3, rounded_box_sdf,
                                                      rounded_graph_sdf, smooth_min_sdf,
                                                      state_from_observation3, surface_case)
 from atlas_rom.simulate.sdf_oracle import SDFSystem
