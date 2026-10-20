@@ -7,12 +7,20 @@
     "sim_systems": [
         {
             "engine_aware": false,
-            "name": "class uipc::backend::cuda::InterAffineBodyAnimator",
+            "name": "class uipc::backend::cuda::ABDBDF1Integrator",
             "strong_deps": [
-                "class uipc::backend::cuda::GlobalAnimator",
+                "class uipc::backend::cuda::TimeIntegratorManager",
                 "class uipc::backend::cuda::AffineBodyDynamics",
-                "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
-                "class uipc::backend::cuda::GlobalAnimator"
+                "class uipc::backend::cuda::BDF1Flag"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::ABDBDF2State",
+            "strong_deps": [
+                "class uipc::backend::cuda::AffineBodyDynamics"
             ],
             "valid": true,
             "weak_deps": []
@@ -24,6 +32,26 @@
                 "class uipc::backend::cuda::GlobalLinearSystem",
                 "class uipc::backend::cuda::GlobalLinearSystem",
                 "class uipc::backend::cuda::ABDLinearSubsystem"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::ABDDyTopoEffectReceiver",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalDyTopoEffectManager",
+                "class uipc::backend::cuda::AffineBodyVertexReporter"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::ABDLineSearchReporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::LineSearcher",
+                "class uipc::backend::cuda::AffineBodyDynamics"
             ],
             "valid": true,
             "weak_deps": []
@@ -43,58 +71,10 @@
         },
         {
             "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyStateAccessor",
-            "strong_deps": [
-                "class uipc::backend::cuda::AffineBodyDynamics",
-                "class uipc::backend::cuda::AffineBodyVertexReporter",
-                "class uipc::backend::cuda::GlobalJointDofManager"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::ABDLineSearchReporter",
-            "strong_deps": [
-                "class uipc::backend::cuda::LineSearcher",
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": true,
-            "name": "class uipc::backend::cuda::GlobalLinearSystem",
-            "strong_deps": [],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::InterAffineBodyConstitutionLineSearchSubreporter",
-            "strong_deps": [
-                "class uipc::backend::cuda::ABDLineSearchReporter",
-                "class uipc::backend::cuda::InterAffineBodyConstitutionManager"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
             "name": "class uipc::backend::cuda::ABDToleranceChecker",
             "strong_deps": [
                 "class uipc::backend::cuda::NewtonToleranceManager",
                 "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyRevoluteJointExternalForceConstraint",
-            "strong_deps": [
-                "class uipc::backend::cuda::InterAffineBodyAnimator",
-                "class uipc::backend::cuda::AffineBodyRevoluteJoint"
             ],
             "valid": true,
             "weak_deps": []
@@ -112,10 +92,10 @@
         },
         {
             "engine_aware": false,
-            "name": "class uipc::backend::cuda::InterAffineBodyConstitutionLinearSubsystemReporter",
+            "name": "class uipc::backend::cuda::AffineBodyAnimatorLineSearchSubreporter",
             "strong_deps": [
-                "class uipc::backend::cuda::ABDLinearSubsystem",
-                "class uipc::backend::cuda::InterAffineBodyConstitutionManager"
+                "class uipc::backend::cuda::ABDLineSearchReporter",
+                "class uipc::backend::cuda::AffineBodyAnimator"
             ],
             "valid": true,
             "weak_deps": []
@@ -132,20 +112,10 @@
         },
         {
             "engine_aware": false,
-            "name": "class uipc::backend::cuda::LinearFusedPCG",
+            "name": "class uipc::backend::cuda::AffineBodyBDF1Kinetic",
             "strong_deps": [
-                "class uipc::backend::cuda::GlobalLinearSystem",
-                "class uipc::backend::cuda::GlobalLinearSystem"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyAnimatorLineSearchSubreporter",
-            "strong_deps": [
-                "class uipc::backend::cuda::ABDLineSearchReporter",
-                "class uipc::backend::cuda::AffineBodyAnimator"
+                "class uipc::backend::cuda::AffineBodyDynamics",
+                "class uipc::backend::cuda::BDF1Flag"
             ],
             "valid": true,
             "weak_deps": []
@@ -161,38 +131,9 @@
             "weak_deps": []
         },
         {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::InterAffineBodyAnimatorLineSearchSubreporter",
-            "strong_deps": [
-                "class uipc::backend::cuda::ABDLineSearchReporter",
-                "class uipc::backend::cuda::InterAffineBodyAnimator"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyPrismaticJoint",
-            "strong_deps": [
-                "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
             "engine_aware": true,
             "name": "class uipc::backend::cuda::AffineBodyDynamics",
             "strong_deps": [],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::OrthoPotential",
-            "strong_deps": [
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
             "valid": true,
             "weak_deps": []
         },
@@ -208,10 +149,73 @@
         },
         {
             "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyRevoluteJoint",
+            "strong_deps": [
+                "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
+                "class uipc::backend::cuda::AffineBodyDynamics"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
             "name": "class uipc::backend::cuda::AffineBodyRevoluteJointDofReporter",
             "strong_deps": [
                 "class uipc::backend::cuda::GlobalJointDofManager",
                 "class uipc::backend::cuda::AffineBodyRevoluteJoint"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyRevoluteJointExternalForce",
+            "strong_deps": [
+                "class uipc::backend::cuda::AffineBodyRevoluteJointExternalForceConstraint",
+                "class uipc::backend::cuda::AffineBodyExternalForceManager"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyRevoluteJointExternalForceConstraint",
+            "strong_deps": [
+                "class uipc::backend::cuda::InterAffineBodyAnimator",
+                "class uipc::backend::cuda::AffineBodyRevoluteJoint"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyRevoluteJointTimeIntegrator",
+            "strong_deps": [
+                "class uipc::backend::cuda::TimeIntegratorManager",
+                "class uipc::backend::cuda::AffineBodyRevoluteJoint",
+                "class uipc::backend::cuda::AffineBodyDynamics"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyStateAccessor",
+            "strong_deps": [
+                "class uipc::backend::cuda::AffineBodyDynamics",
+                "class uipc::backend::cuda::AffineBodyVertexReporter",
+                "class uipc::backend::cuda::GlobalJointDofManager"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyVertexReporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalVertexManager",
+                "class uipc::backend::cuda::AffineBodyDynamics",
+                "class uipc::backend::cuda::AffineBodyBodyReporter"
             ],
             "valid": true,
             "weak_deps": []
@@ -237,150 +241,6 @@
         },
         {
             "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyVertexReporter",
-            "strong_deps": [
-                "class uipc::backend::cuda::GlobalVertexManager",
-                "class uipc::backend::cuda::AffineBodyDynamics",
-                "class uipc::backend::cuda::AffineBodyBodyReporter"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::ABDBDF1Integrator",
-            "strong_deps": [
-                "class uipc::backend::cuda::TimeIntegratorManager",
-                "class uipc::backend::cuda::AffineBodyDynamics",
-                "class uipc::backend::cuda::BDF1Flag"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::ABDBDF2State",
-            "strong_deps": [
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyBDF1Kinetic",
-            "strong_deps": [
-                "class uipc::backend::cuda::AffineBodyDynamics",
-                "class uipc::backend::cuda::BDF1Flag"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::IPCPipelineFlag",
-            "strong_deps": [],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyPrismaticJointDofReporter",
-            "strong_deps": [
-                "class uipc::backend::cuda::GlobalJointDofManager",
-                "class uipc::backend::cuda::AffineBodyPrismaticJoint"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::SoftTransformConstraint",
-            "strong_deps": [
-                "class uipc::backend::cuda::AffineBodyAnimator"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyPrismaticJointTimeIntegrator",
-            "strong_deps": [
-                "class uipc::backend::cuda::TimeIntegratorManager",
-                "class uipc::backend::cuda::AffineBodyPrismaticJoint",
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyRevoluteJointExternalForce",
-            "strong_deps": [
-                "class uipc::backend::cuda::AffineBodyRevoluteJointExternalForceConstraint",
-                "class uipc::backend::cuda::AffineBodyExternalForceManager"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyRevoluteJoint",
-            "strong_deps": [
-                "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::AffineBodyRevoluteJointTimeIntegrator",
-            "strong_deps": [
-                "class uipc::backend::cuda::TimeIntegratorManager",
-                "class uipc::backend::cuda::AffineBodyRevoluteJoint",
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::InterAffineBodyAnimatorLinearSubsystemReporter",
-            "strong_deps": [
-                "class uipc::backend::cuda::ABDLinearSubsystem",
-                "class uipc::backend::cuda::InterAffineBodyAnimator"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": true,
-            "name": "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
-            "strong_deps": [
-                "class uipc::backend::cuda::AffineBodyDynamics"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": true,
-            "name": "class uipc::backend::cuda::GlobalAnimator",
-            "strong_deps": [],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
-            "name": "class uipc::backend::cuda::HalfPlane",
-            "strong_deps": [
-                "class uipc::backend::cuda::GlobalVertexManager"
-            ],
-            "valid": true,
-            "weak_deps": []
-        },
-        {
-            "engine_aware": false,
             "name": "class uipc::backend::cuda::ContactExporterManager",
             "strong_deps": [],
             "valid": true,
@@ -394,8 +254,33 @@
             "weak_deps": []
         },
         {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::DyTopoEffectLineSearchReporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::LineSearcher",
+                "class uipc::backend::cuda::GlobalDyTopoEffectManager"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::EasyVertexHalfPlaneTrajectoryFilter",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalVertexManager",
+                "class uipc::backend::cuda::GlobalSimplicialSurfaceManager",
+                "class uipc::backend::cuda::GlobalContactManager",
+                "class uipc::backend::cuda::HalfPlane",
+                "class uipc::backend::cuda::HalfPlaneVertexReporter",
+                "class uipc::backend::cuda::GlobalTrajectoryFilter",
+                "class uipc::backend::cuda::IPCPipelineFlag"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
             "engine_aware": true,
-            "name": "class uipc::backend::cuda::GlobalExternalForceManager",
+            "name": "class uipc::backend::cuda::GlobalAnimator",
             "strong_deps": [],
             "valid": true,
             "weak_deps": []
@@ -403,6 +288,49 @@
         {
             "engine_aware": true,
             "name": "class uipc::backend::cuda::GlobalBodyManager",
+            "strong_deps": [],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": true,
+            "name": "class uipc::backend::cuda::GlobalContactManager",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalVertexManager"
+            ],
+            "valid": true,
+            "weak_deps": [
+                "class uipc::backend::cuda::GlobalTrajectoryFilter",
+                "class uipc::backend::cuda::GlobalSimplicialSurfaceManager",
+                "class uipc::backend::cuda::AffineBodyDynamics"
+            ]
+        },
+        {
+            "engine_aware": true,
+            "name": "class uipc::backend::cuda::GlobalDyTopoEffectManager",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalVertexManager"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": true,
+            "name": "class uipc::backend::cuda::GlobalExternalForceManager",
+            "strong_deps": [],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::GlobalJointDofManager",
+            "strong_deps": [],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": true,
+            "name": "class uipc::backend::cuda::GlobalLinearSystem",
             "strong_deps": [],
             "valid": true,
             "weak_deps": []
@@ -418,13 +346,32 @@
         },
         {
             "engine_aware": true,
+            "name": "class uipc::backend::cuda::GlobalTrajectoryFilter",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalContactManager"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": true,
             "name": "class uipc::backend::cuda::GlobalVertexManager",
             "strong_deps": [],
             "valid": true,
             "weak_deps": [
+                "class uipc::backend::cuda::GlobalTrajectoryFilter",
                 "class uipc::backend::cuda::GlobalActiveSetManager",
                 "class uipc::backend::cuda::GlobalJointDofManager"
             ]
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::HalfPlane",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalVertexManager"
+            ],
+            "valid": true,
+            "weak_deps": []
         },
         {
             "engine_aware": false,
@@ -449,8 +396,112 @@
         },
         {
             "engine_aware": false,
-            "name": "class uipc::backend::cuda::GlobalJointDofManager",
+            "name": "class uipc::backend::cuda::IPCPipelineFlag",
             "strong_deps": [],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::IPCSimplexNormalContact",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalDyTopoEffectManager",
+                "class uipc::backend::cuda::GlobalContactManager",
+                "class uipc::backend::cuda::GlobalTrajectoryFilter",
+                "class uipc::backend::cuda::GlobalContactManager",
+                "class uipc::backend::cuda::GlobalVertexManager",
+                "class uipc::backend::cuda::IPCPipelineFlag"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::IPCVertexHalfPlaneNormalContact",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalDyTopoEffectManager",
+                "class uipc::backend::cuda::GlobalContactManager",
+                "class uipc::backend::cuda::GlobalTrajectoryFilter",
+                "class uipc::backend::cuda::GlobalContactManager",
+                "class uipc::backend::cuda::GlobalVertexManager",
+                "class uipc::backend::cuda::HalfPlaneVertexReporter",
+                "class uipc::backend::cuda::IPCPipelineFlag",
+                "class uipc::backend::cuda::HalfPlane"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::InfoStacklessBVHSimplexTrajectoryFilter",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalVertexManager",
+                "class uipc::backend::cuda::GlobalSimplicialSurfaceManager",
+                "class uipc::backend::cuda::GlobalContactManager",
+                "class uipc::backend::cuda::GlobalBodyManager",
+                "class uipc::backend::cuda::GlobalTrajectoryFilter"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::InterAffineBodyAnimator",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalAnimator",
+                "class uipc::backend::cuda::AffineBodyDynamics",
+                "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
+                "class uipc::backend::cuda::GlobalAnimator"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::InterAffineBodyAnimatorLineSearchSubreporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ABDLineSearchReporter",
+                "class uipc::backend::cuda::InterAffineBodyAnimator"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::InterAffineBodyAnimatorLinearSubsystemReporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ABDLinearSubsystem",
+                "class uipc::backend::cuda::InterAffineBodyAnimator"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::InterAffineBodyConstitutionLineSearchSubreporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ABDLineSearchReporter",
+                "class uipc::backend::cuda::InterAffineBodyConstitutionManager"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::InterAffineBodyConstitutionLinearSubsystemReporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ABDLinearSubsystem",
+                "class uipc::backend::cuda::InterAffineBodyConstitutionManager"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": true,
+            "name": "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
+            "strong_deps": [
+                "class uipc::backend::cuda::AffineBodyDynamics"
+            ],
             "valid": true,
             "weak_deps": []
         },
@@ -458,6 +509,16 @@
             "engine_aware": true,
             "name": "class uipc::backend::cuda::LineSearcher",
             "strong_deps": [],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::LinearFusedPCG",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalLinearSystem",
+                "class uipc::backend::cuda::GlobalLinearSystem"
+            ],
             "valid": true,
             "weak_deps": []
         },
@@ -479,9 +540,78 @@
             "weak_deps": []
         },
         {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::OrthoPotential",
+            "strong_deps": [
+                "class uipc::backend::cuda::AffineBodyDynamics"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::SimplexNormalContactEEExporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ContactExporterManager",
+                "class uipc::backend::cuda::IPCSimplexNormalContact"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::SimplexNormalContactPEExporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ContactExporterManager",
+                "class uipc::backend::cuda::IPCSimplexNormalContact"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::SimplexNormalContactPPExporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ContactExporterManager",
+                "class uipc::backend::cuda::IPCSimplexNormalContact"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::SimplexNormalContactPTExporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ContactExporterManager",
+                "class uipc::backend::cuda::IPCSimplexNormalContact"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::SoftTransformConstraint",
+            "strong_deps": [
+                "class uipc::backend::cuda::AffineBodyAnimator"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
             "engine_aware": true,
             "name": "class uipc::backend::cuda::TimeIntegratorManager",
             "strong_deps": [],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::VertexHalfPlaneNormalContactExporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::ContactExporterManager",
+                "class uipc::backend::cuda::IPCVertexHalfPlaneNormalContact",
+                "class uipc::backend::cuda::HalfPlaneVertexReporter"
+            ],
             "valid": true,
             "weak_deps": []
         }

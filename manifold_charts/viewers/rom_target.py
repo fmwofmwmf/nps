@@ -6,12 +6,21 @@ integrates its learned dynamics with the net-only advantage router `srcsup`.  Th
 
     python -m viewers.rom_target --case pantograph_2d --rom pantograph_2d_polished --roms-dir <dir>      (from testing/manifold_charts)
     python -m viewers.rom_target --case five_bar      --rom five_bar_polished      --roms-dir <dir>
+
+``--mode full`` drives the case's full-space reference simulator (``IdealJointSim``) instead of a ROM, so no ``--rom`` is needed:
+
+    python -m viewers.rom_target --case five_bar_pantograph --mode full
+
+Full mode is a ground-truth reference harness, not a runtime component.  The same task-space computed torque runs on the simulator's own
+quantities: the tangent basis N of its constraint Jacobian, its kinetic metric W and its gravity / actuator force maps, in place of the
+decoder, learned mass and potential fields.  Rain and wind act on the ROM's learned dynamics and are hidden in Full mode.
 """
 from __future__ import annotations
 
 import argparse
 import os
 import sys
+from types import SimpleNamespace
 
 import numpy as np
 import torch
@@ -168,6 +177,8 @@ class Rain:
 
 
 class RomSim:
+    is_full = False
+
     def __init__(self, rom, case, dt=0.01, damping=0.0):
         self.rom, self.cfg = rom, pen_target(case)
         self.pens = self.cfg["pens"]
@@ -301,6 +312,13 @@ class RomSim:
     def set_target_point(self, hit_xy):
         self.target_pt = np.asarray(hit_xy, float)[:2]
 
+    def set_gravity(self, value):
+        self.settings.gravity = float(value)
+
+    def set_damping(self, value):
+        self.settings.damping = float(value)
+        self.trk.rt.velocity_damping = float(value)
+
     # ---- dynamics ----------------------------------------------------------------------------------------------------------------------------------------
     def step(self, n=1):
         rows = self.rows
@@ -324,6 +342,121 @@ class RomSim:
         return rows
 
 
+class FullSim(RomSim):
+    """The same viewer surface on the full-space reference simulator (``IdealJointSim``) instead of a ROM.
+
+    Reuses ``RomSim``'s task-space bookkeeping (target, curve, trace, pen points, closure) and replaces the dynamics and the controller.  It does not call
+    ``RomSim.__init__``: there is no ROM, so ``rom`` / ``trk`` are small stand-ins carrying only what the viewer reads."""
+    is_full = True
+
+    def __init__(self, case_name, dt=0.01, damping=0.0):
+        from atlas_rom.cases import load_spec
+        from atlas_rom.simulate.ideal_sim import IdealJointSim
+        case = load_spec(case_name)
+        self.ideal = IdealJointSim(case, dt=dt, damping=damping, log=lambda *_a: None)
+        order = list(self.ideal.order)
+        self.rom = SimpleNamespace(mechanism=case.mechanism, case=case, n_patches=1, body_order=order, n_bodies=len(order))
+        self.cfg = pen_target(case_name)
+        self.pens = self.cfg["pens"]
+        self.drag_pen = next(iter(self.pens))
+        self.acts = list(case.actuators)
+        self.body_idx = {n: order.index(b) for n, (b, _p) in self.pens.items()}
+        self.validity = validity_from_case(case, include_grounded=False)
+        self.settings = SimpleNamespace(dt=dt, damping=damping, gravity=self.ideal.gravity)
+        self.trk = SimpleNamespace(state={"chart": 0, "time": 0.0, "handoffs": 0, "stalls": 0}, info=None, diagnostics=lambda: {},
+                                   rt=SimpleNamespace(velocity_damping=damping))
+        self.w0, self.zeta, self.lim, self.gcomp = 4.0, 1.0, float(self.cfg.get("torque_limit", 20.0)), True
+        self.control_on = True
+        self.wind = np.zeros(2)                                     # unused in Full mode (the wind acts on the ROM's learned dynamics)
+        self.rain = Rain(self)                                      # never stepped in Full mode
+        self.curve = None
+        self.smooth, self.raw_pts = 1e-5, []
+        self.trace_on, self.trace_s, self.trace_speed, self.laps = False, 0.0, 0.3, 0.0
+        self._W = np.linalg.inv(self.ideal._W_inv)                  # kinetic metric of the packed pose coordinates
+        self.tangent_dim = 0
+        self.reset()
+
+    def pose(self):
+        return self.ideal.pose()
+
+    def reset(self):
+        self.rain.clear()
+        self.ideal.reset()
+        self.trk.state["time"] = 0.0
+        self.target_pt = None
+        self.trace_on = False
+        self.error = ""
+        self.rows = []
+
+    def set_gravity(self, value):
+        self.settings.gravity = float(value)
+        self.ideal.gravity = float(value)
+
+    def set_damping(self, value):
+        self.settings.damping = float(value)
+        self.ideal.damping = float(value)
+
+    def _controls(self, target_xy, a_max=40.0):
+        """Operational-space computed torque on the pen from the simulator's own quantities (the Full-mode twin of ``pen_pd_controls``):
+            q' = N v          N = null space of the constraint Jacobian C_q (tangent basis of the configuration set at the current pose)
+            M = N^T W N       kinetic metric restricted to the tangent;   G = (dpen/dq) N;   x_dot = (dpen/dq) q_dot
+            F_g, F_k          generalized gravity force and generalized force of a unit command on actuator k (both from the simulator)
+            x_ddot = G M^-1 N^T (F_g + sum_k F_k c_k),   c = A^+ (a_des - G M^-1 N^T F_g),   A = G M^-1 N^T F      (Coriolis ignored).
+        Returns (controls, rows)."""
+        s, n = self.ideal, self.ideal.n
+        i, lp = self.body_idx[self.drag_pen], np.asarray(self.pens[self.drag_pen][1], float)
+        T = s.q.reshape(n, 3, 4)[i]
+        x = T[:2, :3] @ lp + T[:2, 3]
+        P = np.zeros((2, 12 * n))
+        for r in range(2):
+            P[r, 12 * i + 4 * r: 12 * i + 4 * r + 3] = lp
+            P[r, 12 * i + 4 * r + 3] = 1.0
+        _u, sv, Vt = np.linalg.svd(s.oracle.jacobian(s.q), full_matrices=True)
+        rank = int(np.sum(sv > 1e-7 * sv[0])) if len(sv) and sv[0] > 0 else 0
+        N = Vt[rank:].T
+        self.tangent_dim = int(N.shape[1])
+        zero = [0.0] * len(self.acts)
+        if self.tangent_dim == 0:
+            return zero, []
+        Fg = s._generalized_force(np.zeros(len(self.acts)))
+        F = np.stack([s._generalized_force(np.eye(len(self.acts))[k]) - Fg for k in range(len(self.acts))], axis=1)       # (12n, n_act)
+        M = N.T @ self._W @ N
+        G = P @ N
+        a_des = self.w0 ** 2 * (np.asarray(target_xy, float)[:2] - x) - 2.0 * self.zeta * self.w0 * (P @ s.qdot)
+        norm = np.linalg.norm(a_des)
+        if norm > a_max:
+            a_des = a_des * a_max / norm
+        grav = G @ np.linalg.solve(M, N.T @ Fg)
+        A = G @ np.linalg.solve(M, N.T @ F)                                                                               # (2, n_act)
+        lam = 1e-3 * max(np.linalg.norm(A, 2), 1e-9)
+        raw = A.T @ np.linalg.solve(A @ A.T + lam ** 2 * np.eye(2), a_des - (grav if self.gcomp else 0.0))
+        ctl, rows = list(zero), []
+        for k, a in enumerate(self.acts):
+            lim = self.lim * float(a.hi)
+            cmd = float(np.clip(raw[k], -lim, lim))
+            ctl[k] = cmd
+            rows.append((a.name, float(np.linalg.norm(np.asarray(target_xy, float)[:2] - x)), 0.0, cmd, abs(float(raw[k])) > lim))
+        return ctl, rows
+
+    def step(self, n=1):
+        rows = self.rows
+        for _ in range(n):
+            self.advance_trace(self.settings.dt)
+            if not self.control_on:
+                ctl, rows = [0.0] * len(self.acts), []
+            else:
+                tgt = self.target_pt if self.target_pt is not None else self.pen_points()[self.drag_pen][:2]
+                ctl, rows = self._controls(tgt)
+            try:
+                self.ideal.step(ctl)
+            except (RuntimeError, np.linalg.LinAlgError, ValueError) as ex:
+                self.error = f"{type(ex).__name__}: {ex}"
+                break
+            self.trk.state["time"] = self.ideal.time
+        self.rows = rows
+        return rows
+
+
 def _ray_plane_hit(origin, direction, plane_z=0.0):
     if abs(direction[2]) < 1e-8:
         return None
@@ -336,8 +469,11 @@ def run(args):
     from polyscope import imgui
     from viewers.mesh_view import MeshAdapter
 
-    rom = PatchAtlasROM.load(os.path.join(args.roms_dir, args.rom))
-    sim = RomSim(rom, args.case, dt=args.dt, damping=args.damping)
+    if args.mode == "full":
+        sim = FullSim(args.case, dt=args.dt, damping=args.damping)
+    else:
+        sim = RomSim(PatchAtlasROM.load(os.path.join(args.roms_dir, args.rom)), args.case, dt=args.dt, damping=args.damping)
+    rom = sim.rom
     adapter = MeshAdapter(rom.mechanism)
     ps.init()
     ps.set_up_dir(adapter.up_dir)
@@ -445,11 +581,12 @@ def run(args):
             imgui.Text(f"curve length {sim.curve['length']:.2f}   laps {sim.laps:.2f}")
         if ui["msg"]:
             imgui.TextColored((1.0, 0.7, 0.2, 1.0), ui["msg"])
-        wmag, wdir = ui["wind_mag"], ui["wind_dir"]
-        ch1, wmag = imgui.SliderFloat("external force on the pen (wind)", wmag, 0.0, 100.0)
-        ch2, wdir = imgui.SliderFloat("wind direction (deg, 0 = +x)", wdir, -180.0, 180.0)
-        ch3, ui["gust"] = imgui.Checkbox("gusting (+-50% at 0.5 Hz)", ui["gust"])
-        ui["wind_mag"], ui["wind_dir"] = float(wmag), float(wdir)
+        if not sim.is_full:
+            wmag, wdir = ui["wind_mag"], ui["wind_dir"]
+            ch1, wmag = imgui.SliderFloat("external force on the pen (wind)", wmag, 0.0, 100.0)
+            ch2, wdir = imgui.SliderFloat("wind direction (deg, 0 = +x)", wdir, -180.0, 180.0)
+            ch3, ui["gust"] = imgui.Checkbox("gusting (+-50% at 0.5 Hz)", ui["gust"])
+            ui["wind_mag"], ui["wind_dir"] = float(wmag), float(wdir)
         imgui.Separator()
 
         origin = np.asarray(ps.get_view_camera_parameters().get_position(), float)
@@ -477,9 +614,10 @@ def run(args):
         if not ui["mouse"] and not ui["drawing"]:
             ps.set_do_default_mouse_interaction(True)
 
-        gust = 1.0 + 0.5 * np.sin(2.0 * np.pi * 0.5 * sim.trk.state["time"]) if ui["gust"] else 1.0
-        a = np.deg2rad(ui["wind_dir"])
-        sim.wind = ui["wind_mag"] * gust * np.array([np.cos(a), np.sin(a)])
+        if not sim.is_full:
+            gust = 1.0 + 0.5 * np.sin(2.0 * np.pi * 0.5 * sim.trk.state["time"]) if ui["gust"] else 1.0
+            a = np.deg2rad(ui["wind_dir"])
+            sim.wind = ui["wind_mag"] * gust * np.array([np.cos(a), np.sin(a)])
 
         rows = sim.rows
         if ui["running"] and not sim.error and rec.live:
@@ -548,33 +686,38 @@ def run(args):
         ch, v = imgui.SliderFloat("gravity", ui["gravity"], 0.0, 20.0)
         if ch:
             ui["gravity"] = float(v)
-            sim.settings.gravity = float(v)
+            sim.set_gravity(v)
         ch, v = imgui.SliderFloat("velocity damping (1/s)", float(sim.settings.damping or 0.0), 0.0, 10.0)
         if ch:
-            sim.settings.damping = float(v)
-            sim.trk.rt.velocity_damping = float(v)
+            sim.set_damping(v)
         for key, lab, lo, hi in (("w0", "controller natural frequency w0 (rad/s)", 0.5, 15.0), ("zeta", "controller damping ratio", 0.3, 3.0), ("lim", "torque limit (x declared)", 0.5, 150.0)):
             ch, v = imgui.SliderFloat(lab, float(getattr(sim, key)), lo, hi)
             if ch:
                 setattr(sim, key, float(v))
-        ch, v = imgui.Checkbox("gravity compensation (from the learned potential)", sim.gcomp)
+        ch, v = imgui.Checkbox("gravity compensation (from the simulator's gravity)" if sim.is_full else "gravity compensation (from the learned potential)", sim.gcomp)
         if ch:
             sim.gcomp = bool(v)
-        energy_panel(imgui, rec, ["adv"], {"adv": True}, ui)
-        imgui.Separator()
-        ra = sim.rain
-        _, ra.on = imgui.Checkbox("rain balls", ra.on)
-        imgui.SameLine()
-        if imgui.Button("Clear balls"):
-            ra.clear()
-        for key, lab, lo, hi in (("rate", "balls per second", 0.5, 40.0), ("radius", "ball radius", 0.01, 0.15), ("mass", "ball mass", 0.005, 2.0), ("restitution", "bounciness", 0.0, 1.0)):
-            ch, v = imgui.SliderFloat(lab, float(getattr(ra, key)), lo, hi)
-            if ch:
-                setattr(ra, key, float(v))
-        imgui.Text(f"balls {len(ra.x)}   hits {ra.hits}")
+        if not sim.is_full:
+            energy_panel(imgui, rec, ["adv"], {"adv": True}, ui)
+            imgui.Separator()
+            ra = sim.rain
+            _, ra.on = imgui.Checkbox("rain balls", ra.on)
+            imgui.SameLine()
+            if imgui.Button("Clear balls"):
+                ra.clear()
+            for key, lab, lo, hi in (("rate", "balls per second", 0.5, 40.0), ("radius", "ball radius", 0.01, 0.15), ("mass", "ball mass", 0.005, 2.0), ("restitution", "bounciness", 0.0, 1.0)):
+                ch, v = imgui.SliderFloat(lab, float(getattr(ra, key)), lo, hi)
+                if ch:
+                    setattr(ra, key, float(v))
+            imgui.Text(f"balls {len(ra.x)}   hits {ra.hits}")
         imgui.Separator()
         st, info = sim.trk.state, (sim.trk.info or {})
-        imgui.Text(f"t={st['time']:.2f}s  chart {st['chart']}/{rom.n_patches}  handoffs {st['handoffs']}  stalls {st['stalls']}")
+        if sim.is_full:
+            imgui.Text(f"t={st['time']:.2f}s  FULL (ideal-joint sim)  tangent dim {sim.tangent_dim}  constraint residual {sim.ideal.residual_max:.1e}")
+            if sim.ideal.active_limits:
+                imgui.Text("joints at a stop: " + ", ".join(sim.ideal.active_limits))
+        else:
+            imgui.Text(f"t={st['time']:.2f}s  chart {st['chart']}/{rom.n_patches}  handoffs {st['handoffs']}  stalls {st['stalls']}")
         for (name, _e, _z, cmd, sat) in rows:
             imgui.Text(f"  {name}: torque {cmd:+.1f}{'  SATURATED' if sat else ''}")
         if info.get("reason"):
@@ -592,13 +735,17 @@ def run(args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--case", required=True)
-    ap.add_argument("--rom", required=True)
+    ap.add_argument("--mode", choices=("rom", "full"), default="rom", help="rom: drive a staged ROM (needs --rom); full: drive the full-space reference simulator")
+    ap.add_argument("--rom", default=None, help="staged ROM name (required for --mode rom)")
     ap.add_argument("--roms-dir", default=os.path.join(ROOT, "roms"))
     ap.add_argument("--dt", type=float, default=0.01)
     ap.add_argument("--damping", type=float, default=0.0)
-    ap.add_argument("--spf", type=int, default=2, help="ROM steps per rendered frame")
+    ap.add_argument("--spf", type=int, default=2, help="simulator / ROM steps per rendered frame")
     ap.add_argument("--replay-frames", type=int, default=3000, help="rendered frames kept for the live replayer")
-    run(ap.parse_args())
+    args = ap.parse_args()
+    if args.mode == "rom" and not args.rom:
+        ap.error("--rom is required with --mode rom")
+    run(args)
 
 
 if __name__ == "__main__":
