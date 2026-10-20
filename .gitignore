@@ -197,3 +197,5 @@ graphify-out/.graph.html.stale
 manifold_charts/graphify-out/
 
 .venv*/
+
+AGENTS.md

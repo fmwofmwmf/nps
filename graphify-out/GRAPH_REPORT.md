@@ -1,22 +1,22 @@
-# Graph Report - libuipc-samples  (2026-10-15)
+# Graph Report - libuipc-samples  (2026-10-16)
 
 ## Corpus Check
-- 333 files · ~917,957 words
+- 378 files · ~7,970,764 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 115 file(s) not represented in the graph (top: .pt 44, .obj 36, .npz 13)
+- Unclassified: 138 file(s) not represented in the graph (top: .pt 61, .obj 36, .npz 13)
 
 ## Summary
-- 3178 nodes · 5208 edges · 241 communities (153 shown, 81 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 120 edges (avg confidence: 0.89)
+- 3784 nodes · 5905 edges · 269 communities (179 shown, 81 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 143 edges (avg confidence: 0.89)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `fbc13be4`
+- Built from commit: `891ebb1c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- Expectations
+- SamplingOptions
 - view_pantograph_drag.py
 - SDFNet
 - MeshSpec
@@ -24,13 +24,13 @@
 - RomSim
 - generic_manifold_diagnostics.py
 - physical_pose.py
-- generic_genus4.py
+- BuildOptions
 - competitive_cae.py
 - AdvRouter
 - PatchAtlasRuntime
 - AssetDir
 - selfcheck.py
-- SamplingOptions
+- spherical_pendulum.py
 - run_patch_atlas.py
 - sampling.py
 - load_spec
@@ -42,7 +42,7 @@
 - ._fit_inner
 - RomBackend
 - 88_maltese_cross/main.py
-- AdvRouterTrack
+- RomBase
 - quotient.py
 - validity_from_case
 - generic_sphere_cae/manifest.json
@@ -60,17 +60,17 @@
 - scissor_lift/manifest.json
 - scissor_lift_stack_dense/manifest.json
 - twin_independent_pistons/manifest.json
-- ndarray
+- LegacyPhysicalOracleAdapter
 - view_chart_exploration.py
-- _points
+- stephenson_link_dcover_sdffix/manifest.json
 - local_support_radii
 - learned.py
 - build_mesh
 - test_generic_so3.py
 - view_sample_set.py
 - main
-- .jacobian
-- PositionAtlasRuntime
+- IdealJointOracle
+- routing_test_tracks.py
 - PatchAtlasROM
 - _module
 - AtlasCaseSpec
@@ -80,48 +80,48 @@
 - lazy_tongs_pantograph.py
 - fit_support_and_boundary
 - diag_utils.py
-- _ToyAE
+- stephenson_link_pruned_domainfields/manifest.json
 - encode
 - fit_dynamics
 - scissor_lift.py
-- build_oracle
+- stephenson_link_tanband_sdfreg/manifest.json
 - IdealJointSim
 - SDFDirectionalOracle
-- mobius_kaleidocycle.py
+- _bar_mesh
+- run
 - rom_target.py
-- ops.py
-- FullBackend
+- five_bar_limfix/manifest.json
 - dataset.py
 - SDFPhysicalOracle
-- _restrict_to_components
+- five_bar_polished/manifest.json
 - explore
 - SampleSetView
-- physical_chart_autoencoder.py
-- _m_step
-- LegacyPhysicalOracleAdapter
-- oracle_eval.py
+- chart_metric.py
+- _polish_round
+- five_bar_tanband/manifest.json
+- check_data_validity
 - sample_graph.py
 - LibuipcConfigOracle
-- loader.py
+- validity.py
 - jansen.py
 - MassField
-- FullSpaceSim
+- pantograph_2d_polished/manifest.json
 - PhysicalRBFSelector
 - CoordinateMap
 - adv_labels.py
 - test_obstacle_constrained_2r.py
 - sarrus_stack.py
-- pen_pd_controls
-- stewart_platform.py
-- CylindricalReducedOracle
-- validity.py
+- pantograph_2d_pruned/manifest.json
+- rotate_polished_v2b/manifest.json
+- build_oracle
+- stephenson_link_dcover/manifest.json
 - registry.py
 - Competitive CAE Mechanism Test Suite
-- ClosureValidity
+- stephenson_link_limfix/manifest.json
 - joint_travel
 - Frame 1: cube tumbling forward on near-edge, boards shifting right
 - test_support_sdf_derives_its_witness_radius_from_the_anchor_cloud
-- joint_travel
+- joint_angle_torch
 - _stacked_ensemble
 - load_sdf_system
 - enforce_support_coverage
@@ -132,16 +132,31 @@
 - spec/__init__.py
 - Reference
 - MechanismSpec
-- IdealJointOracle
+- stephenson_link_polished/manifest.json
+- stephenson_link_pruned/manifest.json
+- stephenson_link_tanband/manifest.json
+- twin_independent_pistons_polished/manifest.json
+- .tangent_measurement
 - Rack-and-pinion meshing via IPC contact (rotating gear driving a linear toothed rack)
 - Rain
+- twin_independent_pistons_tanband/manifest.json
 - AssetDir
 - AssetDir
 - AssetDir
 - AssetDir
+- rom_drivers.py
 - VIEW_EMBED
 - State accessor: ABD transforms/velocities & FEM positions
+- MeshAdapter
+- PositionAtlasRuntime
 - _Progress
+- router_build.py
+- blender_import_rom.py
+- Track
+- geneva_geometry.py
+- _m_step
+- misc.py
+- export_rom_blender.py
 - Deformable triangle-mesh soft body (bunny)
 - jansen_walker.py
 - Advanced Scene Configuration
@@ -149,12 +164,23 @@
 - solver_spec.py
 - UID (Unique Identifier)
 - Interactive user-controlled particle & rope gameplay
+- FrameRecorder
+- PenDriver
+- AssetDir
 - test_competitive_cae.py
 - Compute Mesh d_hat
-- case_pipeline_pruned.py
+- CspaceInset
+- ideal_sim.py
+- f
+- _from_file
 - keyboard (dependency)
 - trimesh (dependency)
+- test_position_runtime.py
+- generic_circle.py
+- generic_sphere_circle.py
 - AssetDir
+- physical_chart_autoencoder.py
+- tangent_angle_deg
 - Check Libuipc
 - CUDA Backend Engine
 - DiscreteShellBending
@@ -282,71 +308,71 @@
 - **Continuous sequence: cube tumbles across rightward-translating boards** — examples_5_walking_cube_moving_board_0_frame, examples_5_walking_cube_moving_board_1_frame, examples_5_walking_cube_moving_board_2_frame, examples_5_walking_cube_moving_board_3_frame [INFERRED 0.75]
 - **Simple gear rack-and-pinion meshing simulation frame sequence** — examples_7_simple_gear_0_frame, examples_7_simple_gear_1_frame, examples_7_simple_gear_2_frame, examples_7_simple_gear_3_frame [INFERRED 0.85]
 
-## Communities (241 total, 81 thin omitted)
+## Communities (269 total, 81 thin omitted)
 
-### Community 0 - "Expectations"
+### Community 0 - "SamplingOptions"
 Cohesion: 0.06
-Nodes (48): A Bennett linkage: the classical spatial overconstrained 4R loop. Grubler's…, _rod(), Compact four-DOF SCARA with three continuous bearings and a vertical slide., _bar(), cases/five_bar.py — a planar 5R five-bar linkage with ideal joints, no contact.…, Display-only 3-D unfolding of the five-bar C-space for ``view_sample_set``. The…, VIEW_EMBED(), _panel() (+40 more)
+Nodes (54): A Bennett linkage: the classical spatial overconstrained 4R loop. Grubler's…, _rod(), Compact four-DOF SCARA with three continuous bearings and a vertical slide., _bar(), cases/five_bar.py — a planar 5R five-bar linkage with ideal joints, no contact.…, Display-only 3-D unfolding of the five-bar C-space for ``view_sample_set``. The…, VIEW_EMBED(), _panel() (+46 more)
 
 ### Community 1 - "view_pantograph_drag.py"
-Cohesion: 0.06
-Nodes (55): _forward(), ndarray, All five named points from the two independent joint angles. `C` is the…, MeshAdapter, mesh_view.py — generic rigid-mesh rendering for any declared mechanism.…, Draw any rigid-mesh mechanism: static bodies once, driven bodies per frame., _anchor_positions_and_poses(), jacobian_point() (+47 more)
+Cohesion: 0.10
+Nodes (41): _forward(), ndarray, All five named points from the two independent joint angles. `C` is the…, _anchor_positions_and_poses(), jacobian_point(), jacobian_point_latent(), pt(), latent_pen_points() (+33 more)
 
 ### Community 2 - "SDFNet"
 Cohesion: 0.19
 Nodes (7): fit_constraint_energy_sdf(), load_sdf(), Regress decoded physical constraint energy directly in latent space. Unlike a…, Small signed-distance network used by packaged physical-AE ROMs., Latent coordinate to signed distance, with in-model normalization., SDFNet, no_grad
 
 ### Community 3 - "MeshSpec"
-Cohesion: 0.06
-Nodes (47): _bar(), cases/double_pendulum.py — a planar 2R open chain under gravity: the classic…, _gear_body(), The ``gears_1`` planetary train, migrated to the generic Atlas ROM build. The…, _body(), Rigid IPC ``398-intermitten-motion``: a curved wheel intermittently drives a…, Display-only observed angles of the wheel and the end piece., VIEW_EMBED() (+39 more)
+Cohesion: 0.05
+Nodes (49): _bar(), cases/double_pendulum.py — a planar 2R open chain under gravity: the classic…, _body(), Rigid IPC ``398-intermitten-motion``: a curved wheel intermittently drives a…, Display-only observed angles of the wheel and the end piece., VIEW_EMBED(), _bar(), cases/pantograph_2d.py — the actual drafting pantograph: a fixed pivot O, a… (+41 more)
 
 ### Community 4 - "CompetitiveCAEFitter"
 Cohesion: 0.14
-Nodes (25): ChartFitConfig, ChartFitInput, Simulator-produced evidence visible to a chart fitter. Deliberately absent are…, Method-owned fitting options; no physical prior is encoded here., CompetitiveCAEFitter, encoder_ablation(), Run the approved encoder comparison on identical physical evidence. This is…, Two-phase competitive charts. Phase 1 (cover) grows a topological cover under… (+17 more)
+Nodes (26): ChartFitConfig, ChartFitInput, Simulator-produced evidence visible to a chart fitter. Deliberately absent are…, Method-owned fitting options; no physical prior is encoded here., CompetitiveCAEFitter, encoder_ablation(), Run the approved encoder comparison on identical physical evidence. This is…, Two-phase competitive charts. Phase 1 (cover) grows a topological cover under… (+18 more)
 
 ### Community 5 - "RomSim"
-Cohesion: 0.22
-Nodes (3): Smooth periodic spline through the drawn points, resampled uniformly in…, Move the reference point along the curve at the constant trace speed., RomSim
+Cohesion: 0.13
+Nodes (8): pen(), pen_target(), The pen task on top of the case-agnostic `RomBase`: a drag pen, wind, closed-…, Smooth periodic spline through the drawn points, resampled uniformly in…, Move the reference point along the curve at the constant trace speed., Per-case pen constants come from the case module's ``PEN_TARGET`` hook (pen…, RomSim, with_wind()
 
 ### Community 6 - "generic_manifold_diagnostics.py"
-Cohesion: 0.13
-Nodes (33): _artifact(), _atlas_view(), _draw_samples(), _latent_embeddings(), _limits(), _load_json(), _plot_charts(), _plot_contacts() (+25 more)
+Cohesion: 0.14
+Nodes (31): _artifact(), _atlas_view(), _draw_samples(), _latent_embeddings(), _limits(), _load_json(), _plot_charts(), _plot_contacts() (+23 more)
 
 ### Community 7 - "physical_pose.py"
-Cohesion: 0.16
-Nodes (13): medoid_reference(), The chart's medoid sample, as a ``(n_bodies, 3, 4)`` reference pose. The medoid…, physical_distance_matrix(), pose_distance_matrix(), pose_twists(), Physical SE(3) coordinates and distances used before atlas learning. This…, Principal rotation vector; stable also for planar five-bar poses., SE3Lift(reference pose + body twists) with rotations valid by construction. (+5 more)
+Cohesion: 0.24
+Nodes (9): physical_distance_matrix(), pose_twists(), Physical SE(3) coordinates and distances used before atlas learning. This…, Principal rotation vector; stable also for planar five-bar poses., SE3Lift(reference pose + body twists) with rotations valid by construction., Map packed transforms to reference-relative, length-normalised twists., RMS body-twist distance under the physical pose metric. Computed via the norm-…, se3_lift() (+1 more)
 
-### Community 8 - "generic_genus4.py"
-Cohesion: 0.09
-Nodes (20): Planar disk: the contractible two-dimensional control., _genus2_sdf(), Closed genus-2 surface: one smooth union of two ordinary tori., _genus3_sdf(), Closed genus-3 surface: a smoothly rounded tetrahedral wireframe., _genus4_sdf(), Closed genus-4 surface: rounded cube frame with one square face filled., Pair of pants: a planar disk with two disjoint physical holes. (+12 more)
+### Community 8 - "BuildOptions"
+Cohesion: 0.10
+Nodes (26): Planar disk: the contractible two-dimensional control., _genus2_sdf(), Closed genus-2 surface: one smooth union of two ordinary tori., _genus3_sdf(), Closed genus-3 surface: a smoothly rounded tetrahedral wireframe., _genus4_sdf(), Closed genus-4 surface: rounded cube frame with one square face filled., Pair of pants: a planar disk with two disjoint physical holes. (+18 more)
 
 ### Community 9 - "competitive_cae.py"
-Cohesion: 0.09
-Nodes (30): _bridge_filtered_neighbours(), _assign_from(), _exclusive_support(), _integer_multiplicity_histogram(), _jacobian_fold_ratio(), _load_resume_checkpoint(), _ownership_weight(), _patch_far_distance() (+22 more)
+Cohesion: 0.08
+Nodes (33): _bridge_filtered_neighbours(), _exclusive_support(), _integer_multiplicity_histogram(), _jacobian_fold_ratio(), _largest_component(), _load_resume_checkpoint(), _ownership_weight(), _patch_far_distance() (+25 more)
 
 ### Community 10 - "AdvRouter"
-Cohesion: 0.18
-Nodes (6): AdvRouter, The trained advantage net plus its feature scaling; ``rom.router``., (best receiver j, its advantage A, {j: A} over all j != c)., _PlaneOracle, The whole space is on-manifold: projection is the identity, residual zero., test_train_router_returns_a_loadable_payload_for_a_toy_atlas()
+Cohesion: 0.12
+Nodes (8): AdvRouter, The trained advantage net plus its feature scaling; ``rom.router``., (best receiver j, its advantage A, {j: A} over all j != c)., _PlaneOracle, Linear chart autoencoder on R^6 with a 2-d latent (encode/decode are exact…, The whole space is on-manifold: projection is the identity, residual zero., test_train_router_returns_a_loadable_payload_for_a_toy_atlas(), _ToyAE
 
 ### Community 11 - "PatchAtlasRuntime"
-Cohesion: 0.06
-Nodes (24): fixture, PatchAtlasRuntime, _ke_v(), ndarray, Decoded (n_bodies, 3, 4) pose at the current state., Live learned-boundary and support values for viewer/debug output., Runtime M is the learned SPD field, never a decoder Jacobian., Runtime V and force come from the learned scalar field. (+16 more)
+Cohesion: 0.08
+Nodes (18): PatchAtlasRuntime, _ke_v(), ndarray, Decoded (n_bodies, 3, 4) pose at the current state., Live learned-boundary and support values for viewer/debug output., Runtime M is the learned SPD field, never a decoder Jacobian., Runtime V and force come from the learned scalar field., ``+½ vᵀ(∂M/∂u)v`` in Hamilton's momentum equation. (+10 more)
 
 ### Community 13 - "selfcheck.py"
-Cohesion: 0.08
-Nodes (31): u_j = E_j(D_i(u_i)) -- the physical handoff between overlapping charts., transition(), actuator_maps.py — per-actuator generalized-force maps for a staged ROM. Every…, Structural validation only (no trained model needed): can every declared…, validate(), __getattr__(), patch_rom — package format, loader, and runtime for a built ``patch_atlas``.…, Keep field-training imports independent of optional runtime helpers. (+23 more)
+Cohesion: 0.07
+Nodes (38): fixture, u_j = E_j(D_i(u_i)) -- the physical handoff between overlapping charts., transition(), actuator_maps.py — per-actuator generalized-force maps for a staged ROM. Every…, Structural validation only (no trained model needed): can every declared…, validate(), __getattr__(), patch_rom — package format, loader, and runtime for a built ``patch_atlas``.… (+30 more)
 
-### Community 14 - "SamplingOptions"
-Cohesion: 0.04
-Nodes (41): _observed_pose(), SDF zero-level circle S^1 in R^2 with physical pose observations. The smallest…, Physical pose emitted by the surface-response simulator., SO(3) = RP^3: one body on a spherical joint, the ideal-joint (analytic) path.…, _observed_pose(), SDF zero-level 3-sphere S^3 in R^4 with physical pose observations. The first…, Physical pose emitted by the surface-response simulator., _observed_pose() (+33 more)
+### Community 14 - "spherical_pendulum.py"
+Cohesion: 0.29
+Nodes (5): _cable_constraint(), _observe_particle(), Particle-native spherical pendulum with a fixed-length physical cable. The…, Signed fixed-length constraint measured from the physical pivot., Emit a translation-only physical pose with an identity visual frame.
 
 ### Community 15 - "run_patch_atlas.py"
-Cohesion: 0.20
-Nodes (11): cmd_selfcheck(), cmd_viewer(), active(), advance(), callback(), CspaceInset, _default_roms_dir(), main() (+3 more)
+Cohesion: 0.13
+Nodes (14): cmd_selfcheck(), cmd_viewer(), active(), advance(), callback(), _default_roms_dir(), FullBackend, main() (+6 more)
 
 ### Community 16 - "sampling.py"
-Cohesion: 0.07
-Nodes (41): _coordinates(), _explore(), _explore_legacy(), coordinate_at(), coordinate_near(), physical_domain(), response_validity(), _explored_sample_field() (+33 more)
+Cohesion: 0.08
+Nodes (36): _explore_legacy(), coordinate_at(), coordinate_near(), inside_domains(), _explored_sample_field(), _lifted_angle_delta(), _load_cloud(), _load_recording() (+28 more)
 
 ### Community 17 - "load_spec"
 Cohesion: 0.16
@@ -357,8 +383,8 @@ Cohesion: 0.33
 Nodes (4): make_physics_fitter(), PhysicsFitter, Boundary between learned chart maps and learned physical fields., Method-independent entry point for the existing field teachers.
 
 ### Community 19 - "geometry.py"
-Cohesion: 0.11
-Nodes (21): apply_transform(), _bevel_gear(), _cylinder(), _from_file(), _link(), _load_scene(), _orient(), geometry.py — declarative meshes -> vertices/faces -> physical inertia. One… (+13 more)
+Cohesion: 0.15
+Nodes (14): apply_transform(), _bevel_gear(), _cylinder(), _link(), _orient(), geometry.py — declarative meshes -> vertices/faces -> physical inertia. One…, A bevel gear whose pitch cone has its APEX AT THE LOCAL ORIGIN. `pitch_angle`…, A closed, extruded spur gear with trapezoidal teeth. Module `m = 2 *… (+6 more)
 
 ### Community 20 - "jansen_patch_rom/manifest.json"
 Cohesion: 0.06
@@ -374,23 +400,23 @@ Nodes (31): actuator_maps, artifact, body_order, build_report, case, control_sch
 
 ### Community 23 - "._fit_inner"
 Cohesion: 0.12
-Nodes (28): _apply_monotone_territory(), _bootstrap_inertial_claims(), _bootstrap_monotone_state(), _connected_admissible_components(), _e_step(), elapsed_since(), _eval_all(), _inertial_frontier_weight() (+20 more)
+Nodes (28): _apply_monotone_territory(), _assign_from(), _bootstrap_inertial_claims(), _bootstrap_monotone_state(), _connected_admissible_components(), _double_cover_mask(), _e_step(), _eval_all() (+20 more)
 
 ### Community 25 - "88_maltese_cross/main.py"
-Cohesion: 0.08
-Nodes (22): AssetDir, on_update(), write_to_disk(), AssetDir, _as_VF(), build_driver(), build_driver_axle(), build_wheel() (+14 more)
+Cohesion: 0.16
+Nodes (7): AssetDir, driver_angle_deg(), driver_animation(), on_update(), UpdateInfo, Maltese-cross (external Geneva drive, n=4 slots) mechanism.…, wheel_angle_deg()
 
-### Community 26 - "AdvRouterTrack"
-Cohesion: 0.22
-Nodes (4): AdvRouterTrack, Viewer track around ``PatchAtlasRuntime``: the runtime does the routing, the…, pen_target(), Per-case pen constants come from the case module's ``PEN_TARGET`` hook (pen…
+### Community 26 - "RomBase"
+Cohesion: 0.13
+Nodes (4): AdvRouterTrack, Viewer track around ``PatchAtlasRuntime``: the runtime does the routing, the…, (controls per actuator, rows). Default: `self.controller(self)` if one is set,…, RomBase
 
 ### Community 27 - "quotient.py"
 Cohesion: 0.13
 Nodes (17): build_quotient(), _Class, effective_samples(), _knn_pairs(), load(), local_equivalence_candidates(), members_of(), _orthonormal() (+9 more)
 
 ### Community 28 - "validity_from_case"
-Cohesion: 0.22
-Nodes (6): PhysicalValidity, Protocol, Closure validity for a case. ``include_grounded`` adds the joints to the fixed…, Optional mechanism validity hook. ``residual`` returns one non-negative squared…, validity_from_case(), runtime.py — PatchAtlasRuntime: passive + scripted-actuator stepping. v1 scope,…
+Cohesion: 0.29
+Nodes (5): PhysicalValidity, Protocol, Closure validity for a case. ``include_grounded`` adds the joints to the fixed…, Optional mechanism validity hook. ``residual`` returns one non-negative squared…, validity_from_case()
 
 ### Community 29 - "generic_sphere_cae/manifest.json"
 Cohesion: 0.07
@@ -429,12 +455,12 @@ Cohesion: 0.07
 Nodes (29): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+21 more)
 
 ### Community 38 - "ManifoldOracle"
-Cohesion: 0.10
-Nodes (13): CallbackDirectionalOracle, ManifoldOracle, observe(), paired_rows(), responses(), A sampler-facing oracle: restore, push in one direction, report outcome.…, Capture enough state to make subsequent responses comparable., Restore exactly the baseline captured by :meth:`snapshot`. (+5 more)
+Cohesion: 0.09
+Nodes (14): CallbackDirectionalOracle, ManifoldOracle, observe(), paired_rows(), responses(), A sampler-facing oracle: restore, push in one direction, report outcome.…, Capture enough state to make subsequent responses comparable., Restore exactly the baseline captured by :meth:`snapshot`. (+6 more)
 
 ### Community 39 - "new_dataset.py"
-Cohesion: 0.11
-Nodes (26): load_samples(), audit(), build(), build_cover_edges(), build_from_walked_edges(), build_local_edges(), check_frame_consistency(), _degree_capped_select() (+18 more)
+Cohesion: 0.12
+Nodes (25): audit(), build(), build_cover_edges(), build_from_walked_edges(), build_local_edges(), check_frame_consistency(), _degree_capped_select(), _directional_coverage_fixed() (+17 more)
 
 ### Community 40 - "jansen_walker_trial10v3/manifest.json"
 Cohesion: 0.07
@@ -452,17 +478,17 @@ Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_sch
 Cohesion: 0.07
 Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
-### Community 44 - "ndarray"
-Cohesion: 0.16
-Nodes (11): DirectionalResponse, PhysicalResponse, PhysicalSystem, Any, ndarray, Protocol, Solver-neutral directional-response interface for physical chart sampling., Whether a settled response remains in this system's physical domain. The… (+3 more)
+### Community 44 - "LegacyPhysicalOracleAdapter"
+Cohesion: 0.11
+Nodes (13): DirectionalResponse, LegacyPhysicalOracleAdapter, PhysicalResponse, PhysicalSystem, Any, ndarray, Protocol, Solver-neutral directional-response interface for physical chart sampling. (+5 more)
 
 ### Community 45 - "view_chart_exploration.py"
 Cohesion: 0.10
 Nodes (21): test_exploration_snapshot_index_accepts_an_explicit_report_name(), DisplayEmbedding, ExplorationView, _limits(), load_exploration_snapshot(), load_exploration_snapshot_index(), load_exploration_snapshots(), main() (+13 more)
 
-### Community 46 - "_points"
-Cohesion: 0.13
-Nodes (17): _chart_of_sample(), _load_prune_snapshots(), _points(), ndarray, Optional case-supplied projection into 2/3 dimensions (not VISUAL_UVS)., Place every sample in a 2- or 3-D display space. Returns ``(points, label,…, Filter+renumber index lists onto a kept-sample subset (inv: old -> new / -1)., Restrict samples to ``keep`` and remap edges / chart membership indices. (+9 more)
+### Community 46 - "stephenson_link_dcover_sdffix/manifest.json"
+Cohesion: 0.06
+Nodes (32): actuator_maps, artifact, body_order, build_report, case, control_schema, from, patches (+24 more)
 
 ### Community 47 - "local_support_radii"
 Cohesion: 0.26
@@ -473,40 +499,40 @@ Cohesion: 0.22
 Nodes (7): _limit_crossing_pairs(), load_mass(), load_scalar(), Learned per-chart physical fields for the shipped patch-atlas ROM. The pose…, Bisect physical joint-limit witnesses into local valid/invalid pairs., Artifacts written before the fields carried normalization buffers lack them:…, _with_defaults()
 
 ### Community 49 - "build_mesh"
-Cohesion: 0.18
-Nodes (11): body_inertia(), build_bodies(), build_mesh(), build_static(), _compound(), ndarray, Concatenate sub-meshes into one body: a welded triangle of bars, a link with a…, MeshSpec -> (V (n,3) float64, F (m,3) int32). (+3 more)
+Cohesion: 0.29
+Nodes (7): build_mesh(), build_static(), _compound(), ndarray, Concatenate sub-meshes into one body: a welded triangle of bars, a link with a…, MeshSpec -> (V (n,3) float64, F (m,3) int32)., Fixed / render-only bodies, already in world frame (verts are rest-baked).
 
 ### Community 50 - "test_generic_so3.py"
 Cohesion: 0.33
 Nodes (9): Principal rotation vector; the antipodal pair at |v| = pi is RP^3's seam., (N, 12) packed poses -> (N, 3) axis-angle vectors, for view_sample_set., _rotvec(), VIEW_EMBED(), generic_so3: the ideal-joint SO(3) = RP^3 fixture is a clean 3-manifold., _rot(), test_manifold_is_rank_three_and_exactly_rotations_everywhere(), test_rotvec_handles_the_theta_equals_pi_seam() (+1 more)
 
 ### Community 51 - "view_sample_set.py"
-Cohesion: 0.10
-Nodes (28): available_specs(), cases/ — one declarative spec file per mechanism, and nothing else.…, Every case that has a spec file, whether or not it has been built., Resolve an exact case name or an unambiguous prefix. CLI users commonly know…, resolve_case_name(), _build_oracle(), _oracle_test_poses(), ``n`` fresh on-manifold configs: perturb a random training sample, project. (+20 more)
+Cohesion: 0.08
+Nodes (36): available_specs(), cases/ — one declarative spec file per mechanism, and nothing else.…, Every case that has a spec file, whether or not it has been built., Resolve an exact case name or an unambiguous prefix. CLI users commonly know…, resolve_case_name(), _best_roundtrip(), main(), check_data_validity.py -- validate a trained chart atlas against FRESH oracle… (+28 more)
 
 ### Community 52 - "main"
-Cohesion: 0.14
-Nodes (22): load_references(), ``.npz`` with a pose array under ``poses``/``pose``/``q``/``T``/ ``transforms``…, Identical across every track in one viewer session., Settings, _fmt(), _layout(), main(), advance() (+14 more)
+Cohesion: 0.22
+Nodes (13): Identical across every track in one viewer session., Settings, _layout(), main(), advance(), callback(), do_reset(), drive_controls() (+5 more)
 
-### Community 53 - ".jacobian"
+### Community 53 - "IdealJointOracle"
 Cohesion: 0.11
-Nodes (7): The rest assembly, projected — a spec whose rest pose is already assembled (the…, Keep algebraic responses within declared physical travel/workspace. These are…, The two world directions ACROSS a slider's rail at the current pose. The rail…, Signed carrier-relative rolling residual for one bevel-gear mesh., Vectorised :meth:`_bevel_row` over a stack ``Tb`` of packed poses, shape ``(M,…, Closed form — every residual is quadratic in the packed poses., The closest configuration on the manifold to `q`, by Gauss-Newton. Every…
+Nodes (10): IdealJointOracle, The rest assembly, projected — a spec whose rest pose is already assembled (the…, Keep algebraic responses within declared physical travel/workspace. These are…, The two world directions ACROSS a slider's rail at the current pose. The rail…, Signed carrier-relative rolling residual for one bevel-gear mesh., Vectorised :meth:`_bevel_row` over a stack ``Tb`` of packed poses, shape ``(M,…, Closed form — every residual is quadratic in the packed poses., The closest configuration on the manifold to `q`, by Gauss-Newton. Every… (+2 more)
 
-### Community 54 - "PositionAtlasRuntime"
-Cohesion: 0.06
-Nodes (33): decode_flat(), decoder_jacobian(), EncoderHandoff, project_pose(), ProjectedHandoff, ndarray, handoff.py -- decoder-space projection and handoff initialisation (shipped…, ``d decode / du`` as a (D, d) matrix. (+25 more)
+### Community 54 - "routing_test_tracks.py"
+Cohesion: 0.17
+Nodes (16): decode_flat(), decoder_jacobian(), EncoderHandoff, project_pose(), ProjectedHandoff, ndarray, handoff.py -- decoder-space projection and handoff initialisation (shipped…, ``d decode / du`` as a (D, d) matrix. (+8 more)
 
 ### Community 55 - "PatchAtlasROM"
-Cohesion: 0.09
-Nodes (27): PatchAtlasROM, ndarray, Rank already competent receivers with the persisted physical RBF. The selector…, Decoded packed pose (n_bodies, 3, 4) at ``(chart, u)``., Signed learned membership score; zero is the classifier boundary., A loaded, runnable patch atlas: models + patches + topology + case., _sha256(), attach() (+19 more)
+Cohesion: 0.13
+Nodes (16): PatchAtlasROM, ndarray, Rank already competent receivers with the persisted physical RBF. The selector…, Decoded packed pose (n_bodies, 3, 4) at ``(chart, u)``., Signed learned membership score; zero is the classifier boundary., A loaded, runnable patch atlas: models + patches + topology + case., _Linear, The models rebuilt from patch_atlas.pt must be the ones the loader builds (same… (+8 more)
 
 ### Community 56 - "_module"
 Cohesion: 0.15
 Nodes (17): _module(), decode(), encode(), encode_raw(), features(), forward(), __init__(), _load_from_state_dict() (+9 more)
 
 ### Community 57 - "AtlasCaseSpec"
-Cohesion: 0.08
-Nodes (5): AtlasCaseSpec, _jsonable(), The canonical, ORDERED control schema: one entry per declared actuator, in…, Recursively make a spec value JSON-serializable (arrays -> lists)., Everything the pipeline needs to know about one mechanism.
+Cohesion: 0.05
+Nodes (23): SO(3) = RP^3: one body on a spherical joint, the ideal-joint (analytic) path.…, _observed_pose(), SDF zero-level 3-sphere S^3 in R^4 with physical pose observations. The first…, Physical pose emitted by the surface-response simulator., _observed_pose(), SDF zero-level sphere with physical pose observations for chart learning., Physical pose emitted by the surface-response simulator., _observed_pose() (+15 more)
 
 ### Community 58 - "stephenson_link.py"
 Cohesion: 0.12
@@ -532,9 +558,9 @@ Nodes (9): _cloud_samples(), _fit_margin_sdf(), fit_support_and_boundary(), _lbf
 Cohesion: 0.13
 Nodes (28): AssetDir, build_edge_voronoi(), build_pt_voronoi(), compute_newton_dir(), create_ddf(), flag_label(), poll_keyboard(), Shared utilities for the 40_distance_diagnoser examples. (+20 more)
 
-### Community 64 - "_ToyAE"
-Cohesion: 0.25
-Nodes (4): _Linear, Linear chart autoencoder on R^6 with a 2-d latent (encode/decode are exact…, test_batched_lm_projection_recovers_an_exactly_representable_pose(), _ToyAE
+### Community 64 - "stephenson_link_pruned_domainfields/manifest.json"
+Cohesion: 0.06
+Nodes (32): actuator_maps, artifact, body_order, build_report, case, control_schema, from, patches (+24 more)
 
 ### Community 65 - "encode"
 Cohesion: 0.18
@@ -545,76 +571,84 @@ Cohesion: 0.32
 Nodes (5): fit_dynamics(), pot_loss(), pot_terms(), Distill Jacobian-derived M and gravitational V into learned fields. Targets are…, ScalarField
 
 ### Community 67 - "scissor_lift.py"
-Cohesion: 0.12
-Nodes (11): _annulus_sdf(), _observed_pose(), Production annulus test case: a free puck around a fixed central peg. The…, The generic test system: valid exactly when this SDF is non-positive., Simulator observation for the locked carriage/puck scene, not a chart map., _wall(), _anchor(), A single-pair, roller-ended scissor lift. (+3 more)
+Cohesion: 0.10
+Nodes (13): _annulus_sdf(), _observed_pose(), Production annulus test case: a free puck around a fixed central peg. The…, The generic test system: valid exactly when this SDF is non-positive., Simulator observation for the locked carriage/puck scene, not a chart map., _wall(), _anchor(), A single-pair, roller-ended scissor lift. (+5 more)
 
-### Community 68 - "build_oracle"
-Cohesion: 0.14
-Nodes (6): build_oracle(), _anim(), oracle.py — build the full-space libuipc simulator for ANY declared mechanism.…, Return the tangent basis used by the explorer for a declared mechanism. UIPC's…, MechanismSpec -> a ready `LibuipcConfigOracle` (world already initialized).…, tangent_frame_for_spec()
+### Community 68 - "stephenson_link_tanband_sdfreg/manifest.json"
+Cohesion: 0.06
+Nodes (32): actuator_maps, artifact, body_order, build_report, case, control_schema, from, patches (+24 more)
 
 ### Community 69 - "IdealJointSim"
-Cohesion: 0.18
-Nodes (9): IdealJointSim, _perpendicular(), ndarray, ideal_sim.py — full-space rigid-body dynamics on the analytic ideal-joint…, outer(f, [p; 1]) into body i's block, p = its local image of the point., Residual rows (travel - stop) and their Jacobian, by central difference over…, argmin |q - q_pred|_W s.t. C(q) = 0 (and pinned stops), by Gauss-Newton with…, Mbar = int rho [p;1][p;1]^T over the body (4x4, SPD). (+1 more)
+Cohesion: 0.27
+Nodes (5): IdealJointSim, ndarray, outer(f, [p; 1]) into body i's block, p = its local image of the point., Residual rows (travel - stop) and their Jacobian, by central difference over…, argmin |q - q_pred|_W s.t. C(q) = 0 (and pinned stops), by Gauss-Newton with…
 
 ### Community 70 - "SDFDirectionalOracle"
 Cohesion: 0.21
 Nodes (5): Retract onto ``phi == 0`` using only local SDF evaluations. Open surfaces have…, Trace a continuous zero-set branch using local trust-region retractions. A…, Segment-traced responses over a region defined solely by ``phi <= 0``., Measure a zero-level-surface tangent from local SDF probes. Random paired…, SDFDirectionalOracle
 
-### Community 71 - "mobius_kaleidocycle.py"
+### Community 71 - "_bar_mesh"
+Cohesion: 0.50
+Nodes (4): _bar_mesh(), A cylindrical edge p0->p1; unlike `MeshSpec("link", ...)` this survives leaving…, Wireframe tetrahedron: a compound of its 6 edges., _tetra_mesh()
+
+### Community 72 - "run"
 Cohesion: 0.33
-Nodes (5): _bar_mesh(), cases/mobius_kaleidocycle.py — a closed ring of M tetrahedra, hinged edge to…, A cylindrical edge p0->p1; unlike `MeshSpec("link", ...)` this survives leaving…, Wireframe tetrahedron: a compound of its 6 edges., _tetra_mesh()
+Nodes (9): main(), _ray_plane_hit(), run(), callback(), do_reset(), post(), seg(), snapshot() (+1 more)
 
-### Community 72 - "rom_target.py"
-Cohesion: 0.31
-Nodes (8): main(), Interactive "click a target, the ROM's real dynamics drive the pen there" --…, _ray_plane_hit(), run(), callback(), post(), seg(), trail()
+### Community 73 - "rom_target.py"
+Cohesion: 0.10
+Nodes (24): actuator_jacobian(), joint_angle_torch(), mass_matrix(), potential_and_grad(), ndarray, ops.py — reduced mass/potential/actuator operators for a patch-atlas chart.…, d(theta_joint)/du, for the generalized force F = J^T tau of a joint-torque…, Signed joint angle from a torch (..., n_bodies, 3, 4) transform stack.… (+16 more)
 
-### Community 73 - "ops.py"
-Cohesion: 0.14
-Nodes (15): actuator_jacobian(), joint_angle_torch(), mass_matrix(), potential_and_grad(), ndarray, ops.py — reduced mass/potential/actuator operators for a patch-atlas chart.…, d(theta_joint)/du, for the generalized force F = J^T tau of a joint-torque…, Signed joint angle from a torch (..., n_bodies, 3, 4) transform stack.… (+7 more)
+### Community 74 - "five_bar_limfix/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
 ### Community 75 - "dataset.py"
 Cohesion: 0.21
-Nodes (14): _check(), exists(), load_atlas_data(), load_dynamics_data(), membership_pairs(), path_in(), dataset.py — the standardized intermediate dataset every case flows through.…, The chart decomposition of the sample cloud. chart_ids (n_charts,) int chart… (+6 more)
+Nodes (15): _check(), exists(), load_atlas_data(), load_dynamics_data(), load_samples(), membership_pairs(), path_in(), dataset.py — the standardized intermediate dataset every case flows through.… (+7 more)
 
 ### Community 76 - "SDFPhysicalOracle"
 Cohesion: 0.21
 Nodes (3): Physical-oracle facade for SDF tracing used by the shared strategy., Keep the observation-to-state differential private to the backend., SDFPhysicalOracle
 
-### Community 77 - "_restrict_to_components"
-Cohesion: 0.50
-Nodes (4): _largest_component(), ``mask`` restricted to its largest connected component in the kNN witness graph…, Apply :func:`_largest_component` to every chart column of a bool matrix., _restrict_to_components()
+### Community 77 - "five_bar_polished/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
 ### Community 78 - "explore"
-Cohesion: 0.16
-Nodes (18): AdvancingFrontOptions, explore(), enqueue(), infer(), _maximin_direction(), ndarray, Path, _rank_by_gap() (+10 more)
+Cohesion: 0.10
+Nodes (28): AdvancingFrontOptions, explore(), enqueue(), infer(), _maximin_direction(), ndarray, Path, _rank_by_gap() (+20 more)
 
 ### Community 79 - "SampleSetView"
-Cohesion: 0.23
-Nodes (8): _chart_pass(), Positions for learned overlays; samples remain in data space. When a chart is…, Stable chart id for a column position., Column positions ordered by patch (support) size, largest first., Column POSITIONS to draw. ``isolate`` is a SIZE RANK: 0 = biggest chart, 1 =…, SampleSetView, on_check(), on_slide()
+Cohesion: 0.19
+Nodes (10): _chart_pass(), Swap the live atlas for prune snapshot ``index`` and refresh views., Positions for learned overlays; samples remain in data space. When a chart is…, Stable chart id for a column position., Column positions ordered by patch (support) size, largest first., Column POSITIONS to draw. ``isolate`` is a SIZE RANK: 0 = biggest chart, 1 =…, SampleSetView, on_check() (+2 more)
 
-### Community 80 - "physical_chart_autoencoder.py"
+### Community 80 - "chart_metric.py"
 Cohesion: 0.13
-Nodes (19): condition_report(), gauge_fixed(), physical_twists(), Reference-relative physical-pose metric and its Jacobian/gauge diagnostics. Any…, Principal ``SO(3) -> so(3)``, vectorised, valid for ``||omega|| < pi``. Same…, ``(..., n_bodies, 3, 4)`` torch transforms -> ``(..., 6*n_bodies)`` twists.…, ``d(physical_twists)/du``, shape ``(n, 6*n_bodies, d)``. Exact forward-mode…, Whiten the latent's affine gauge by the mean pullback metric ``G``. ``G =… (+11 more)
+Nodes (18): condition_report(), gauge_fixed(), medoid_reference(), physical_twists(), Reference-relative physical-pose metric and its Jacobian/gauge diagnostics. Any…, The chart's medoid sample, as a ``(n_bodies, 3, 4)`` reference pose. The medoid…, Principal ``SO(3) -> so(3)``, vectorised, valid for ``||omega|| < pi``. Same…, ``(..., n_bodies, 3, 4)`` torch transforms -> ``(..., 6*n_bodies)`` twists.… (+10 more)
 
-### Community 81 - "_m_step"
+### Community 81 - "_polish_round"
+Cohesion: 0.32
+Nodes (13): _coverage_margin_loss(), ensemble_decode(), ensemble_encode(), _eval_all_lean(), _polish_proj(), _polish_round(), _polish_closure(), _polish_losses() (+5 more)
+
+### Community 82 - "five_bar_tanband/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
+
+### Community 83 - "check_data_validity"
 Cohesion: 0.14
-Nodes (22): batched_tangent(), _coverage_margin_loss(), dense_chart_forward(), _double_cover_mask(), ensemble_decode(), ensemble_decoder_spectral(), ensemble_encode(), _eval_all_lean() (+14 more)
-
-### Community 83 - "oracle_eval.py"
-Cohesion: 0.25
-Nodes (5): oracle_eval.py -- fresh on-manifold evaluation poses from the physical oracle.…, Max revolute-joint closure gap ``||T_a p_a - T_b p_b||`` per pose. Joint pivots…, _worst_joint_gap(), Build a denser rotate dataset from the oracle (exact poses, exact tangent…, score()
+Nodes (13): _build_oracle(), _oracle_test_poses(), oracle_eval.py -- fresh on-manifold evaluation poses from the physical oracle.…, ``n`` fresh on-manifold configs: perturb a random training sample, project., Max revolute-joint closure gap ``||T_a p_a - T_b p_b||`` per pose. Joint pivots…, _worst_joint_gap(), Build a denser rotate dataset from the oracle (exact poses, exact tangent…, check_data_validity() (+5 more)
 
 ### Community 84 - "sample_graph.py"
 Cohesion: 0.13
 Nodes (15): adjacency(), certified_edges(), hop_ball(), largest_component(), load(), neighbour_lists(), sample_graph.py — the certified neighbourhood graph of a sampled manifold. The…, Deduplicated, self-loop-free, sorted (i<j) edge list. (+7 more)
 
 ### Community 85 - "LibuipcConfigOracle"
-Cohesion: 0.19
-Nodes (5): LibuipcConfigOracle, libuipc-backed projection oracle retained by the physical-AE pipeline., Project a packed configuration by drive, settle, then joint-only relax., Capture simulator-owned transforms and drive state for probe replay., Put the UIPC scene back before every directional command. This deliberately…
+Cohesion: 0.23
+Nodes (4): LibuipcConfigOracle, Project a packed configuration by drive, settle, then joint-only relax., Capture simulator-owned transforms and drive state for probe replay., Put the UIPC scene back before every directional command. This deliberately…
 
-### Community 86 - "loader.py"
-Cohesion: 0.12
-Nodes (7): build_topology(), LearnedSupportTopology, Route only through learned support fields and physical AE transfers. Unlike the…, Topology for the advantage router: no support fields, no routing here. The…, Create runtime topology. With support fields: the legacy learned-support…, RouterTopology, loader.py — rebuild a runnable ``PatchAtlasROM`` from a staged directory.…
+### Community 86 - "validity.py"
+Cohesion: 0.09
+Nodes (13): build_topology(), closure_residual(), ClosureValidity, _json_safe(), LearnedSupportTopology, validity.py -- the chart contract shared by fitting, packaging and runtime.…, Return hard negative-witness labels for declared physical stops. This is used…, Route only through learned support fields and physical AE transfers. Unlike the… (+5 more)
 
 ### Community 87 - "jansen.py"
 Cohesion: 0.33
@@ -624,17 +658,17 @@ Nodes (6): _body(), _pose_transform(), cases/jansen.py — the crank-coupled Jan
 Cohesion: 0.38
 Nodes (3): MassField, _mlp(), SPD matrix field, parameterized by a Cholesky factor.
 
-### Community 89 - "FullSpaceSim"
-Cohesion: 0.48
-Nodes (3): FullSpaceSim, ndarray, fullspace_sim.py — production full-space libuipc simulator, control-schema…
+### Community 89 - "pantograph_2d_polished/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
 ### Community 90 - "PhysicalRBFSelector"
 Cohesion: 0.33
 Nodes (3): PhysicalRBFSelector, Serialized RBF receiving-chart ranker with a small physical correction., test_physical_rbf_selector_ranks_without_training_memberships()
 
 ### Community 91 - "CoordinateMap"
-Cohesion: 0.21
-Nodes (6): CoordinateMap, Evaluate a case's declared coordinates on recorded configurations. Built once…, Capture cloud-dependent state (angle references, the isomap embedding)., Nonlinear intrinsic coordinates of the config cloud (geodesic MDS). Used when…, (N, 12*n) -> (N, n, 3, 4)., unpack()
+Cohesion: 0.13
+Nodes (13): _axis_angle(), CoordinateMap, joint_travel(), coordinates.py — read the declared intrinsic coordinates off a configuration.…, Evaluate a case's declared coordinates on recorded configurations. Built once…, Capture cloud-dependent state (angle references, the isomap embedding)., Nonlinear intrinsic coordinates of the config cloud (geodesic MDS). Used when…, (N, 12*n) -> (N, n, 3, 4). (+5 more)
 
 ### Community 92 - "adv_labels.py"
 Cohesion: 0.14
@@ -648,21 +682,21 @@ Nodes (11): characterize_collision_complement(), _periodic_components(), ndarray
 Cohesion: 0.21
 Nodes (11): _bar_mesh(), _elbow(), _plate_mesh(), cases/sarrus_stack.py — two stacked Sarrus linkages, all-revolute, no contact.…, Display-only 2-D coordinate for ``view_sample_set``: (stage-1 plate travel…, A cylindrical link p0->p1; unlike `MeshSpec("link", ...)` this does not flatten…, A plate: a compound bar joining its two chain anchor points (plus a stub…, Elbow point of a symmetric 2-link chain rooted at `anchor`, bulging along… (+3 more)
 
-### Community 95 - "pen_pd_controls"
-Cohesion: 0.33
-Nodes (4): pen_pd_controls(), pen(), Operational-space (task-space) computed torque on the PEN, using only the ROM's…, with_wind()
+### Community 95 - "pantograph_2d_pruned/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
-### Community 96 - "stewart_platform.py"
-Cohesion: 0.40
-Nodes (4): _file_body(), cases/stewart_platform.py — a rotary-actuated Stewart-Gough platform. Ported…, Display-only: place each sample by the moving plate's translation. The 6-D…, VIEW_EMBED()
+### Community 96 - "rotate_polished_v2b/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
-### Community 97 - "CylindricalReducedOracle"
-Cohesion: 0.30
-Nodes (3): CylindricalReducedOracle, Integrate gravity in Y while clamping the other four body modes. IPC remains…, Hard two-coordinate cylindrical kinematics around a contact oracle. The wrapped…
+### Community 97 - "build_oracle"
+Cohesion: 0.13
+Nodes (7): build_oracle(), _anim(), CylindricalReducedOracle, oracle.py — build the full-space libuipc simulator for ANY declared mechanism.…, Integrate gravity in Y while clamping the other four body modes. IPC remains…, MechanismSpec -> a ready `LibuipcConfigOracle` (world already initialized).…, Hard two-coordinate cylindrical kinematics around a contact oracle. The wrapped…
 
-### Community 98 - "validity.py"
-Cohesion: 0.40
-Nodes (4): validity_loss_raw(), _json_safe(), validity.py -- the chart contract shared by fitting, packaging and runtime.…, _validity_residual()
+### Community 98 - "stephenson_link_dcover/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
 ### Community 99 - "registry.py"
 Cohesion: 0.67
@@ -671,6 +705,10 @@ Nodes (3): Central registry for chart fitter implementations., register(), resol
 ### Community 100 - "Competitive CAE Mechanism Test Suite"
 Cohesion: 0.17
 Nodes (11): Case requirements, Case-specific correctness conditions, Competitive CAE Mechanism Test Suite, Feature coverage matrix, Four-dimensional limit, Implementation sequence, Information boundary, Primary roster (+3 more)
+
+### Community 101 - "stephenson_link_limfix/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
 ### Community 102 - "joint_travel"
 Cohesion: 0.27
@@ -684,10 +722,6 @@ Nodes (7): Frame 0: cube resting on left board, tilted onto a corner, Frame 1: c
 Cohesion: 0.20
 Nodes (9): fit_constraint_radius_sdf(), fit_local_support_sdf(), _fit_witness_sdf(), Fit a signed field from physical inside/outside witnesses. The labels establish…, Fit an SDF from local decoded-constraint witnesses only. Every supplied anchor…, Fit a conservative learned support SDF around locally valid samples. This is…, The runtime-support builder must not require a global radius argument., test_support_sdf_derives_its_witness_radius_from_the_anchor_cloud() (+1 more)
 
-### Community 105 - "joint_travel"
-Cohesion: 0.16
-Nodes (12): inside_domains(), _axis_angle(), joint_angle_torch(), joint_travel(), outside_joint_limits(), coordinates.py — read the declared intrinsic coordinates off a configuration.…, Signed joint angle from a torch (..., n_bodies, 3, 4) transform stack.…, Signed rotation angle (rad) of R about `axis`, relative to R0. The full 3x3… (+4 more)
-
 ### Community 106 - "_stacked_ensemble"
 Cohesion: 0.25
 Nodes (9): One jvp(ensemble_decode, .) per latent axis == d jvps per chart. Mirrors the…, Grouped [K,M] masked reduction == sum of per-(pair,direction) means. The…, _stacked_ensemble(), ensemble_decode(), ensemble_encode(), test_batched_inverse_cycle_matches_per_chart_values_and_gradients(), test_batched_seam_replay_matches_the_scalar_pair_loop(), test_batched_tangent_jvp_matches_the_per_chart_loop() (+1 more)
@@ -700,13 +734,33 @@ Nodes (7): load_sdf_system(), Return an optional first-class SDF system without 
 Cohesion: 0.67
 Nodes (3): enforce_support_coverage(), margins(), Jointly enforce the learned-domain contract on valid sampler samples. Every…
 
-### Community 116 - "MechanismSpec"
-Cohesion: 0.08
-Nodes (9): MechanismSpec, ndarray, Case-declared translational workspace boundary for a driven body., Bodies + joints + world conventions. Nothing about charts or training., Config-packing order: exactly the bodies the decoder poses., Index into the driven/config packing., Lower to `atlas_rom.spec.solver_spec.MechanismSpec` (baked vertices). The…, WorkspaceBound (+1 more)
+### Community 115 - "Reference"
+Cohesion: 0.23
+Nodes (4): load_references(), Packed-pose trajectory ``(T, n_bodies, 3, 4)`` sampled every ``dt``., ``.npz`` with a pose array under ``poses``/``pose``/``q``/``T``/ ``transforms``…, Reference
 
-### Community 121 - "IdealJointOracle"
-Cohesion: 0.17
-Nodes (7): IdealJointOracle, Bodies whose block of `tangent` is (numerically) zero. A stepping direction…, Exact analytic tangent — the override the FD paired probe would do.…, (basis (ambient, dim), singular values, dim) — exact, by SVD. `eps` and…, Cross-check every rank against the declared dimension. `MIN_GAP_RATIO` is a…, Rank from the FIRST large ratio gap, scanning down from the top. The genuine…, Analytic `project()` / `tangent_frame()` over packed (n_bodies, 3, 4) poses.…
+### Community 116 - "MechanismSpec"
+Cohesion: 0.09
+Nodes (10): _observed_pose(), SDF zero-level torus T^2 in R^3 with physical pose observations. Same intrinsic…, Physical pose emitted by the surface-response simulator., MechanismSpec, ndarray, Bodies + joints + world conventions. Nothing about charts or training., Config-packing order: exactly the bodies the decoder poses., Index into the driven/config packing. (+2 more)
+
+### Community 117 - "stephenson_link_polished/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
+
+### Community 118 - "stephenson_link_pruned/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
+
+### Community 119 - "stephenson_link_tanband/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
+
+### Community 120 - "twin_independent_pistons_polished/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
+
+### Community 121 - ".tangent_measurement"
+Cohesion: 0.25
+Nodes (4): Exact analytic tangent — the override the FD paired probe would do.…, (basis (ambient, dim), singular values, dim) — exact, by SVD. `eps` and…, Cross-check every rank against the declared dimension. `MIN_GAP_RATIO` is a…, Rank from the FIRST large ratio gap, scanning down from the top. The genuine…
 
 ### Community 122 - "Rack-and-pinion meshing via IPC contact (rotating gear driving a linear toothed rack)"
 Cohesion: 0.70
@@ -714,11 +768,19 @@ Nodes (5): Gear-on-rack frame 0: pinion meshed with toothed rack, wide oblique v
 
 ### Community 123 - "Rain"
 Cohesion: 0.29
-Nodes (3): Rain, Closest boundary point of the CCW convex polygon to x: (point, outward normal,…, Falling balls (2D discs in the mechanism's xy plane) that hit EVERY link. Each…
+Nodes (3): Rain, Closest boundary point of the CCW convex polygon to x: (point, outward normal,…, Falling balls (2D discs in the mechanism's xy plane) that hit EVERY link and…
+
+### Community 124 - "twin_independent_pistons_tanband/manifest.json"
+Cohesion: 0.07
+Nodes (28): actuator_maps, artifact, body_order, build_report, case, control_schema, format, gates (+20 more)
 
 ### Community 127 - "AssetDir"
 Cohesion: 0.14
 Nodes (6): AssetDir, flatten_json(), flatten(), :param pattern: the pattern to search for :return: a list of objects that match…, SceneEdit, unflatten_json()
+
+### Community 129 - "rom_drivers.py"
+Cohesion: 0.10
+Nodes (10): build_bodies(), All driven bodies' geometry + inertia, in config-packing order. Returns a dict…, Driver, FreeDriver, viewers/rom_drivers.py -- what moves the mechanism during an export. A driver…, The case's declared geometry at its rest pose, one frame, no ROM. A ground-…, RestDriver, viewers/rom_sim.py -- the case-agnostic ROM stepper: the learned fields + net-… (+2 more)
 
 ### Community 130 - "VIEW_EMBED"
 Cohesion: 0.67
@@ -728,6 +790,42 @@ Nodes (3): Viewer-only 3-D embedding: the moving B-link origin in physical space
 Cohesion: 0.50
 Nodes (4): State accessor: ABD transforms/velocities & FEM positions, Polyscope state accessor UI with ABD/FEM cubes, Rigid-body contact, chain constraints & impact scattering, Wrecking ball on chain smashing cube wall
 
+### Community 132 - "MeshAdapter"
+Cohesion: 0.15
+Nodes (14): MeshAdapter, mesh_view.py — generic rigid-mesh rendering for any declared mechanism.…, Draw any rigid-mesh mechanism: static bodies once, driven bodies per frame., compatible_datasets(), _load_dataset(), main(), ndarray, Interactive inspector for the physical poses used to train chart AEs.… (+6 more)
+
+### Community 133 - "PositionAtlasRuntime"
+Cohesion: 0.21
+Nodes (5): PositionAtlasRuntime, G(), ndarray, Readout only: the backward difference ``(u - u_prev) / h``., Newton solve of the forced DEL for ``u_next``. Returns ``(u_next, converged)``.
+
+### Community 135 - "router_build.py"
+Cohesion: 0.18
+Nodes (15): _sha256(), attach(), embed(), main(), _model_dims(), _models_from_artifact(), router_build.py -- train the chart router and store it in a build's…, (latent dim, width) from an autoencoder state dict, for any encoder depth: the… (+7 more)
+
+### Community 136 - "blender_import_rom.py"
+Cohesion: 0.19
+Nodes (10): curve_object(), main(), material(), viewers/blender_import_rom.py -- build an animated Blender scene from a…, The camera of an already-built scene.blend (so a hand-placed camera survives a…, Vertex displacements that remove z-fighting between coplanar mesh PIECES --…, read_existing_camera(), set_interp() (+2 more)
+
+### Community 137 - "Track"
+Cohesion: 0.24
+Nodes (4): pose_gap(), Common state, readouts and dwell handling; subclasses build ``rt``., (max body translation distance, max body rotation angle in degrees)., Track
+
+### Community 138 - "geneva_geometry.py"
+Cohesion: 0.27
+Nodes (12): _as_VF(), build_driver(), build_driver_axle(), build_wheel(), build_wheel_axle(), _cyl(), Procedural mesh generation for the Maltese-cross (Geneva drive) mechanism.…, Fixed axle cylinder the driver disc's bore rides on. (+4 more)
+
+### Community 139 - "_m_step"
+Cohesion: 0.17
+Nodes (11): batched_tangent(), dense_chart_forward(), elapsed_since(), ensemble_decoder_spectral(), _fold_score(), _frozen_batch(), _m_step(), m_step_batch() (+3 more)
+
+### Community 140 - "misc.py"
+Cohesion: 0.19
+Nodes (3): draw_curve(), draw_our_curve(), draw_repulsive_curve()
+
+### Community 142 - "export_rom_blender.py"
+Cohesion: 0.23
+Nodes (6): main(), parse(), progress(), viewers/export_rom_blender.py -- headless ROM export for Blender: pick a case +…, viewers/rom_record.py -- records any `RomBase` run into the arrays…, Recorder
+
 ### Community 144 - "jansen_walker.py"
 Cohesion: 0.40
 Nodes (4): Eight independently pinned Jansen legs locked to a shared, phased shaft., Display the shared crank phase on its canonical unit circle. This is a viewer-…, VIEW_EMBED(), test_view_embed_places_the_master_crank_on_a_unit_circle()
@@ -736,9 +834,41 @@ Nodes (4): Eight independently pinned Jansen legs locked to a shared, phased sha
 Cohesion: 0.09
 Nodes (13): Enum, BodySpec, ConfigurationType, ConstraintObservation, ContactModel, LocalStratum, MechanismSpec, Small, solver-independent input and local-stratum records. This is deliberately… (+5 more)
 
+### Community 150 - "FrameRecorder"
+Cohesion: 0.17
+Nodes (4): FrameRecorder, Live replay buffer. Replay only reads the buffer; the simulation state is never…, The frame currently on screen (the replay frame, else the newest)., Replay controls. ``on_show(frame)`` redraws a frame; ``pause_live()`` is called…
+
+### Community 152 - "AssetDir"
+Cohesion: 0.24
+Nodes (3): AssetDir, on_update(), write_to_disk()
+
 ### Community 153 - "test_competitive_cae.py"
 Cohesion: 0.05
 Nodes (39): _chart_quality_passes(), _condition_gauge_covariance(), _decoder_spectral_product(), _fps_warm_start_indices(), Decoder Lipschitz bound from its affine layers' spectral norms. Each spectral…, Floor learned gauge covariance eigenvalues to bound triangular solves., Use FPS separation, not ``n / K``, to define an initial chart patch., Persistent per-chart territory only ever grows, and admission comes from graph-… (+31 more)
+
+### Community 156 - "ideal_sim.py"
+Cohesion: 0.29
+Nodes (6): _perpendicular(), ideal_sim.py — full-space rigid-body dynamics on the analytic ideal-joint…, Mbar = int rho [p;1][p;1]^T over the body (4x4, SPD)., _second_moment(), body_inertia(), (mass, inertia_about_com (3,3), com_local (3,)) for one mesh. Degenerate or…
+
+### Community 157 - "f"
+Cohesion: 0.11
+Nodes (10): Pruned end-to-end for one case: [densify x4] -> native fit (cover-mask…, run(), JointDriver, JointTargets, PoseDriver, f(), Levenberg-Marquardt on the latent coordinate so the decoded pose has the…, Shared by the joint-space drivers: parses `--joint`, resolves names against the… (+2 more)
+
+### Community 158 - "_from_file"
+Cohesion: 0.29
+Nodes (7): _from_file(), _load_scene(), Close a mesh enough that `volume`/`moment_inertia` are meaningful., Find a mesh file relative to the spec, testing/, or the repo root., Load one node from a mesh file, with its scene world matrix baked in — the same…, resolve_asset(), _welded()
+
+### Community 161 - "test_position_runtime.py"
+Cohesion: 0.48
+Nodes (6): _rt(), test_free_motion_conserves_kinetic_energy(), test_rest_without_forces_is_a_fixed_point(), test_self_handoff_reproduces_the_pair(), test_set_velocity_round_trips_through_the_position_pair(), parametrize
+
+### Community 162 - "generic_circle.py"
+Cohesion: 0.33
+Nodes (3): _observed_pose(), SDF zero-level circle S^1 in R^2 with physical pose observations. The smallest…, Physical pose emitted by the surface-response simulator.
+
+### Community 163 - "generic_sphere_circle.py"
+Cohesion: 0.33
+Nodes (3): _observed_pose(), SDF zero-level S^2 x S^1 in R^4 with physical pose observations. The middle…, Physical pose emitted by the surface-response simulator.
 
 ### Community 164 - "AssetDir"
 Cohesion: 0.15
@@ -897,8 +1027,8 @@ Cohesion: 0.50
 Nodes (3): Core Snippets, External Articulation Constraint Example, Overview
 
 ## Knowledge Gaps
-- **537 isolated node(s):** `format`, `case`, `label`, `n_bodies`, `body_order` (+532 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1676 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **962 isolated node(s):** `format`, `case`, `label`, `n_bodies`, `body_order` (+957 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2162 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **81 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Work-memory lessons
@@ -910,17 +1040,17 @@ Nodes (3): Core Snippets, External Articulation Constraint Example, Overview
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `load_spec()` connect `load_spec` to `view_pantograph_drag.py`, `CompetitiveCAEFitter`, `generic_manifold_diagnostics.py`, `competitive_cae.py`, `load_sdf_system`, `selfcheck.py`, `_points`, `run_patch_atlas.py`, `test_generic_so3.py`, `view_sample_set.py`, `._fit_inner`, `oracle_eval.py`, `loader.py`, `PatchAtlasROM`, `test_obstacle_constrained_2r.py`?**
-  _High betweenness centrality (0.076) - this node is a cross-community bridge._
-- **Why does `write_to_disk()` connect `88_maltese_cross/main.py` to `87_scissor_lift_joint/main.py`?**
-  _High betweenness centrality (0.059) - this node is a cross-community bridge._
+- **Why does `load_spec()` connect `load_spec` to `view_pantograph_drag.py`, `CompetitiveCAEFitter`, `physical_chart_autoencoder.py`, `generic_manifold_diagnostics.py`, `router_build.py`, `MeshAdapter`, `competitive_cae.py`, `load_sdf_system`, `selfcheck.py`, `run_patch_atlas.py`, `test_generic_so3.py`, `view_sample_set.py`, `._fit_inner`, `check_data_validity`, `PatchAtlasROM`, `test_obstacle_constrained_2r.py`?**
+  _High betweenness centrality (0.057) - this node is a cross-community bridge._
+- **Why does `write_to_disk()` connect `AssetDir` to `87_scissor_lift_joint/main.py`?**
+  _High betweenness centrality (0.047) - this node is a cross-community bridge._
 - **Why does `make_abd_body()` connect `87_scissor_lift_joint/main.py` to `AssetDir`?**
-  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `MechanismSpec` (e.g. with `BodySpec` and `JointSpec`) actually correct?**
   _`MechanismSpec` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `format`, `case`, `label` to the rest of the system?**
-  _537 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Expectations` be split into smaller, more focused modules?**
-  _Cohesion score 0.05738615327656423 - nodes in this community are weakly interconnected._
+  _962 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `SamplingOptions` be split into smaller, more focused modules?**
+  _Cohesion score 0.05546218487394958 - nodes in this community are weakly interconnected._
 - **Should `view_pantograph_drag.py` be split into smaller, more focused modules?**
-  _Cohesion score 0.061018437225636525 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09574468085106383 - nodes in this community are weakly interconnected._
