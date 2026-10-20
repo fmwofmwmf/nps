@@ -58,10 +58,16 @@ def _rom_available(roms_dir, name):
 
 class RomBackend:
     """Wraps ``PatchAtlasRuntime`` behind the shared viewer surface."""
+    uncertified = None      # manifest gate reason when loaded with --allow-unready-rom
 
-    def __init__(self, rom_path, *, dt=1e-3, stall_guard=True):
+    def __init__(self, rom_path, *, dt=1e-3, stall_guard=True, integrator="momentum"):
         self.rom = PatchAtlasROM.load(rom_path)
-        self.rt = PatchAtlasRuntime(self.rom, dt=dt, stall_guard=stall_guard)   # learned advantage router
+        self.integrator = integrator
+        if integrator == "position":
+            from atlas_rom.rom.position_runtime import PositionAtlasRuntime
+            self.rt = PositionAtlasRuntime(self.rom, dt=dt, stall_guard=stall_guard, transport="none")
+        else:
+            self.rt = PatchAtlasRuntime(self.rom, dt=dt, stall_guard=stall_guard)   # learned advantage router
         self.actuators = self.rt.actuators
         self.state = self.rt.initial_state(chart=0)
 
@@ -97,7 +103,7 @@ class RomBackend:
         info = self.rt.router_info or {}
         route = f"A_best={info.get('adv', {}).get(info.get('best'), float('nan')):+.2f}"
         hyst = f"switch_ratio={self.rt.switch_ratio:.2f}"
-        return [f"chart={chart}/{self.rom.n_patches}  "
+        return [f"integrator={self.integrator}  chart={chart}/{self.rom.n_patches}  "
                f"handoffs={self.state['handoffs']}  stalls={self.state['stalls']}",
                f"{route}  sdf={bd['sdf']:+.6f}  "
                f"|grad sdf|={bd['sdf_grad_norm']:.4f}",
@@ -298,9 +304,15 @@ def cmd_viewer(args):
         full = None
         print(f"Full backend unavailable for {case.name!r}: {e}")
     rom = None
+    if not rom_ok and args.allow_unready_rom and rom_reason and "rom_mode_ready=False" in rom_reason:
+        print(f"WARNING: loading an uncertified ROM ({rom_reason})")
+        rom_ok, uncertified = True, rom_reason
+    else:
+        uncertified = None
     if rom_ok:
         rom = RomBackend(os.path.join(args.roms_dir, rom_name), dt=args.dt_rom,
-                         stall_guard=not args.disable_stalls)
+                         stall_guard=not args.disable_stalls, integrator=args.integrator)
+        rom.uncertified = uncertified
     else:
         print(f"ROM mode unavailable: {rom_reason}")
     if full is None and rom is None:
@@ -422,6 +434,8 @@ def cmd_viewer(args):
         imgui.Separator()
         imgui.Text(f"case={case.name}  backend={ui['backend']}  "
                    f"g={ui['gravity']:.3f}  controls={[round(c, 3) for c in controls]}")
+        if active() is rom and rom.uncertified:
+            imgui.TextColored((1.0, 0.3, 0.3, 1.0), f"UNCERTIFIED ROM: {rom.uncertified}")
         for line in active().status_lines():
             if line:
                 imgui.Text(line)
@@ -449,6 +463,12 @@ def main():
                     help="new_dataset.npz to display as the current AE C-space inset")
     ap.add_argument("--disable-stalls", action="store_true",
                     help="disable legacy seam-stall hold logic; learned SDF remains authoritative")
+    ap.add_argument("--integrator", choices=("momentum", "position"), default="momentum",
+                    help="ROM stepper: momentum (PatchAtlasRuntime) or position (two-position "
+                         "PositionAtlasRuntime, no velocity transport at handoffs)")
+    ap.add_argument("--allow-unready-rom", action="store_true",
+                    help="load a staged ROM whose manifest has rom_mode_ready=False; the gate reason "
+                         "stays on screen")
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--selfcheck", action="store_true")
     mode.add_argument("--viewer", action="store_true")

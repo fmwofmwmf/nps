@@ -27,6 +27,7 @@ from atlas_rom.charts.validity import validity_from_case  # noqa: E402
 from viewers.view_routing_test import joint_pd_controls  # noqa: E402
 from viewers.ps_widgets import FrameRecorder, energy_panel  # noqa: E402
 from atlas_rom.rom.adv_router import AdvRouterTrack  # noqa: E402
+from viewers.rom_sim import RomBase  # noqa: E402
 
 def pen_target(case):
     """Per-case pen constants come from the case module's ``PEN_TARGET`` hook (pen name -> (body, rest point);
@@ -78,19 +79,22 @@ def pen_pd_controls(rom, track, body_idx, local_pt, target_xy, w0, zeta, lim_mul
 
 
 class Rain:
-    """Falling balls (2D discs in the mechanism's xy plane) that hit EVERY link.  Each link is the convex hull of its posed mesh projected to xy.
+    """Falling balls (2D discs in the mechanism's xy plane) that hit EVERY link and each other, solved as ONE simultaneous contact problem (projected Gauss-Seidel on impulses >= 0),
+    so a ball wedged between closing links jams the mechanism instead of being pushed out; the ball is never moved to hide an overlap -- remaining overlap is reported (``max_pen``).  Each link is the convex hull of its posed mesh projected to xy.
     A contact is an impulse exchange with the ROM: the contact point's Jacobian G (autodiff through the decoder) gives the body-point velocity G M^-1 p,
     the effective mass n^T G M^-1 G^T n, and the impulse enters the ROM as p += G^T (j n).  Static bodies are ignored; balls leaving the region are dropped."""
     def __init__(self, sim):
         self.sim, self.rng = sim, np.random.default_rng(0)
         self.on, self.rate, self.radius, self.mass, self.restitution, self.max_balls = False, 8.0, 0.04, 0.05, 0.5, 300
+        self.sweeps, self.n_contacts, self.max_pen, self.peak_pen = 50, 0, 0.0, 0.0           # contact solver sweeps; readouts: contacts / deepest overlap this step / deepest ever
         self._hull_idx = None
         self.x, self.v, self.hits, self._acc = np.zeros((0, 2)), np.zeros((0, 2)), 0, 0.0
         r = max([rr for _n, rr in sim.cfg["circles"]] or [1.0])
-        self.span, self.top, self.floor = r * 1.2, r * 3.0, -2.0 * r
+        self.span, self.top, self.floor = r * 1.2, r * 3.0, -3.0 * r
 
     def clear(self):
         self.x, self.v, self.hits = np.zeros((0, 2)), np.zeros((0, 2)), 0
+        self.n_contacts, self.max_pen, self.peak_pen = 0, 0.0, 0.0
 
     @staticmethod
     def _hull(P):
@@ -126,7 +130,6 @@ class Rain:
         g = getattr(sim.settings, "gravity", None)
         g = float(sim.rom.mechanism.gravity) if g is None else float(g)
         self.v[:, 1] -= g * dt
-        self.x = self.x + self.v * dt
         Tm = sim.pose()
         st = sim.trk.state
         ch, u = int(st["chart"]), np.asarray(st["u"], float)
@@ -139,57 +142,82 @@ class Rain:
         lo = np.min([p.min(0) for p in polys], 0) - self.radius
         hi = np.max([p.max(0) for p in polys], 0) + self.radius
         near = np.where(np.all((self.x >= lo) & (self.x <= hi), axis=1))[0]
-        if len(near):
-            M = Jt = None
-            for k in near:
-                for i, poly in enumerate(polys):
-                    c, n, gap = self._closest(poly, self.x[k])
-                    if gap >= self.radius:
-                        continue
-                    if M is None:
-                        M = sim.trk.rt._mass(ch, u)
-                    st = sim.trk.state
-                    p_loc = Tm[i, :, :3].T @ (np.array([c[0], c[1], 0.0]) - Tm[i, :, 3])
-                    if Jt is None:                                                                           # ONE Jacobian of all link transforms per step; any contact point is linear in it
-                        Jt = torch.autograd.functional.jacobian(lambda z: model.transforms(z.unsqueeze(0)).squeeze(0), torch.as_tensor(u), vectorize=True, strategy="forward-mode").detach().numpy()   # (nb, 3, 4, d)
-                    G = np.einsum("rcd,c->rd", Jt[i, :2, :3], p_loc) + Jt[i, :2, 3]                           # (2, d)
-                    vb = G @ np.linalg.solve(M, st["p"])
-                    vn = float((self.v[k] - vb) @ n)
-                    self.x[k] = c + n * self.radius                                                          # resolve the overlap
-                    if vn < 0.0:
-                        w = float(n @ G @ np.linalg.solve(M, G.T @ n))
-                        j = -(1.0 + self.restitution) * vn / (1.0 / self.mass + w)
-                        self.v[k] = self.v[k] + j * n / self.mass
-                        st["p"] = np.asarray(st["p"], float) - G.T @ (j * n)                     # Newton III: the link gets -j n
-                        self.hits += 1
-                    break
+        r, m = self.radius, self.mass
+        # ---- gather EVERY contact (ball-link and ball-ball) --------------------------------------------------------------------------------------------------
+        bl = []                                                         # (ball k, normal n[link -> ball], depth, g = G^T n (d,))
+        Jt = None
+        for k in near:
+            for i, poly in enumerate(polys):
+                c, n, gap = self._closest(poly, self.x[k])
+                if gap >= r:
+                    continue
+                if Jt is None:                                           # ONE Jacobian of all link transforms per step; any contact point is linear in it
+                    Jt = torch.autograd.functional.jacobian(lambda z: model.transforms(z.unsqueeze(0)).squeeze(0), torch.as_tensor(u), vectorize=True, strategy="forward-mode").detach().numpy()   # (nb, 3, 4, d)
+                p_loc = Tm[i, :, :3].T @ (np.array([c[0], c[1], 0.0]) - Tm[i, :, 3])
+                G = np.einsum("rcd,c->rd", Jt[i, :2, :3], p_loc) + Jt[i, :2, 3]                           # (2, d)
+                bl.append((int(k), n, r - gap, G.T @ n))
+        bb = []                                                         # (i, j, normal n[i -> j], depth)
+        if len(self.x) > 1:
+            from scipy.spatial import cKDTree
+            for a, b in cKDTree(self.x).query_pairs(2.0 * r):
+                d = self.x[b] - self.x[a]
+                dist = float(np.linalg.norm(d))
+                n = d / dist if dist > 1e-9 else np.array([1.0, 0.0])
+                bb.append((a, b, n, 2.0 * r - dist))
+        self.n_contacts = len(bl) + len(bb)
+        self.max_pen = max([c[2] for c in bl] + [c[3] for c in bb] + [0.0])
+        self.peak_pen = max(self.peak_pen, self.max_pen)
+        if bl or bb:
+            # ---- one simultaneous solve: projected Gauss-Seidel on the impulses lambda >= 0 (the ball is never moved to hide an overlap) ----------------------
+            if bl:
+                M = sim.trk.rt._mass(ch, u)
+                Minv = np.linalg.inv(M)
+            p = np.asarray(st["p"], float).copy()
+            v = self.v
+            h = [Minv @ c[3] for c in bl]                                                                  # vn = v_k.n - h.p ;  p -= g dl  =>  vn += (h.g) dl
+            w_bl = [1.0 / m + float(c[3] @ hh) for c, hh in zip(bl, h)]
+            slop, beta = 0.1 * r, 0.2
+            vn0 = [float(v[k] @ n - hh @ p) for (k, n, _d, _g), hh in zip(bl, h)]
+            vn0_bb = [float((v[b] - v[a]) @ n) for a, b, n, _d in bb]
+            self.hits += sum(x < -1e-3 for x in vn0) + sum(x < -1e-3 for x in vn0_bb)
+            target = [max(beta * max(c[2] - slop, 0.0) / dt, -self.restitution * x if x < -0.05 else 0.0) for c, x in zip(bl, vn0)]
+            target_bb = [max(beta * max(c[3] - slop, 0.0) / dt, -self.restitution * x if x < -0.05 else 0.0) for c, x in zip(bb, vn0_bb)]
+            lam, lam_bb = np.zeros(len(bl)), np.zeros(len(bb))
+            for _ in range(self.sweeps):
+                for q, ((k, n, _d, gg), hh) in enumerate(zip(bl, h)):
+                    vn = float(v[k] @ n - hh @ p)
+                    new = max(lam[q] + (target[q] - vn) / w_bl[q], 0.0)
+                    dl, lam[q] = new - lam[q], new
+                    v[k] = v[k] + dl * n / m
+                    p = p - dl * gg
+                for q, (a, b, n, _d) in enumerate(bb):
+                    vn = float((v[b] - v[a]) @ n)
+                    new = max(lam_bb[q] + (target_bb[q] - vn) / (2.0 / m), 0.0)
+                    dl, lam_bb[q] = new - lam_bb[q], new
+                    v[a] = v[a] - dl * n / m
+                    v[b] = v[b] + dl * n / m
+            st["p"] = p
+        self.x = self.x + self.v * dt
         keep = (self.x[:, 1] > self.floor) & (np.abs(self.x[:, 0]) < 4.0 * self.span)
         self.x, self.v = self.x[keep], self.v[keep]
 
 
-class RomSim:
+class RomSim(RomBase):
+    """The pen task on top of the case-agnostic `RomBase`: a drag pen, wind, closed-curve tracing and the falling-ball rain."""
     def __init__(self, rom, case, dt=0.01, damping=0.0):
-        self.rom, self.cfg = rom, pen_target(case)
+        self.cfg = pen_target(case)
         self.pens = self.cfg["pens"]
         self.drag_pen = next(iter(self.pens))
-        self.acts = list(rom.case.actuators)
-        self.joints = [rom.case.mechanism.joint(a.target) for a in self.acts]
         self.body_idx = {n: list(rom.body_order).index(b) for n, (b, _p) in self.pens.items()}
-        self.validity = validity_from_case(rom.case, include_grounded=False)
-        self.anchor_trees = [cKDTree(np.asarray(a, float) / np.maximum(np.asarray(a, float).std(0), 1e-4)) for a in rom.anchors]
-        self.anchor_std = [np.maximum(np.asarray(a, float).std(0), 1e-4) for a in rom.anchors]
-        self.settings = T.Settings(dt=dt, lookahead=1, damping=damping)
-        self.trk = AdvRouterTrack(rom, self.settings)
         self.w0, self.zeta, self.lim, self.gcomp = 4.0, 1.0, float(self.cfg.get("torque_limit", 20.0)), True
-        self.control_on = True
         self.wind = np.zeros(2)                                     # external world force on the drag pen (like wind), set by the viewer
-        self._install_wind()
-        self.mesh_local = list(zip(*[__import__('atlas_rom.spec.geometry', fromlist=['x']).build_bodies(rom.mechanism)[k] for k in ('V', 'F')]))
-        self.rain = Rain(self)
         self.curve = None                                           # closed curve to trace: dict(pts, s, length); s = arclength of each sample
         self.smooth, self.raw_pts = 1e-5, []                          # spline smoothing per point (0 = interpolate the drawn points exactly)
         self.trace_on, self.trace_s, self.trace_speed, self.laps = False, 0.0, 0.3, 0.0
-        self.reset()
+        self.target_pt = None
+        super().__init__(rom, dt=dt, damping=damping)
+        self._install_wind()
+        self.rain = Rain(self)
 
     # ---- external force ("wind"): world force on the pen -> generalized force G^T F in whichever chart is integrating --------------------------------------------
     def _install_wind(self):
@@ -261,67 +289,34 @@ class RomSim:
         i, lp = self.body_idx[name], np.asarray(self.pens[name][1], float)
         return Tm[i, :, :3] @ lp + Tm[i, :, 3]
 
-    def pose(self):
-        return self.trk.pose()
-
     def pen_points(self):
         Tm = self.pose()
         return {n: self.pen_np(Tm, n) for n in self.pens}
-
-    def angles_of(self, Tm):
-        pose = torch.as_tensor(Tm, dtype=torch.float64)
-        return [float(ops.joint_angle_torch(pose, j, self.rom.body_order)) for j in self.joints]
-
-    def closure(self, Tm):
-        if self.validity is None:
-            return 0.0
-        return float(np.mean(self.validity.residual(None, np.asarray(Tm, float))))
 
     # ---- state ----------------------------------------------------------------------------------------------------------------------------------------
     def reset(self):
         if hasattr(self, "rain"):
             self.rain.clear()
-        nb = self.rom.n_bodies
-        Tm = np.tile(np.hstack([np.eye(3), np.zeros((3, 1))]), (nb, 1, 1))          # every body starts at its rest transform (identity)
-        q = Tm.reshape(-1)
-        t = torch.as_tensor(q).unsqueeze(0)
-        with torch.no_grad():
-            err = [float(((m.decode(m.encode(t)) - t) ** 2).sum()) for m in self.rom.models]
-        c = int(np.argmin(err))
-        u0 = np.asarray(self.rom.encode(c, q), float)
-        self.trk.reset()
-        self.trk.rt.velocity_damping = self.settings.damping or 0.0
-        self.trk.state = {"chart": c, "u": u0, "p": np.zeros_like(u0), "time": 0.0, "handoffs": 0, "stalls": 0, "blocked": False}
+        super().reset()
         self.target_pt = None
         self.trace_on = False
-        self.error = ""
-        self.rows = []
 
     # ---- target: the clicked point itself (task-space control; no inverse kinematics) ----------------------------------------------------------------------
     def set_target_point(self, hit_xy):
         self.target_pt = np.asarray(hit_xy, float)[:2]
 
-    # ---- dynamics ----------------------------------------------------------------------------------------------------------------------------------------
-    def step(self, n=1):
-        rows = self.rows
-        for _ in range(n):
-            self.advance_trace(self.settings.dt)
-            if not self.control_on:                                # controller OFF: no torque, the ROM's free dynamics (gravity, learned fields, router)
-                ctl, rows = [0.0] * len(self.acts), []
-            elif self.target_pt is None:
-                ctl, rows = [0.0] * len(self.acts), []
-                tgt_hold = self.pen_points()[self.drag_pen][:2]
-                ctl, rows = pen_pd_controls(self.rom, self.trk, self.body_idx[self.drag_pen], self.pens[self.drag_pen][1], tgt_hold, self.w0, self.zeta, self.lim, self.gcomp)
-            else:
-                ctl, rows = pen_pd_controls(self.rom, self.trk, self.body_idx[self.drag_pen], self.pens[self.drag_pen][1], self.target_pt, self.w0, self.zeta, self.lim, self.gcomp)
-            try:
-                self.trk.step(ctl)
-            except (RuntimeError, np.linalg.LinAlgError, ValueError) as ex:
-                self.error = f"{type(ex).__name__}: {ex}"
-                break
-            self.rain.step(self.settings.dt)
-        self.rows = rows
-        return rows
+    # ---- dynamics: the pen hooks into `RomBase.step` ---------------------------------------------------------------------------------------------------
+    def _pre_step(self, dt):
+        self.advance_trace(dt)
+
+    def _controls(self):
+        if not self.control_on:                                    # controller OFF: no torque, the ROM's free dynamics (gravity, learned fields, router)
+            return [0.0] * len(self.acts), []
+        tgt = self.pen_points()[self.drag_pen][:2] if self.target_pt is None else self.target_pt
+        return pen_pd_controls(self.rom, self.trk, self.body_idx[self.drag_pen], self.pens[self.drag_pen][1], tgt, self.w0, self.zeta, self.lim, self.gcomp)
+
+    def _post_step(self, dt):
+        self.rain.step(dt)
 
 
 def _ray_plane_hit(origin, direction, plane_z=0.0):
@@ -427,6 +422,14 @@ def run(args):
         if imgui.Button("Clear curve"):
             sim.curve, sim.trace_on, ui["draw_pts"], ui["drawing"] = None, False, [], False
         if sim.curve is not None:
+            if imgui.Button("Save curve"):
+                import datetime, json
+                cdir = os.path.join(ROOT, "work", "pantograph_blender", "curves")
+                os.makedirs(cdir, exist_ok=True)
+                cpath = os.path.join(cdir, f"curve_{datetime.datetime.now():%Y%m%d_%H%M%S}.json")
+                with open(cpath, "w", encoding="utf-8") as f:
+                    json.dump([[float(x), float(y)] for x, y in sim.curve["pts"]], f)
+                ui["msg"] = f"saved {cpath}"
             if imgui.Button("Trace: ON  (click to stop)" if sim.trace_on else "Trace: OFF  (click to start)"):
                 sim.trace_on = not sim.trace_on
                 sim.control_on = sim.control_on or sim.trace_on
@@ -571,7 +574,7 @@ def run(args):
             ch, v = imgui.SliderFloat(lab, float(getattr(ra, key)), lo, hi)
             if ch:
                 setattr(ra, key, float(v))
-        imgui.Text(f"balls {len(ra.x)}   hits {ra.hits}")
+        imgui.Text(f"balls {len(ra.x)}   hits {ra.hits}   contacts {ra.n_contacts}   overlap {ra.max_pen:.4f} (peak {ra.peak_pen:.4f})")
         imgui.Separator()
         st, info = sim.trk.state, (sim.trk.info or {})
         imgui.Text(f"t={st['time']:.2f}s  chart {st['chart']}/{rom.n_patches}  handoffs {st['handoffs']}  stalls {st['stalls']}")

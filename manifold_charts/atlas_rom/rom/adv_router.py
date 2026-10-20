@@ -66,7 +66,7 @@ class AdvRouter:
 class AdvRouterTrack(T.Track):
     """Viewer track around ``PatchAtlasRuntime``: the runtime does the routing, the track exposes readouts."""
     label = "adv"
-    switch_ratio = 1.0 / 2.0     # switch when the receiver's predicted error < switch_ratio x staying (own slider in the viewer)
+    switch_ratio = 1.0 / 1.1     # switch when the receiver's predicted error < switch_ratio x staying (own slider in the viewer)
 
     def _make_runtime(self):
         return PatchAtlasRuntime(self.rom, dt=self.settings.dt, stall_guard=self.settings.stall_guard)

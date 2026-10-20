@@ -199,6 +199,37 @@ def _ownership_weight(loss: np.ndarray, threshold_topo: float) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-z))
 
 
+def _projector_distance_sq(a, b, *, ridge_rel: float = 0.0, ridge_abs: float = 0.0):
+    """``||P_a - P_b||_F^2`` per sample, for ``P_x = x (x^T x + lam I)^-1 x^T``.
+
+    ``a``, ``b`` are ``[..., D, d]`` torch tensors; the result is ``[...]``.
+    The ridge is ``lam = ridge_abs + ridge_rel * mean(diag(x^T x))`` per
+    sample, matching the dense projector call sites.  Exact (not an
+    approximation) but never forms the ``D x D`` projector: with
+    ``G_x = x^T x``, ``R_x = G_x + lam I`` and ``C = a^T b``,
+
+        ||P_a - P_b||^2 = tr((R_a^-1 G_a)^2) + tr((R_b^-1 G_b)^2)
+                          - 2 tr(R_a^-1 C R_b^-1 C^T),
+
+    so memory is O(D d) per sample instead of O(D^2).
+    """
+    import torch
+    d = a.shape[-1]
+    eye = torch.eye(d, dtype=a.dtype, device=a.device)
+
+    def _reg(gram):
+        lam = ridge_abs + ridge_rel * gram.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1e-12)
+        return gram + lam[..., None, None] * eye
+
+    gram_a, gram_b = a.transpose(-1, -2) @ a, b.transpose(-1, -2) @ b
+    reg_a, reg_b = _reg(gram_a), _reg(gram_b)
+    s_a, s_b = torch.linalg.solve(reg_a, gram_a), torch.linalg.solve(reg_b, gram_b)
+    cross = a.transpose(-1, -2) @ b
+    m_a, m_b = torch.linalg.solve(reg_a, cross), torch.linalg.solve(reg_b, cross.transpose(-1, -2))
+    return ((s_a * s_a.transpose(-1, -2)).sum((-2, -1)) + (s_b * s_b.transpose(-1, -2)).sum((-2, -1))
+            - 2.0 * (m_a * m_b.transpose(-1, -2)).sum((-2, -1)))
+
+
 def _principal_angle_deg(got: np.ndarray, want: np.ndarray) -> np.ndarray:
     """Largest principal angle (degrees) between two ``[N, m, d]`` column spans.
 
@@ -1047,11 +1078,13 @@ class CompetitiveCAEFitter:
                        pair_weights.to(dtype=Q.dtype).clamp_min(0))
             weight_sum = weights.sum().clamp_min(1e-8)
             distortion_weights = weights * nondegenerate
-            # Per-pair local-compression violation [log r_min - log(dz/dp)]_+^2:
-            # fires only when a kNN pair's latent gap collapses below r_min x its
-            # physical gap.  Feeds both L_compression and the per-pose alias flag.
-            _lf = float(np.log(max(_COMPRESSION_RATIO_FLOOR, 1e-9)))
-            pinch = torch.relu(_lf - log_r).square() * nondegenerate
+            # Per-pair local-compression violation [1 - (dz/dp) / r_min]_+ in
+            # [0, 1]: fires only when a kNN pair's latent gap collapses below
+            # r_min x its physical gap.  Feeds both L_compression and the
+            # per-pose alias flag.  Bounded and linear in the ratio: the former
+            # squared log was unbounded, and a newly admitted pinched pose drew
+            # 2-10 (100-1000x reconstruction), whose gradient wrecked the chart.
+            pinch = torch.relu(1.0 - ratio / max(_COMPRESSION_RATIO_FLOOR, 1e-9)) * nondegenerate
             if not compute_distortion:
                 distortion = torch.zeros((), dtype=Q.dtype, device=Q.device)
             else:
@@ -1126,27 +1159,25 @@ class CompetitiveCAEFitter:
               # (the gauge freedom), but P->QPQt under an ambient rotation, so
               # ||P_got - P_want||_F^2 penalizes the subspace angle directly.
               # Differentiable through the same jvp columns.
-              def _projector(mat):
-                  gram = mat.transpose(-1, -2) @ mat
-                  gram = gram + 1e-8 * torch.eye(gram.shape[-1], dtype=gram.dtype, device=gram.device)
-                  return mat @ torch.linalg.solve(gram, mat.transpose(-1, -2))
               gram_term = (w_owned[:, None, None] * (got_gram - want_gram).square()).sum() / (got_gram.shape[-1] * got_gram.shape[-2])
               if float(projector_weight) != 0.0:
-                  proj_err = (w_owned[:, None, None] *
-                              (_projector(got) - _projector(observed)).square()).sum(dim=(-2, -1)).sum()
+                  proj_err = (w_owned * _projector_distance_sq(got, observed, ridge_abs=1e-8)).sum()
                   tangent = gram_term + float(projector_weight) * proj_err
               else:
                   tangent = gram_term
             # Per-pose alias flag: a reconstruction-perfect but locally pinched
             # (near-collapsed latent direction) chart is not usable.  Aggregates
-            # the per-pair compression violation onto its incident poses.
+            # the per-pair compression violation onto its incident poses,
+            # normalised by incident pair COUNT so the pair weights scale it:
+            # dividing by the weight sum cancelled them, and a barely-owned
+            # shell pose drew its full pinch (2-4, ~300x reconstruction).
             alias = torch.zeros(n_local, dtype=Q.dtype, device=Q.device)
-            incident_weight = torch.zeros(n_local, dtype=Q.dtype, device=Q.device)
+            incident_count = torch.zeros(n_local, dtype=Q.dtype, device=Q.device)
             alias.index_add_(0, a_t, weights * pinch)
             alias.index_add_(0, b_t, weights * pinch)
-            incident_weight.index_add_(0, a_t, weights)
-            incident_weight.index_add_(0, b_t, weights)
-            alias = alias / incident_weight.clamp_min(1e-8)
+            incident_count.index_add_(0, a_t, torch.ones_like(weights))
+            incident_count.index_add_(0, b_t, torch.ones_like(weights))
+            alias = alias / incident_count.clamp_min(1.0)
             per_pose = recon + .1 * cycle + float(validity_weight) * valid + alias_weight * alias
             return per_pose, distortion, (recon, cycle, valid, alias, u, pred, dp, dz, tangent, nondegenerate)
 
@@ -1385,13 +1416,10 @@ class CompetitiveCAEFitter:
             gram = (got_gram - want_gram).square().mean()
             if float(projector_weight) == 0.0:
                 return gram
-            eye = torch.eye(d, dtype=Q.dtype, device=Q.device)
-            def projector(mat):
-                local_gram = mat.transpose(-1, -2) @ mat
-                scale = local_gram.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1e-12)
-                local_gram = local_gram + 1e-6 * scale[:, None, None] * eye
-                return mat @ torch.linalg.solve(local_gram, mat.transpose(-1, -2))
-            return gram + float(projector_weight) * (projector(got) - projector(observed)).square().mean()
+            # mean over the [P, D, D] projector entries, as the dense form was
+            proj_err = _projector_distance_sq(got, observed, ridge_rel=1e-6).sum() / (
+                got.shape[0] * got.shape[-2] ** 2)
+            return gram + float(projector_weight) * proj_err
 
         def warm_start_slot(i, seed_index, steps):
             """Local physical AE birth used only during initial K-slot setup."""
@@ -2252,23 +2280,14 @@ class CompetitiveCAEFitter:
             gram_term = ((w_pad[:, :, None, None] * (got_gram - want_gram).square()).sum(dim=(1, 2, 3)) /
                          (got_gram.shape[-1] * got_gram.shape[-2]))
             if float(projector_weight) != 0.0:
-                jitter_eye = torch.eye(d, dtype=Q.dtype, device=Q.device)
-
-                def _proj(mat):
-                    gram = mat.transpose(-1, -2) @ mat
-                    # A fixed 1e-8 jitter is negligible once a batch's local
-                    # tangent frame is genuinely rank-deficient (e.g. a fold,
-                    # or a claim/EMA setting that hands the M-step a
-                    # near-duplicate batch) -- torch.linalg.solve then raises
-                    # LinAlgError mid-training.  Scale the ridge to the
-                    # gram's own magnitude so it always restores invertibility,
-                    # not just when gram already happens to be near unit scale.
-                    scale = gram.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1e-12)
-                    gram = gram + 1e-6 * scale[..., None, None] * jitter_eye
-                    return mat @ torch.linalg.solve(gram, mat.transpose(-1, -2))
-
-                proj_err = (w_pad[:, :, None, None] *
-                            (_proj(got) - _proj(obs_pad)).square()).sum(dim=(-2, -1)).sum(dim=1)
+                # A fixed 1e-8 jitter is negligible once a batch's local
+                # tangent frame is genuinely rank-deficient (e.g. a fold,
+                # or a claim/EMA setting that hands the M-step a
+                # near-duplicate batch) -- torch.linalg.solve then raises
+                # LinAlgError mid-training.  Scale the ridge to the
+                # gram's own magnitude so it always restores invertibility,
+                # not just when gram already happens to be near unit scale.
+                proj_err = (w_pad * _projector_distance_sq(got, obs_pad, ridge_rel=1e-6)).sum(dim=1)
                 tangent = gram_term + float(projector_weight) * proj_err
             else:
                 tangent = gram_term
@@ -2854,6 +2873,24 @@ class CompetitiveCAEFitter:
             Q = _POLICY_EPS + demand[:, None] * H * eligible
             return np.clip(Q, 1e-9, None)
 
+        def _protection_need(reconstruction):
+            """(rv_competence, core_protection_need) for the current chart set.
+
+            need(p, i) is high where no OTHER chart is competent at p, so the
+            core-protection hinge guards poses that chart i alone holds.
+            """
+            _rv_logit = (np.asarray(reconstruction) -
+                         float(threshold_topo)) / max(float(threshold_topo) / 5.0, 1e-12)
+            competence = 1.0 / (1.0 + np.exp(np.clip(_rv_logit, -60.0, 60.0)))
+            if competence.shape[1] > 1:
+                top2 = np.partition(competence, -2, axis=1)[:, -2:]
+                best = top2[:, 1]
+                other = np.where(competence >= best[:, None] - 1e-12, top2[:, 0, None], best[:, None])
+            else:
+                other = np.zeros_like(competence)
+            need = np.clip((float(cover_level) - other) / max(float(cover_level), 1e-12), 0.0, 1.0)
+            return competence, need
+
         def _e_step(epoch, phase, *, certify=False, certificate_reason=None):
             nonlocal responsibilities, ownership, multiplicity, membership
             nonlocal deficit_weights, rim_temperature, hard_competent, cover_competent, usage_ema
@@ -2892,18 +2929,8 @@ class CompetitiveCAEFitter:
                 _update_ema_ownership(cover_competent)
             multiplicity = cover_competent.sum(1).astype(float)
             coverage_complete = bool(cover_competent.any(1).all())
-            _rv_logit = (np.asarray(e_step_reconstruction) -
-                         float(threshold_topo)) / max(float(threshold_topo) / 5.0, 1e-12)
-            rv_competence = 1.0 / (1.0 + np.exp(np.clip(_rv_logit, -60.0, 60.0)))
+            rv_competence, core_protection_need = _protection_need(e_step_reconstruction)
             boundary_collar = _learned_boundary_collar(ownership, cover_competent, rv_competence)
-            if len(models) > 1:
-                top2 = np.partition(rv_competence, -2, axis=1)[:, -2:]
-                best = top2[:, 1]
-                other = np.where(rv_competence >= best[:, None] - 1e-12, top2[:, 0, None], best[:, None])
-            else:
-                other = np.zeros_like(rv_competence)
-            core_protection_need = np.clip((float(cover_level) - other) /
-                                           max(float(cover_level), 1e-12), 0.0, 1.0)
             locally_certified = bool(hard_competent.any(1).all())
             # Completion is a local-atlas condition: a feasible one-cover,
             # no removable runt, and passing local certificates.  Two-cover is
@@ -3129,6 +3156,9 @@ class CompetitiveCAEFitter:
                     C, e_step_reconstruction, e_step_validity, gate = _eval_all()
                     ownership, hard_competent, cover_competent = _assign_from(
                         e_step_reconstruction, e_step_validity, gate)
+                    # The pre-retirement need counted the retired chart as an
+                    # "other" cover (need ~0 on its territory) and has its column.
+                    _, core_protection_need = _protection_need(e_step_reconstruction)
                     membership = ownership
                     if monotone_frontier:
                         # No new admission here -- only the chart set shrank;
@@ -3262,9 +3292,11 @@ class CompetitiveCAEFitter:
             codes = ensemble_encode(tiled)
             predicted = ensemble_decode(codes)
             reconstruction = _recon(predicted, tiled)
-            valid = torch.stack([validity_loss(models[i], predicted[i].reshape(len(ids), n_bodies, 3, 4))
-                                 for i in range(k)])
-            competence = torch.sigmoid((float(target_threshold) - reconstruction - valid) /
+            # Reconstruction-only competence, the same quantity _assign_from
+            # covers on.  Including validity held competence ~0 everywhere
+            # (one_cover pinned at 0.7^2) so the margin was dead except for
+            # rare 1/tau-steep pulses carrying validity's oversized gradient.
+            competence = torch.sigmoid((float(target_threshold) - reconstruction) /
                                        max(float(target_threshold) / 5.0, 1e-12))
             # A chart can answer a pose only from its physically attached
             # domain.  Always retain the most attached chart to avoid a cold
@@ -3410,13 +3442,23 @@ class CompetitiveCAEFitter:
                 dense_tangent, tangent_owned_counts = None, [0 for _ in models]
             for chart, m in enumerate(models):
                 ids, local_pairs = selected_batches[chart]
+                count = len(ids)
                 if len(local_pairs):
-                    pair_w = torch.as_tensor(np.minimum(responsibilities[ids[local_pairs[:, 0]], chart],
-                                                        responsibilities[ids[local_pairs[:, 1]], chart]), dtype=Q.dtype, device=Q.device)
+                    # Live, detached competence weight (the E-step ownership
+                    # sigmoid on THIS M-step's reconstruction): a pair's alias /
+                    # compression counts only as far as the chart already
+                    # reconstructs both poses, so a shell pose enters ~0 and
+                    # ramps in as it is learned -- no step change at the E-step.
+                    with torch.no_grad():
+                        ids_t = torch.as_tensor(ids, dtype=torch.long, device=Q.device)
+                        rv_live = _recon(dense_pred[chart, :count].reshape(count, -1), Q[ids_t])
+                        live_w = torch.sigmoid((float(threshold_topo) - rv_live) /
+                                               max(float(threshold_topo) / 5.0, 1e-12))
+                        lp_t = torch.as_tensor(local_pairs, dtype=torch.long, device=Q.device)
+                        pair_w = (live_w[lp_t[:, 0]] * live_w[lp_t[:, 1]]).to(Q.dtype)
                 else:
                     local_pairs = np.asarray([[0, 0]], dtype=int)
                     pair_w = torch.ones(1, dtype=Q.dtype, device=Q.device)
-                count = len(ids)
                 per, dist, extra = chart_loss(
                     m, chart, local_pairs, pair_w, pose_ids=ids, compute_tangent=False,
                     precomputed=(dense_u[chart, :count], dense_pred[chart, :count]),
@@ -3476,6 +3518,7 @@ class CompetitiveCAEFitter:
                     L = (core_w * per[core_t]).sum() / core_w.sum()
                 else:
                     L = per[core_t].mean()
+                _L_core = float(L.detach()) if epoch_trace else 0.0
                 # Maintenance smoothly suppresses expansion (monotone_frontier
                 # only): g_i in (0, 1] is the repair multiplier from the
                 # E-step's smoothmax-over-territory sigmoid.  g_i scales the
@@ -3526,6 +3569,7 @@ class CompetitiveCAEFitter:
                         if not inertial_frontier:
                             g_t = torch.clamp(g_t, max=float(shell_weight_cap) / len(g_t))
                         L = L + float(rho) * frontier_scale * (g_t * per[shell_t]).sum() / g_t.sum()
+                _L_shell = float(L.detach()) if epoch_trace else 0.0
                 if (not freeze) and float(lambda_protect) != 0.0 and core_g is not None:
                     cached = torch.as_tensor(core_loss_cache[ids[core_loc], chart],
                                              dtype=rv.dtype, device=rv.device)
@@ -3537,33 +3581,61 @@ class CompetitiveCAEFitter:
                     # ``threshold_fit`` is the actual final accuracy target,
                     # not merely a reported diagnostic.
                     L = L + 2.0 * torch.relu(rv[core_t] - float(threshold_fit)).mean()
+                _L_protect = float(L.detach()) if epoch_trace else 0.0
                 chart_L.append(L)
                 if epoch_trace:
-                    _trace_chart.append({"chart_loss": float(L.detach()),
-                                         "core_recon_mean": float(rv[core_t].detach().mean()),
-                                         "core_recon_max": float(rv[core_t].detach().max()),
-                                         "core_size": int(len(core_loc)),
-                                         "shell_size": int(len(shell_loc))})
+                    # Trace-only decomposition of L: core term (recon + .1 cycle
+                    # + alias_weight * alias), shell term, protection hinge.
+                    cycle_d, alias_d = extra[1].detach(), extra[3].detach()
+                    row = {"chart_loss": float(L.detach()),
+                           "core_recon_mean": float(rv[core_t].detach().mean()),
+                           "core_recon_max": float(rv[core_t].detach().max()),
+                           "core_cycle_mean": float(cycle_d[core_t].mean()),
+                           "core_alias_mean": float(alias_d[core_t].mean()),
+                           "core_alias_max": float(alias_d[core_t].max()),
+                           "core_term": _L_core,
+                           "shell_term": _L_shell - _L_core,
+                           "protect_term": _L_protect - _L_shell,
+                           "core_size": int(len(core_loc)),
+                           "shell_size": int(len(shell_loc))}
+                    if len(shell_loc):
+                        _st = torch.as_tensor(shell_loc, dtype=torch.long, device=per.device)
+                        row.update(shell_recon_mean=float(rv[_st].detach().mean()),
+                                   shell_alias_mean=float(alias_d[_st].mean()))
+                    _trace_chart.append(row)
                 if not freeze:
                     probe_t = torch.as_tensor(shell_loc if len(shell_loc) else core_loc,
                                               dtype=torch.long, device=rv.device)
                     with torch.no_grad():
                         absorbed.append(float((rv[probe_t] < float(threshold_topo)).double().mean()))
             objective = torch.stack(chart_L).mean()
+            _obj_terms = {"chart": objective} if epoch_trace else None   # trace-only references
             cover_target = float(threshold_topo) if phase == 1 else float(threshold_fit)
-            objective = objective + 0.5 * _coverage_margin_loss(cover_target, phase)
+            _cov_term = 0.5 * _coverage_margin_loss(cover_target, phase)
+            objective = objective + _cov_term
+            if epoch_trace:
+                _obj_terms["coverage_margin"] = _cov_term
             if not freeze:
                 _last_shell_absorbed = float(np.mean(absorbed)) if absorbed else 1.0
                 _last_shell_absorbed_per_chart = np.asarray(absorbed, dtype=float)
             if float(distortion_weight) != 0.0:
-                objective = objective + distortion_weight * torch.stack([x[1] for x in losses]).mean()
+                _dist_term = distortion_weight * torch.stack([x[1] for x in losses]).mean()
+                objective = objective + _dist_term
+                if epoch_trace:
+                    _obj_terms["distortion"] = _dist_term
             if tangent_on:
-                objective = objective + float(tangent_weight) * dense_tangent.mean()
+                _tan_term = float(tangent_weight) * dense_tangent.mean()
+                objective = objective + _tan_term
+                if epoch_trace:
+                    _obj_terms["tangent"] = _tan_term
             joint_timing["objective_assembly_seconds"] += elapsed_since(objective_tick)
             spectral_tick = sync_tick()
             if float(lip_weight) != 0.0:
                 decoder_lip = torch.stack([ensemble_decoder_spectral(i) for i in range(len(models))])
-                objective = objective + float(lip_weight) * (decoder_lip.max() + decoder_lip.mean())
+                _lip_term = float(lip_weight) * (decoder_lip.max() + decoder_lip.mean())
+                objective = objective + _lip_term
+                if epoch_trace:
+                    _obj_terms["lip"] = _lip_term
             joint_timing["spectral_penalty_seconds"] += elapsed_since(spectral_tick)
             selector_tick = sync_tick()
             if (not freeze) and float(selector_weight) != 0.0:
@@ -3575,7 +3647,35 @@ class CompetitiveCAEFitter:
                 objective = objective + compactness_weight * torch.stack([x[2][4].square().mean() for x in losses]).mean()
             step_tick = sync_tick()
             ensemble_opt.zero_grad(); selector_opt.zero_grad()
+            _term_grad_norms = {}
+            if epoch_trace:
+                # Trace-only: per-chart gradient norm of each objective term on
+                # the ensemble parameters (extra backward passes, no update).
+                _plist = list(ensemble_params.values())
+                for _tname, _tval in _obj_terms.items():
+                    if not torch.is_tensor(_tval) or not _tval.requires_grad:
+                        continue
+                    _gs = torch.autograd.grad(_tval, _plist, retain_graph=True, allow_unused=True)
+                    _sq = torch.zeros(len(models), dtype=torch.float64, device=Q.device)
+                    for _g in _gs:
+                        if _g is not None:
+                            _sq += _g.detach().double().reshape(len(models), -1).square().sum(1)
+                    _term_grad_norms[_tname] = _sq.sqrt().cpu().tolist()
             objective.backward()
+            if epoch_trace:
+                # Adam amplification: total grad norm vs the RMS its second
+                # moment expects (state from the previous step, pre-update).
+                with torch.no_grad():
+                    _gsq = torch.zeros(len(models), dtype=torch.float64, device=Q.device)
+                    _vsq = torch.zeros(len(models), dtype=torch.float64, device=Q.device)
+                    for _p in ensemble_params.values():
+                        if _p.grad is not None:
+                            _gsq += _p.grad.detach().double().reshape(len(models), -1).square().sum(1)
+                        _st = ensemble_opt.state.get(_p, {})
+                        if "exp_avg_sq" in _st:
+                            _vsq += _st["exp_avg_sq"].detach().double().reshape(len(models), -1).sum(1)
+                    _term_grad_norms["total"] = _gsq.sqrt().cpu().tolist()
+                    _term_grad_norms["adam_rms"] = _vsq.sqrt().cpu().tolist()
             lr_now = base_lr
             if phase == 2 and lr_step_epochs:
                 lr_now = max(float(lr_step_min),
@@ -3596,6 +3696,11 @@ class CompetitiveCAEFitter:
                     _rel_step = (_step_sq.sqrt() / _param_sq.sqrt().clamp_min(1e-12)).cpu().tolist()
                 for row, rel in zip(_trace_chart, _rel_step):
                     row["rel_param_step"] = float(rel)
+                for _ci, row in enumerate(_trace_chart):
+                    row["grad_norm"] = {k: float(v[_ci]) for k, v in _term_grad_norms.items()}
+                    row["distortion"] = float(losses[_ci][1].detach())
+                    if tangent_on and dense_tangent is not None:
+                        row["tangent"] = float(dense_tangent[_ci].detach())
                 epoch_trace_rows.append({
                     "epoch": int(epoch), "phase": int(phase), "chart_ids": [int(c) for c in chart_ids],
                     "objective": float(objective.detach()), "margin": dict(_trace_margin),
@@ -3748,12 +3853,6 @@ class CompetitiveCAEFitter:
             # not need (the mass field absorbs latent anisotropy); in the node-exact L-BFGS polish it cost
             # fresh-pose accuracy (five_bar: fresh rms p95 0.045 -> 0.054) for no angle gain.
             polish_tangent = float(tangent_weight) != 0.0 and float(projector_weight) != 0.0
-            polish_eye = torch.eye(d, dtype=Q.dtype, device=Q.device)
-
-            def _polish_proj(mat):
-                gram = mat.transpose(-1, -2) @ mat
-                ridge = gram.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1e-12)
-                return mat @ torch.linalg.solve(gram + 1e-6 * ridge[..., None, None] * polish_eye, mat.transpose(-1, -2))
 
             def _polish_round(round_iters):
                 with torch.no_grad():
@@ -3791,8 +3890,8 @@ class CompetitiveCAEFitter:
                             pred_pad, column = jvp(ensemble_decode, (codes,), (direction,))
                             columns.append(column)
                         got = torch.stack(columns, -1)                               # [K, P, f_dim, d]
-                        per_tangent = float(projector_weight) * (
-                            _polish_proj(got) - _polish_proj(obs_pad)).square().sum((-2, -1))
+                        per_tangent = float(projector_weight) * _projector_distance_sq(
+                            got, obs_pad, ridge_rel=1e-6)
                         tangent = (per_tangent * pad_mask).sum(1) / pad_count
                     else:
                         pred_pad = ensemble_decode(codes)

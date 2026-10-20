@@ -618,9 +618,9 @@
     "semantic_hash": "bf5588a3c0217a2493dc6ad057bb7fc9"
   },
   "pyproject.toml": {
-    "mtime": 1787876356.164291,
-    "seen": 1789950384.96168,
-    "ast_hash": "7465a1a9c3adef018f6adde8862829a1",
+    "mtime": 1792120697.1736648,
+    "seen": 1792139999.825061,
+    "ast_hash": "eba23ce571ef7116509ddbbb3ada5f23",
     "semantic_hash": ""
   },
   "README.md": {
@@ -953,12 +953,6 @@
     "ast_hash": "264a1113ea7b1364496ba064403496e6",
     "semantic_hash": ""
   },
-  "manifold_charts/atlas_rom/cases/_generic_surface_common.py": {
-    "mtime": 1792082745.912289,
-    "seen": 1792083013.6624465,
-    "ast_hash": "f37ad88921c54f7ca43569bb4bac4a00",
-    "semantic_hash": ""
-  },
   "manifold_charts/atlas_rom/cases/_jansen_array_common.py": {
     "mtime": 1792082745.912289,
     "seen": 1792083013.6624465,
@@ -1005,96 +999,6 @@
     "mtime": 1792082745.9017766,
     "seen": 1792083013.6624465,
     "ast_hash": "7d4c4cc2a4a26fb224d93dfe9b0b5aef",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_annulus.py": {
-    "mtime": 1792082745.9017766,
-    "seen": 1792083013.6624465,
-    "ast_hash": "7cceffe82f2380d0c0e06e5f0355a87d",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_circle.py": {
-    "mtime": 1792082745.9017766,
-    "seen": 1792083013.6624465,
-    "ast_hash": "2ab96b316fded02f04c3bee41d1a99ff",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_disk.py": {
-    "mtime": 1792082745.9027765,
-    "seen": 1792083013.6624465,
-    "ast_hash": "760488dc2144ec265496c722753614bb",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_genus2.py": {
-    "mtime": 1792082745.9027765,
-    "seen": 1792083013.6624465,
-    "ast_hash": "159bbed595fb7c1814ba0372cf085144",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_genus3.py": {
-    "mtime": 1792082745.9027765,
-    "seen": 1792083013.6624465,
-    "ast_hash": "0e0d4db830957029966ba2306d096f93",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_genus4.py": {
-    "mtime": 1792082745.9027765,
-    "seen": 1792083013.6624465,
-    "ast_hash": "c01a0ad9ec87bb2ea6e22d840fdbf6b3",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_pants.py": {
-    "mtime": 1792082745.9027765,
-    "seen": 1792083013.6624465,
-    "ast_hash": "e1b534b45c5a08eb2b02111bf99848fb",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_punctured_torus.py": {
-    "mtime": 1792082745.9027765,
-    "seen": 1792083013.6624465,
-    "ast_hash": "8302644ed2623ea5eb6c6c484ce1aac0",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_so3.py": {
-    "mtime": 1792082745.903776,
-    "seen": 1792083013.6624465,
-    "ast_hash": "31d38c9438cea6805568362b3d04aa33",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_sphere.py": {
-    "mtime": 1792082745.903776,
-    "seen": 1792083013.6624465,
-    "ast_hash": "7b8e87b64aab73ccee7c14aab72a58d2",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_sphere3.py": {
-    "mtime": 1792082745.903776,
-    "seen": 1792083013.6624465,
-    "ast_hash": "8e789dedcc0f28bf075a5ca64d9a7667",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_sphere_circle.py": {
-    "mtime": 1792082745.903776,
-    "seen": 1792083013.6624465,
-    "ast_hash": "7fad7c2485488a6ceea1c4c9fa621673",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_torus.py": {
-    "mtime": 1792082745.9047756,
-    "seen": 1792083013.6624465,
-    "ast_hash": "8b6e309db459a957538d2a177e20f2e5",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_torus3.py": {
-    "mtime": 1792082745.9047756,
-    "seen": 1792083013.6624465,
-    "ast_hash": "413367da97d62379f1c5d549fbceed05",
-    "semantic_hash": ""
-  },
-  "manifold_charts/atlas_rom/cases/generic_u_region.py": {
-    "mtime": 1792082745.9047756,
-    "seen": 1792083013.6624465,
-    "ast_hash": "09ec67c8406fb0cfef09f1fa5ced6102",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/cases/grab.py": {
@@ -1278,9 +1182,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/tests/test_generic_so3.py": {
-    "mtime": 1792082745.918097,
-    "seen": 1792083013.6634505,
-    "ast_hash": "6ffba1f3af47b424f294ec6edd14b167",
+    "mtime": 1792120697.171665,
+    "seen": 1792139999.8095994,
+    "ast_hash": "d2284539fe59a19daf922c70dc5ddf64",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/tests/test_generic_topology_cases.py": {
@@ -1680,8 +1584,8 @@
     "semantic_hash": ""
   },
   "manifold_charts/systems.json": {
-    "mtime": 1791974664.50919,
-    "seen": 1792081972.9853199,
+    "mtime": 1792140231.7547674,
+    "seen": 1792140279.4699724,
     "ast_hash": "25f9ec0faaa3fb208a95890ec1bada0d",
     "semantic_hash": ""
   },
@@ -1692,9 +1596,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/viewers/rom_target.py": {
-    "mtime": 1792083428.0036516,
-    "seen": 1792084274.1850193,
-    "ast_hash": "6076903d3f8b24a92aa7909ecf46604e",
+    "mtime": 1792131907.4404767,
+    "seen": 1792139999.8235474,
+    "ast_hash": "5a63f859f42e4651126d552310a7aa4e",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_chart_exploration.py": {
@@ -1710,9 +1614,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_routing_test.py": {
-    "mtime": 1792084174.7151787,
-    "seen": 1792084274.1850193,
-    "ast_hash": "76297a060822311b919c270908d3385e",
+    "mtime": 1792120697.1726644,
+    "seen": 1792139999.8235474,
+    "ast_hash": "e3bc462a5263ece6e202979f4175ddc4",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_sample_set.py": {
@@ -1806,9 +1710,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/adv_router.py": {
-    "mtime": 1792082745.9152899,
-    "seen": 1792083013.6634505,
-    "ast_hash": "a039c18fc218468adee105ccbd3e1001",
+    "mtime": 1792129167.9972558,
+    "seen": 1792139999.8029447,
+    "ast_hash": "65f9641c2d2834b2b5bff4a15da6d66d",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/handoff.py": {
@@ -1860,9 +1764,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/run_patch_atlas.py": {
-    "mtime": 1792084138.835034,
-    "seen": 1792084274.173465,
-    "ast_hash": "70ef0d466bbccee336d8bc309c8530ee",
+    "mtime": 1792140225.9453354,
+    "seen": 1792140279.454286,
+    "ast_hash": "448a817d7df972bd40be996f9f271f44",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/runtime.py": {
@@ -2073,6 +1977,276 @@
     "mtime": 1787876356.1673117,
     "seen": 1792084274.1900196,
     "ast_hash": "d5c99d129c6f25bfb1cc9bd6fa440121",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/_generic_surface_common.py": {
+    "mtime": 1792120697.165221,
+    "seen": 1792139999.7973006,
+    "ast_hash": "f37ad88921c54f7ca43569bb4bac4a00",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_annulus.py": {
+    "mtime": 1792120697.165221,
+    "seen": 1792139999.7973006,
+    "ast_hash": "7cceffe82f2380d0c0e06e5f0355a87d",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_circle.py": {
+    "mtime": 1792120697.1666613,
+    "seen": 1792139999.7973006,
+    "ast_hash": "2ab96b316fded02f04c3bee41d1a99ff",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_disk.py": {
+    "mtime": 1792120697.1666613,
+    "seen": 1792139999.7973006,
+    "ast_hash": "ad31f586a5393fae9efb2313a19ca290",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_genus2.py": {
+    "mtime": 1792120697.1666613,
+    "seen": 1792139999.7973006,
+    "ast_hash": "4b229594b714bd56f9f1e7f80c5954c7",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_genus3.py": {
+    "mtime": 1792120697.167665,
+    "seen": 1792139999.7973006,
+    "ast_hash": "8d3e50c69c41a00903ef56590cdf0282",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_genus4.py": {
+    "mtime": 1792120697.167665,
+    "seen": 1792139999.7973006,
+    "ast_hash": "bfe1feaf4665bb50d51c0e43c2ecf706",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_pants.py": {
+    "mtime": 1792120697.167665,
+    "seen": 1792139999.7973006,
+    "ast_hash": "5b4669447672b9f0413131b8c61ae24c",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_punctured_torus.py": {
+    "mtime": 1792120697.1686645,
+    "seen": 1792139999.7973006,
+    "ast_hash": "d414f3f3483ed06b1189a6b991e3f5f9",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_so3.py": {
+    "mtime": 1792120697.1686645,
+    "seen": 1792139999.7973006,
+    "ast_hash": "d26f4316946d098adc1ac4b5fd6726bb",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_sphere.py": {
+    "mtime": 1792120697.1686645,
+    "seen": 1792139999.7973006,
+    "ast_hash": "7b8e87b64aab73ccee7c14aab72a58d2",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_sphere3.py": {
+    "mtime": 1792120697.1696649,
+    "seen": 1792139999.7973006,
+    "ast_hash": "8e789dedcc0f28bf075a5ca64d9a7667",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_sphere_circle.py": {
+    "mtime": 1792120697.1696649,
+    "seen": 1792139999.7973006,
+    "ast_hash": "7fad7c2485488a6ceea1c4c9fa621673",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_torus.py": {
+    "mtime": 1792120697.1696649,
+    "seen": 1792139999.7973006,
+    "ast_hash": "8b6e309db459a957538d2a177e20f2e5",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_torus3.py": {
+    "mtime": 1792120697.1706645,
+    "seen": 1792139999.7973006,
+    "ast_hash": "413367da97d62379f1c5d549fbceed05",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/generic/generic_u_region.py": {
+    "mtime": 1792120697.1706645,
+    "seen": 1792139999.7973006,
+    "ast_hash": "16030479e0f1618de2c284ef38c4c03b",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/five_bar_limfix/manifest.json": {
+    "mtime": 1791977222.8479648,
+    "seen": 1792139999.8111181,
+    "ast_hash": "01c2d73987f173bad2e2c9ac960e3911",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/five_bar_polished/manifest.json": {
+    "mtime": 1791963836.1557114,
+    "seen": 1792139999.8111181,
+    "ast_hash": "af0f18bc0dd77586b20ed1c00c78b6c5",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/five_bar_tanband/manifest.json": {
+    "mtime": 1791984251.3976512,
+    "seen": 1792139999.8111181,
+    "ast_hash": "c7453bb5311be5f0b1febee65d08a2d8",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/pantograph_2d_polished/manifest.json": {
+    "mtime": 1791963838.6820655,
+    "seen": 1792139999.8177211,
+    "ast_hash": "8c4e7715eac01b4c6172be3f148421f2",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/pantograph_2d_pruned/adv_router_report.json": {
+    "mtime": 1791962944.1903112,
+    "seen": 1792139999.8177211,
+    "ast_hash": "7cc8e1a0c56bfe05997ada3e1e09ff9b",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/pantograph_2d_pruned/manifest.json": {
+    "mtime": 1791963848.743997,
+    "seen": 1792139999.8177211,
+    "ast_hash": "e57af3da70291510ade3af002e74c2f1",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/rotate_polished_v2b/manifest.json": {
+    "mtime": 1791963841.200958,
+    "seen": 1792139999.8177211,
+    "ast_hash": "bea137186ac0cdab9e08022f2d7cc3bf",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_dcover/manifest.json": {
+    "mtime": 1791974552.282223,
+    "seen": 1792139999.82052,
+    "ast_hash": "f65527aaed05d5c952fc5121c7404c34",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_dcover_sdffix/fields_refit_report.json": {
+    "mtime": 1791975099.7226622,
+    "seen": 1792139999.82052,
+    "ast_hash": "371e04e8ba8b9bc321eaf81ff9a92dfd",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_dcover_sdffix/manifest.json": {
+    "mtime": 1791975099.7191367,
+    "seen": 1792139999.82052,
+    "ast_hash": "9cd3b4b60d2b1641baad868adc302f2b",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_limfix/manifest.json": {
+    "mtime": 1791976848.1937273,
+    "seen": 1792139999.82052,
+    "ast_hash": "c6f0ba45650dada867bd91c46bb583df",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_polished/manifest.json": {
+    "mtime": 1791963843.7250175,
+    "seen": 1792139999.82052,
+    "ast_hash": "2dfd5ba92528022e7f3f8ebcd3e6e31e",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_pruned/manifest.json": {
+    "mtime": 1791964778.8883822,
+    "seen": 1792139999.82052,
+    "ast_hash": "2421379315f004fcdd076cae0785937b",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_pruned_domainfields/fields_refit_report.json": {
+    "mtime": 1791967365.5004385,
+    "seen": 1792139999.82052,
+    "ast_hash": "6ca1064ab36c232e4f0129824bc11d2f",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_pruned_domainfields/manifest.json": {
+    "mtime": 1791967365.495819,
+    "seen": 1792139999.82052,
+    "ast_hash": "c7b75134918b7217b2b28a80c88842cf",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_tanband/manifest.json": {
+    "mtime": 1791982194.6293924,
+    "seen": 1792139999.8230457,
+    "ast_hash": "bf5d918c9fa57262185efdc0ae819615",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_tanband_sdfreg/fields_refit_report.json": {
+    "mtime": 1791982984.2262511,
+    "seen": 1792139999.8230457,
+    "ast_hash": "08c6a8e76da5c9dff9b3759c3776a70a",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/stephenson_link_tanband_sdfreg/manifest.json": {
+    "mtime": 1791982984.2216132,
+    "seen": 1792139999.8230457,
+    "ast_hash": "ff0a31b9ea53588b4f83baba9bd65c30",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/twin_independent_pistons_polished/manifest.json": {
+    "mtime": 1791963846.2427447,
+    "seen": 1792139999.8230457,
+    "ast_hash": "c57717e6cf884c929f710ca5ed8adbb3",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/twin_independent_pistons_tanband/manifest.json": {
+    "mtime": 1791986284.0434742,
+    "seen": 1792139999.8230457,
+    "ast_hash": "a443ba228df9df8d2aaef89ad1f66b4d",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/blender_import_rom.py": {
+    "mtime": 1792138406.0665267,
+    "seen": 1792139999.8235474,
+    "ast_hash": "629518b15b1b2a04042eec344fae5384",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/export_rom_blender.py": {
+    "mtime": 1792136064.2897515,
+    "seen": 1792139999.8235474,
+    "ast_hash": "f7e99cb21f23236d938d41d31033350d",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/ps_widgets.py": {
+    "mtime": 1792120697.171665,
+    "seen": 1792139999.8235474,
+    "ast_hash": "cba04dd08c3ef809c28fe2247b49c422",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/render_utility/__init__.py": {
+    "mtime": 1792120650.5100684,
+    "seen": 1792139999.8235474,
+    "ast_hash": "635efe0fc14ab74698fa13eeef0d9cc3",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/render_utility/definitions.py": {
+    "mtime": 1792120650.5080678,
+    "seen": 1792139999.8235474,
+    "ast_hash": "4f92996c70258e15e15d0b8ad90a4d48",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/render_utility/misc.py": {
+    "mtime": 1792120650.5070674,
+    "seen": 1792139999.8235474,
+    "ast_hash": "e149c30875ae41e55bd2639724425689",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/rom_drivers.py": {
+    "mtime": 1792136064.2892432,
+    "seen": 1792139999.8235474,
+    "ast_hash": "33bd0261b70fd5fafd87c19c5a7bbeb1",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/rom_record.py": {
+    "mtime": 1792131966.7780626,
+    "seen": 1792139999.8235474,
+    "ast_hash": "fe16b2ed77b9edee3c48407e149dd3a0",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/rom_sim.py": {
+    "mtime": 1792136064.2499466,
+    "seen": 1792139999.8235474,
+    "ast_hash": "cbd8b288c6628079a03df9b2aac02376",
     "semantic_hash": ""
   }
 }
