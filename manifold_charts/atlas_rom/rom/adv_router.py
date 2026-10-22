@@ -1,7 +1,11 @@
 """Net-only error-ratio ("advantage") chart router.
 
 The learned field A(i, u, j) = log((e_i + eps) / (e_j + eps)) says how much better chart j reproduces the
-true pose than staying in chart i (see ``adv_labels`` for the labels).  The runtime (``PatchAtlasRuntime.step``)
+true pose than staying in chart i (see ``adv_labels`` for the labels).  The default ("score") router outputs
+one score per chart from the active chart's latent, s^(i)_k(u_i) ~ -log(e_k + eps), and A(i, u, j) =
+s^(i)_j - s^(i)_i: the receivers form one ranking (no preference cycles) and A(i->j) = -A(j->i) up to the
+build-time cross-chart consistency fit.  The legacy pairwise net (one A per (i, j) input) still loads.
+The runtime (``PatchAtlasRuntime.step``)
 switches to argmax_j A when A exceeds a dimensionless margin ``-log(switch_ratio)``; the step that crosses the
 band is bisected so the handoff lands on the boundary.  Every decision comes from the net: no closure readout,
 no tolerances, no joint geometry, no oracle at runtime.
@@ -29,6 +33,19 @@ class Net(torch.nn.Module):
         return self.f(x).squeeze(-1)
 
 
+class ScoreNet(torch.nn.Module):
+    """(u_i / anchor-std, onehot(i)) -> K chart scores."""
+
+    def __init__(self, dmax, K, h=128):
+        super().__init__()
+        self.f = torch.nn.Sequential(torch.nn.Linear(dmax + K, h), torch.nn.SiLU(),
+                                     torch.nn.Linear(h, h), torch.nn.SiLU(),
+                                     torch.nn.Linear(h, h), torch.nn.SiLU(), torch.nn.Linear(h, K))
+
+    def forward(self, x):
+        return self.f(x)
+
+
 def featurize(i, u, j, sc, dmax, K):
     """(u_i / anchor-std zero-padded to dmax, onehot(i), onehot(j))."""
     x = np.zeros(dmax + 2 * K)
@@ -39,26 +56,49 @@ def featurize(i, u, j, sc, dmax, K):
     return x
 
 
-class AdvRouter:
-    """The trained advantage net plus its feature scaling; ``rom.router``."""
+def featurize_state(i, u, sc, dmax, K):
+    """(u_i / anchor-std zero-padded to dmax, onehot(i)) -- the score net's input."""
+    x = np.zeros(dmax + K)
+    z = np.asarray(u, float) / sc[i]
+    x[:len(z)] = z
+    x[dmax + i] = 1.0
+    return x
 
-    def __init__(self, net, dmax, K, sc, eps):
+
+class AdvRouter:
+    """The trained router net plus its feature scaling; ``rom.router``.  ``kind`` is "score" (default) or "pair"."""
+
+    def __init__(self, net, dmax, K, sc, eps, kind="score"):
         self.net, self.dmax, self.K, self.sc, self.eps = net, int(dmax), int(K), sc, float(eps)
+        self.kind = kind
 
     @classmethod
     def from_payload(cls, payload):
-        net = Net(payload["dmax"], payload["K"]).double()
+        kind = payload.get("kind", "pair")                 # payloads written before the score router carry no kind
+        net = (ScoreNet if kind == "score" else Net)(payload["dmax"], payload["K"]).double()
         net.load_state_dict(payload["state"])
         net.eval()
-        return cls(net, payload["dmax"], payload["K"], payload["sc"], payload["eps"])
+        return cls(net, payload["dmax"], payload["K"], payload["sc"], payload["eps"], kind=kind)
+
+    def scores(self, i, u):
+        """Score router only: the K chart scores seen from chart i at latent u."""
+        with torch.no_grad():
+            return self.net(torch.as_tensor(featurize_state(i, u, self.sc, self.dmax, self.K)).unsqueeze(0))[0].numpy()
 
     def adv(self, i, u, j):
+        if self.kind == "score":
+            s = self.scores(i, u)
+            return float(s[j] - s[i])
         with torch.no_grad():
             return float(self.net(torch.as_tensor(featurize(i, u, j, self.sc, self.dmax, self.K)).unsqueeze(0)))
 
     def best(self, c, u):
         """(best receiver j, its advantage A, {j: A} over all j != c)."""
-        a = {j: self.adv(c, u, j) for j in range(self.K) if j != c}
+        if self.kind == "score":
+            s = self.scores(c, u)
+            a = {j: float(s[j] - s[c]) for j in range(self.K) if j != c}
+        else:
+            a = {j: self.adv(c, u, j) for j in range(self.K) if j != c}
         j = max(a, key=a.get)
         return j, a[j], a
 

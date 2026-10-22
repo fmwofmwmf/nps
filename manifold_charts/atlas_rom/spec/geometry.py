@@ -252,8 +252,51 @@ def resolve_asset(path: str) -> str:
     raise FileNotFoundError(f"mesh file {path!r} not found under {_ASSET_ROOTS}")
 
 
+_BLEND_EXPORT = ("import bpy, sys; bpy.ops.export_scene.gltf("
+                 "filepath=sys.argv[sys.argv.index('--') + 1], export_format='GLB', "
+                 "export_yup=True, export_apply=True)")
+
+
+def _blender_exe() -> str:
+    """``BLENDER_EXE`` if set, else the newest installed Blender (as export_rom_blender)."""
+    import glob
+    exe = os.environ.get("BLENDER_EXE") or next(iter(sorted(
+        glob.glob("C:/Program Files/Blender Foundation/Blender */blender.exe"), reverse=True)), None)
+    if not exe or not os.path.exists(exe):
+        raise FileNotFoundError("a .blend mesh needs Blender: set BLENDER_EXE or install it under "
+                                "C:/Program Files/Blender Foundation")
+    return exe
+
+
+def _blend_as_glb(path: str) -> str:
+    """Export a .blend to a content-hashed .glb in ``.blend_cache/`` beside it (headless
+    Blender, +Y up so file coordinates round-trip); object names become node names."""
+    import hashlib, subprocess
+    with open(path, "rb") as f:
+        digest = hashlib.sha1(f.read()).hexdigest()[:16]
+    stem = os.path.splitext(os.path.basename(path))[0]
+    cache = os.path.join(os.path.dirname(path), ".blend_cache")
+    out = os.path.join(cache, f"{stem}.{digest}.glb")
+    if os.path.exists(out):
+        return out
+    os.makedirs(cache, exist_ok=True)
+    tmp = out + ".tmp.glb"
+    proc = subprocess.run([_blender_exe(), "-b", path, "--python-expr", _BLEND_EXPORT, "--", tmp],
+                          capture_output=True, text=True, timeout=300)
+    if proc.returncode != 0 or not os.path.exists(tmp):
+        raise RuntimeError(f"Blender export of {path} failed (exit {proc.returncode}):\n"
+                           f"{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
+    os.replace(tmp, out)
+    for old in os.listdir(cache):                       # keep only the current export
+        if old.startswith(stem + ".") and old.endswith(".glb") and os.path.join(cache, old) != out:
+            os.remove(os.path.join(cache, old))
+    return out
+
+
 @lru_cache(maxsize=32)
 def _load_scene(path: str):
+    if path.lower().endswith(".blend"):
+        path = _blend_as_glb(path)
     return tm.load(path, force="scene")
 
 

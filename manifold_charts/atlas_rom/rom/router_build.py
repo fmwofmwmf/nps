@@ -2,8 +2,9 @@
 
 The router replaces the per-chart support fields as the package's routing authority: it is stored as
 ``physics_fields["router"]`` and read by ``loader.PatchAtlasROM`` / ``runtime.PatchAtlasRuntime``.  It needs only the
-final chart autoencoders, their anchors, the dataset poses and the case oracle (build-time label source); it does not
-need the staged ROM or any of the mass / potential / boundary fields.
+final chart autoencoders, their anchors, the dataset poses, the case oracle and the artifact's learned mass / potential
+fields (all build-time label sources: each chart is scored on pose error and on how far its learned dynamics fields are
+from their teacher); it does not need the staged ROM or the boundary fields.
 
     python -m atlas_rom.rom.router_build --work <dir with patch_atlas.pt> --case <case> [--dataset <dir>]
 """
@@ -69,9 +70,19 @@ def attach(work_dir: str, case: str, *, dataset_dir: str | None = None, artifact
         log("router: single-chart atlas, nothing to route between -- no router stored")
         return {}
     q_all = np.asarray(nd.load(dataset_dir or work_dir)["q"], float)
-    oracle = oracle_eval._build_oracle(load_spec(case))
+    spec = load_spec(case)
+    oracle = oracle_eval._build_oracle(spec)
+    # The chart's learned dynamics fields + the case's bodies: the labels score each chart's dynamics against the
+    # teacher those fields were distilled from (build time only).
+    from atlas_rom.rom import learned
+    from atlas_rom.spec import geometry
+    pf = state["physics_fields"]
+    mass_fields = [learned.load_mass(x) for x in pf["mass_fields"]] if "mass_fields" in pf else None
+    potential_fields = [learned.load_scalar(x) for x in pf["potential_fields"]] if "potential_fields" in pf else None
+    bodies = {**geometry.build_bodies(spec.mechanism), "up": spec.mechanism.up_vector, "gravity": spec.mechanism.gravity}
     payload, report = train_router(models, anchors, q_all, oracle, n_per=n_per, epochs=epochs,
-                                   device=device or ("cuda" if torch.cuda.is_available() else "cpu"), log=log)
+                                   device=device or ("cuda" if torch.cuda.is_available() else "cpu"), log=log,
+                                   mass_fields=mass_fields, potential_fields=potential_fields, bodies=bodies, case=case)
     state["physics_fields"]["router"] = payload
     torch.save(state, path)
     _refresh_manifest_hash(work_dir, artifact)
@@ -83,7 +94,8 @@ def attach(work_dir: str, case: str, *, dataset_dir: str | None = None, artifact
 
 
 def embed(rom_dir: str, router_file: str, *, artifact: str = "patch_atlas.pt", backup: bool = True) -> str:
-    """Store an already-trained router (a ``{"state", "dmax", "K", "sc", "eps"}`` file) in a staged ROM's artifact.
+    """Store an already-trained router (a ``{"state", "dmax", "K", "sc", "eps"}`` file, plus ``"kind": "score"`` for
+    the score router; a file without ``kind`` is the legacy pairwise router) in a staged ROM's artifact.
 
     Migration path for packages built before the router was part of the package.  The previous artifact is kept as
     ``<artifact>.pre_router``."""

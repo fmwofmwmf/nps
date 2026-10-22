@@ -29,6 +29,8 @@ FAST = "--fast" in _ARGV                                       # `-- <dir> --fas
 ZSEP = float(_opt("--zsep", 1e-4))                              # z-fighting fix: z step, relative to the largest link, between mesh pieces that share a face plane (0 = off)
 AUTO_CAMERA = "--auto-camera" in _ARGV                          # recompute the camera even if the existing scene.blend has one
 CAMERA = _opt("--camera", "auto")                              # auto | ortho | persp
+CASE_COLORS = "--case-colors" in _ARGV                          # colour bodies by the case's declared rgb (meshes.npz `color`) instead of LINK_COLORS
+GROUP_COLORS = "--group-colors" in _ARGV                        # one colour per body group: the name suffix after "@" (e.g. one leg of an array case)
 RENDER, FRAME = _opt("--render"), int(_opt("--frame", 0))      # render this 0-based exported frame to a PNG
 EXPORT_DIR = ""                                              # used only when run from the Scripting tab
 # palette copied from viewers/render_utility/definitions.py (the paper's colours)
@@ -37,6 +39,7 @@ BLUE, ORANGE, DARK, PINK = _c(58, 119, 157), _c(233, 76, 38), _c(24, 37, 77), _c
 GREEN_2, PURPLE_2, YELLOW_2 = _c(51, 160, 44), _c(106, 61, 154), _c(225, 214, 35)
 LINK_COLORS = [BLUE, ORANGE, DARK, GREEN_2, PURPLE_2, YELLOW_2]
 BALL_COLOR, TRAIL_COLORS = PINK, [BLUE, ORANGE, GREEN_2]
+GROUP_PALETTE = LINK_COLORS + [PINK, _c(23, 190, 207), _c(127, 127, 127), _c(140, 86, 75)]
 SAMPLES, EXPOSURE = 1000, 0.0                                # paper: exposure 1.25 (Blender 3.x Filmic); in 5.0 with the Standard transform it blows the scene out, so 0
 
 
@@ -203,7 +206,12 @@ def main(export_dir):
         mesh.from_pydata((V + dV[i]).tolist(), [], Fc.tolist())
         mesh.update()
         ob = bpy.data.objects.new(body_order[i], mesh)
-        ob.data.materials.append(material(body_order[i], LINK_COLORS[i % len(LINK_COLORS)]))
+        if GROUP_COLORS and "@" in body_order[i]:
+            groups = list(dict.fromkeys(b.split("@", 1)[1] for b in body_order if "@" in b))   # first-appearance order
+            rgba = GROUP_PALETTE[groups.index(body_order[i].split("@", 1)[1]) % len(GROUP_PALETTE)]
+        else:
+            rgba = (*map(float, me["color"][i][:3]), 1.0) if CASE_COLORS and "color" in me.files else LINK_COLORS[i % len(LINK_COLORS)]
+        ob.data.materials.append(material(body_order[i], rgba))
         ob.rotation_mode = "QUATERNION"
         sc.collection.objects.link(ob)
         links.append((ob, V))

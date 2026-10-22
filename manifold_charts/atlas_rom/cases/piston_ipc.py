@@ -1,8 +1,9 @@
 """Rigid IPC ``092-piston``: one slider-crank held together by IPC contact.
 
 Only the crank axle is a declared joint (the fixture's single stated
-constraint).  Rod and head are free rigid bodies; the pin, wrist pin, and bore
-act through contact alone.
+constraint).  Rod and head are contact-held, on planar stages (user decision,
+see `_rigid_ipc_piston_common`); the pin, wrist pin, and bore act through
+contact alone.
 """
 from __future__ import annotations
 
@@ -11,9 +12,10 @@ import math
 import numpy as np
 
 from atlas_rom.spec.case_spec import ActuatorDef, AtlasCaseSpec, BuildOptions, CoordinateDef, MechanismSpec, SamplingOptions
-from atlas_rom.cases._rigid_ipc_piston_common import D_HAT, piston_unit
+from atlas_rom.cases._rigid_ipc_piston_common import D_HAT, piston_unit, planar_stages, real_contact_pairs
 
 _bodies, _joints = piston_unit("piston")
+_stage_bodies, _stage_joints = planar_stages("piston")
 
 
 def VIEW_EMBED(q):
@@ -25,7 +27,8 @@ def VIEW_EMBED(q):
 
 CASE = AtlasCaseSpec(
     name="piston_ipc",
-    mechanism=MechanismSpec(bodies=_bodies, joints=_joints,
+    mechanism=MechanismSpec(bodies=_bodies + _stage_bodies, joints=_joints + _stage_joints,
+                            contact_pairs=real_contact_pairs(_bodies),
                             up_axis="y", render_up_axis="y", gravity=0.0),
     contact_model="exact_clearance",
     coordinates=[

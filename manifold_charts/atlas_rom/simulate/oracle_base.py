@@ -99,13 +99,26 @@ class DirectionalResponse:
 
 
 class ProjectionLedger:
-    """Bounded response-reuse cache with an optional append-only JSONL audit."""
+    """Bounded response-reuse cache with an optional append-only JSONL audit.
 
-    def __init__(self, path: str | Path | None = None, *, max_entries: int = 4096):
+    The bound is memory, not a fixed count: the explorer re-measures a pose's
+    frame as neighbours arrive, and a 4096-entry cap evicted the probes those
+    re-measurements repeat (measured: 48% of twin-piston solves were repeats).
+    ``max_entries`` still caps the count when given.
+    """
+
+    _ENTRY_OVERHEAD_BYTES = 1024          # key string, dict and array headers
+
+    def __init__(self, path: str | Path | None = None, *, max_entries: int | None = None,
+                 max_bytes: int = 256 * 2 ** 20):
         self.path = None if path is None else Path(path)
-        self.max_entries = int(max_entries)
-        if self.max_entries <= 0:
+        self.max_bytes = int(max_bytes)
+        if self.max_bytes <= 0:
+            raise ValueError("ProjectionLedger max_bytes must be positive")
+        if max_entries is not None and int(max_entries) <= 0:
             raise ValueError("ProjectionLedger max_entries must be positive")
+        self._entry_cap = None if max_entries is None else int(max_entries)
+        self.max_entries = None                 # resolved from the first entry's size
         self._by_key: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self.hits = self.misses = self.evictions = 0
         if self.path is not None and self.path.exists():
@@ -128,7 +141,12 @@ class ProjectionLedger:
                              "valid": bool(record["valid"]),
                              "diagnostics": dict(record.get("diagnostics", {}))}
         self._by_key.move_to_end(key)
-        if len(self._by_key) > self.max_entries:
+        if self.max_entries is None:
+            entry_bytes = self._by_key[key]["result"].nbytes + self._ENTRY_OVERHEAD_BYTES
+            self.max_entries = max(1, self.max_bytes // entry_bytes)
+            if self._entry_cap is not None:
+                self.max_entries = min(self.max_entries, self._entry_cap)
+        while len(self._by_key) > self.max_entries:
             self._by_key.popitem(last=False)
             self.evictions += 1
 

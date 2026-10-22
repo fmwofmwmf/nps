@@ -1,7 +1,8 @@
 """Two independent Rigid IPC ``092-piston`` slider-cranks side by side.
 
 Each unit is the `piston_ipc` mechanism; the two share nothing but the fixed
-world.  Only each crank axle is declared; rods and heads are contact-held.
+world.  Only each crank axle is declared; rods and heads are contact-held, on
+planar stages (user decision, see `_rigid_ipc_piston_common`).
 """
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import math
 import numpy as np
 
 from atlas_rom.spec.case_spec import ActuatorDef, AtlasCaseSpec, BuildOptions, CoordinateDef, MechanismSpec, SamplingOptions
-from atlas_rom.cases._rigid_ipc_piston_common import D_HAT, piston_unit
+from atlas_rom.cases._rigid_ipc_piston_common import D_HAT, piston_unit, planar_stages, real_contact_pairs
 
 # Crank discs have radius 1.0; 3.0 leaves a clear gap between the two units.
 SPACING = 3.0
@@ -19,6 +20,9 @@ _a_bodies, _a_joints = piston_unit("piston_a", (-SPACING / 2, 0.0, 0.0),
                                    color=(0.93, 0.53, 0.18))
 _b_bodies, _b_joints = piston_unit("piston_b", (SPACING / 2, 0.0, 0.0),
                                    color=(0.36, 0.62, 0.86))
+# Stage carriages go after every real body so the crank indices stay 0 and 3.
+_a_stage_bodies, _a_stage_joints = planar_stages("piston_a", (-SPACING / 2, 0.0, 0.0))
+_b_stage_bodies, _b_stage_joints = planar_stages("piston_b", (SPACING / 2, 0.0, 0.0))
 
 
 def VIEW_EMBED(q):
@@ -30,8 +34,9 @@ def VIEW_EMBED(q):
 
 CASE = AtlasCaseSpec(
     name="twin_piston_ipc",
-    mechanism=MechanismSpec(bodies=_a_bodies + _b_bodies,
-                            joints=_a_joints + _b_joints,
+    mechanism=MechanismSpec(bodies=_a_bodies + _b_bodies + _a_stage_bodies + _b_stage_bodies,
+                            joints=_a_joints + _b_joints + _a_stage_joints + _b_stage_joints,
+                            contact_pairs=real_contact_pairs(_a_bodies + _b_bodies),
                             up_axis="y", render_up_axis="y", gravity=0.0),
     contact_model="exact_clearance",
     coordinates=[

@@ -181,6 +181,16 @@
             "weak_deps": []
         },
         {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyPrismaticJoint",
+            "strong_deps": [
+                "class uipc::backend::cuda::InterAffineBodyConstitutionManager",
+                "class uipc::backend::cuda::AffineBodyDynamics"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
             "engine_aware": true,
             "name": "class uipc::backend::cuda::AffineBodyDynamics",
             "strong_deps": [],
@@ -285,9 +295,30 @@
         },
         {
             "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyPrismaticJointDofReporter",
+            "strong_deps": [
+                "class uipc::backend::cuda::GlobalJointDofManager",
+                "class uipc::backend::cuda::AffineBodyPrismaticJoint"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
             "name": "class uipc::backend::cuda::SoftTransformConstraint",
             "strong_deps": [
                 "class uipc::backend::cuda::AffineBodyAnimator"
+            ],
+            "valid": true,
+            "weak_deps": []
+        },
+        {
+            "engine_aware": false,
+            "name": "class uipc::backend::cuda::AffineBodyPrismaticJointTimeIntegrator",
+            "strong_deps": [
+                "class uipc::backend::cuda::TimeIntegratorManager",
+                "class uipc::backend::cuda::AffineBodyPrismaticJoint",
+                "class uipc::backend::cuda::AffineBodyDynamics"
             ],
             "valid": true,
             "weak_deps": []

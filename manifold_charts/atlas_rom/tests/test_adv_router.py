@@ -84,9 +84,33 @@ def test_train_router_returns_a_loadable_payload_for_a_toy_atlas():
                                      log=lambda *_: None)
     assert payload["K"] == 3 and payload["dmax"] == 2
     assert report["n_states"]["labelled"] > 0 and "wall_seconds" in report["timing"]
+    assert payload["kind"] == "score" and "false_best_rate" in report and "two_way_abs_sum" in report
     router = AdvRouter.from_payload(payload)
     j, a, scores = router.best(0, np.array([0.1, -0.2]))
     assert j in (1, 2) and set(scores) == {1, 2} and np.isfinite(a)
+
+
+def test_score_router_is_one_ranking_per_source_chart():
+    """A(i->j) = s_j - s_i: antisymmetric and cycle-free among receivers at a fixed state."""
+    from atlas_rom.rom.adv_router import AdvRouter, ScoreNet
+    torch.manual_seed(0)
+    net = ScoreNet(2, 3).double()
+    r = AdvRouter(net, 2, 3, [np.ones(2)] * 3, 0.1, kind="score")
+    u = np.array([0.3, -0.7])
+    s = r.scores(1, u)
+    assert np.isclose(r.adv(1, u, 0), s[0] - s[1]) and np.isclose(r.adv(1, u, 2), s[2] - s[1])
+    # chained advantages through a third chart agree with the direct one (no cycles)
+    assert np.isclose((s[2] - s[0]) + (s[0] - s[1]), r.adv(1, u, 2))
+
+
+def test_legacy_pairwise_payload_still_loads():
+    from atlas_rom.rom.adv_router import AdvRouter
+    net = Net(2, 2).double()
+    payload = {"state": net.state_dict(), "dmax": 2, "K": 2, "sc": [np.ones(2)] * 2, "eps": 0.1}
+    r = AdvRouter.from_payload(payload)
+    assert r.kind == "pair"
+    j, a, _ = r.best(0, np.array([0.1, 0.2]))
+    assert j == 1 and np.isfinite(a)
 
 
 # ---------------------------------------------------------------- package / loader / runtime
@@ -189,3 +213,28 @@ def test_router_build_rebuilds_the_staged_models_from_the_raw_artifact():
     assert len(models) == rom.n_patches
     u = torch.as_tensor(np.asarray(rom.anchors[0][:3], float))
     assert torch.allclose(models[0].decode(u), rom.models[0].decode(u))
+
+
+class _SpinBody(torch.nn.Module):
+    """One body rotating about z by u[0], at the origin."""
+
+    def transforms(self, U):
+        c, s = torch.cos(U[:, 0]), torch.sin(U[:, 0])
+        z, o = torch.zeros_like(c), torch.ones_like(c)
+        R = torch.stack([torch.stack([c, -s, z], -1), torch.stack([s, c, z], -1), torch.stack([z, z, o], -1)], -2)
+        return torch.cat([R, torch.zeros(len(U), 3, 1, dtype=U.dtype)], -1).unsqueeze(1)
+
+
+def test_dynamics_mismatch_reads_mass_factor_and_force_error_against_the_teacher():
+    m, Izz, g = 2.0, 0.5, 9.8
+    bodies = {"masses": np.array([m]), "inertia": np.diag([0.1, 0.1, Izz])[None], "com": np.array([[1.0, 0.0, 0.0]]),
+              "up": np.array([0.0, 1.0, 0.0]), "gravity": g}
+    M_true = m + Izz                                                   # |dp/du|^2 m + Izz
+    mass_field = lambda U: torch.full((len(U), 1, 1), 2.0 * M_true, dtype=torch.float64)      # learned = 2 x teacher
+    zero_potential = lambda x: 0.0 * x.sum()                                                  # learned force = 0
+    u = 0.3
+    (row,) = L.dynamics_mismatch([_SpinBody()], [mass_field], [zero_potential], bodies, [np.array([[u]])])[0]
+    d_m, f_err, f_ref = row
+    grad_true = m * g * np.cos(u)                                      # V = m g sin(u)
+    assert np.isclose(d_m, np.log(2.0))
+    assert np.isclose(f_ref, abs(grad_true) / np.sqrt(M_true)) and np.isclose(f_err, f_ref)

@@ -9,12 +9,10 @@ DOF, counted the way the mechanism actually closes (planar, 2 driven bodies):
     2   =  shoulder angle + elbow angle
 
 Unlike `five_bar` or `pantograph_2d`, this chain never closes back on itself, so
-there is no coupler triangle to solve and no discrete elbow-in/elbow-out branch:
-the two joint angles ARE a valid global coordinate, injective everywhere on the
-2-torus they sweep.  That is what makes this the simplest possible case in the
-"contact-free ideal joint" family — declared `joint_angle` coordinates, no
-chart discovery, no closure loss, `sampler="analytic"` (the default the spec
-picks for `contact_model="none"`).
+there is no coupler triangle to solve and no discrete elbow-in/elbow-out branch.
+No coordinates are declared: the learner receives only simulator-produced poses
+and discovers its own charts.  The expected answer lives in
+`EVALUATOR_REFERENCE`, which only the evaluator reads.
 
 Geometry is rest-world-baked (bodies start at transform = identity, links given
 in world coordinates directly) matching the convention used throughout
@@ -23,9 +21,7 @@ drives the swing the way a physical double pendulum would.
 """
 from __future__ import annotations
 
-import math
-
-from atlas_rom.spec.case_spec import ActuatorDef, AtlasCaseSpec, BodyDef, BuildOptions, CoordinateDef, JointDef, MechanismSpec, MeshSpec, SamplingOptions
+from atlas_rom.spec.case_spec import ActuatorDef, AtlasCaseSpec, BodyDef, BuildOptions, CanonicalOptions, JointDef, MechanismSpec, MeshSpec, SamplingOptions
 
 Z = [0.0, 0.0, 1.0]                       # both hinges are planar about +z
 LINK_1 = 0.9
@@ -63,12 +59,8 @@ CASE = AtlasCaseSpec(
         gravity=9.8,
     ),
     contact_model="none",                # ideal joints, open chain, no closure
-    coordinates=[
-        CoordinateDef("shoulder_angle", topology="periodic", period=2.0 * math.pi,
-                      source="joint_angle", args={"joint": "shoulder"}),
-        CoordinateDef("elbow_angle", topology="periodic", period=2.0 * math.pi,
-                      source="joint_angle", args={"joint": "elbow"}),
-    ],
+    # Discovery receives no coordinate labels, UVs, or declared chart count.
+    coordinates=[],
     actuators=[
         ActuatorDef("shoulder torque", kind="joint_torque",
                     target="shoulder", hi=40.0),
@@ -76,12 +68,21 @@ CASE = AtlasCaseSpec(
                     target="elbow", hi=20.0),
     ],
     build=BuildOptions(
-        # Both angles sweep a full 2*pi; observed coverage has area (2*pi)^2,
-        # so 2*pi/sqrt(1000) targets the requested sample density (same
-        # heuristic as twin_independent_pistons' independent 2*pi cranks).
-        sampling=SamplingOptions(n_samples=1000, step=2.0 * math.pi / math.sqrt(1000),
-                                 max_seconds=600,
+        # step sizes the front for ~800 samples: the C-space area in the packed
+        # 24-D pose metric is ~108.6, and the front accepts ~0.70*step^2 of area
+        # per sample (calibrated on spherical_pendulum's exact S^2), so
+        # step = sqrt(108.6 / (0.70 * 800)) ~= 0.44.  No sample cap: the
+        # frontier must close on its own for the dataset to be trainable.
+        sampling=SamplingOptions(n_samples=None, step=0.44,
+                                 max_seconds=1800,
                                  tangent_eps=0.04, tangent_rel_tol=0.20),
+        canonical=CanonicalOptions(enabled=True, residual_discovery=True,
+                                   autoencoder_charts=True),
     ),
     scenarios={"default": {"dt": 1e-3}},
 )
+
+# The learner never receives this assertion; it is checked independently by the
+# evaluator/test harness.
+EVALUATOR_REFERENCE = {"configuration_space": "T^2", "intrinsic_dimension": 2,
+                       "representation": "shoulder and elbow joint angles"}

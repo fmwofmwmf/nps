@@ -468,6 +468,10 @@ def _select_oracle(spec, options, seed_hint, log, *, sdf_system=None):
     settle["actuated_bodies"] = options.actuated_bodies
     settle["initial_configuration"] = seed_hint
     settle["hold_drive_during_projection"] = options.hold_drive_during_projection
+    settle["projection_mode"] = options.projection_mode
+    settle["newton_velocity_tol"] = options.newton_velocity_tol
+    settle["proximal_tol"] = options.proximal_tol
+    settle["proximal_max_steps"] = options.proximal_max_steps
     return build_oracle(spec, log=log, **settle), False
 
 

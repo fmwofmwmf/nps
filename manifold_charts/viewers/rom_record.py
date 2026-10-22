@@ -43,4 +43,6 @@ class Recorder:
                 arrays[k] = np.asarray(vs)
         np.savez(os.path.join(out, "frames.npz"), pose=np.asarray(self.pose), time=np.asarray(self.time), fps=fps, dt=dt,
                  body_order=np.asarray(list(self.sim.rom.body_order)), **arrays, **(static or {}))
-        np.savez(os.path.join(out, "meshes.npz"), **{f"{k}_{i}": np.asarray(a) for i, (V, Fc) in enumerate(self.sim.mesh_local) for k, a in (("V", V), ("F", Fc))})
+        colors = getattr(self.sim, "mesh_color", None)
+        colors = {"color": np.asarray(colors, float)} if colors and all(c is not None for c in colors) else {}   # case rgb per body, read by blender_import_rom --case-colors
+        np.savez(os.path.join(out, "meshes.npz"), **{f"{k}_{i}": np.asarray(a) for i, (V, Fc) in enumerate(self.sim.mesh_local) for k, a in (("V", V), ("F", Fc))}, **colors)

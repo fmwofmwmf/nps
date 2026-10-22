@@ -1085,6 +1085,16 @@ class CompetitiveCAEFitter:
             # squared log was unbounded, and a newly admitted pinched pose drew
             # 2-10 (100-1000x reconstruction), whose gradient wrecked the chart.
             pinch = torch.relu(1.0 - ratio / max(_COMPRESSION_RATIO_FLOOR, 1e-9)) * nondegenerate
+            # Per-pair tear: a physical neighbour pair whose latent gap blows up far beyond the chart's own typical
+            # stretch (a wrapped chart's two ends meeting).  Smooth hinge on log stretch above
+            # max_distortion_spread^2 x the chart's median (detached): ordinary distortion (<= ~2-5x median in
+            # healthy atlases) pays ~0, a tear ~log^2 of its excess.  Charged per pose (below), like alias, so it
+            # competes with reconstruction / cover demand AT the torn poses instead of being diluted over every pair.
+            tear = torch.zeros_like(log_r)
+            if bool(nondegenerate.any()):
+                ref = (torch.quantile(log_r[nondegenerate].detach(), 0.5)
+                       + 2.0 * float(np.log(max(float(max_distortion_spread), 1.0))))
+                tear = torch.relu(log_r - ref).square() * nondegenerate
             if not compute_distortion:
                 distortion = torch.zeros((), dtype=Q.dtype, device=Q.device)
             else:
@@ -1178,7 +1188,13 @@ class CompetitiveCAEFitter:
             incident_count.index_add_(0, a_t, torch.ones_like(weights))
             incident_count.index_add_(0, b_t, torch.ones_like(weights))
             alias = alias / incident_count.clamp_min(1.0)
-            per_pose = recon + .1 * cycle + float(validity_weight) * valid + alias_weight * alias
+            # Tear charged to its two endpoint poses: where another chart holds them, letting one go (its
+            # reconstruction drifts, its live pair weight falls) becomes cheaper than keeping both ends of a tear.
+            tear_pose = torch.zeros(n_local, dtype=Q.dtype, device=Q.device)
+            tear_pose.index_add_(0, a_t, weights * tear)
+            tear_pose.index_add_(0, b_t, weights * tear)
+            tear_pose = tear_pose / incident_count.clamp_min(1.0)
+            per_pose = recon + .1 * cycle + float(validity_weight) * valid + alias_weight * alias + tear_pose
             return per_pose, distortion, (recon, cycle, valid, alias, u, pred, dp, dz, tangent, nondegenerate)
 
         # Farthest-point seeding in the permitted physical pose metric gives
@@ -2032,6 +2048,11 @@ class CompetitiveCAEFitter:
         boundary_collar = np.zeros(n, dtype=bool)
         phase1_stable_streak = 0
         core_protection_need = np.ones((n, len(models)), dtype=float)
+        # Interior-only release floor (n, K): 1 - max_{j!=i} depth_j, see _release_floor.
+        release_floor = np.ones((n, len(models)), dtype=float)
+        # Monotone covered set (phase 2 and the polish): poses covered at the end of phase 1, plus every pose that
+        # becomes covered later.  Never shrinks; held by the keep-covered hinge.
+        covered_monotone = None
         # Per-(pose, chart) recon+validity loss cached at the last E-step; the
         # core-protection hinge penalises the live loss rising above it + margin.
         core_loss_cache = np.full((n, len(models)), np.inf)
@@ -2873,6 +2894,43 @@ class CompetitiveCAEFitter:
             Q = _POLICY_EPS + demand[:, None] * H * eligible
             return np.clip(Q, 1e-9, None)
 
+        def _release_floor(competence):
+            """(n, K) floor on a chart's specialization weight: 1 - max_{j!=i} depth_j(p).
+
+            depth_j(p) = min(competence_j(p), min over p's physical neighbours of competence_j): high only where
+            chart j covers p AND its neighbourhood (p is interior to j).  A chart may relax its weight on p only as
+            far as some other chart holds p in its interior; at another chart's boundary (a seam) it keeps full
+            weight, so a seam moves by takeover first, release second, and never opens a gap.
+            """
+            comp = np.asarray(competence, float)
+            if comp.shape[1] < 2:
+                return np.ones_like(comp)
+            depth = comp.copy()
+            np.minimum.at(depth, physical_edges[:, 0], comp[physical_edges[:, 1]])
+            np.minimum.at(depth, physical_edges[:, 1], comp[physical_edges[:, 0]])
+            top2 = np.partition(depth, -2, axis=1)[:, -2:]
+            best, second = top2[:, 1], top2[:, 0]
+            other = np.where(depth >= best[:, None] - 1e-12, second[:, None], best[:, None])
+            return 1.0 - other
+
+        def _keep_covered_loss(*, sample=True):
+            """Hinge holding the monotone covered set: for each pose in it, the best chart's reconstruction must stay
+            under (1 - protect_margin_frac) x threshold_topo.  Softmin over charts (temperature thr/5, the competence
+            slope) pulls whichever chart is best, never a fixed owner; zero while every pose is held."""
+            if covered_monotone is None or not covered_monotone.any():
+                return torch.zeros((), dtype=Q.dtype, device=Q.device)
+            ids = np.flatnonzero(covered_monotone)
+            count = max(32, int(m_step_batch_size))
+            if sample and len(ids) > count:
+                ids = rng.choice(ids, size=count, replace=False)
+            poses = Q[torch.as_tensor(ids, dtype=torch.long, device=Q.device)]
+            tiled = poses.unsqueeze(0).expand(len(models), -1, -1)
+            err = _recon(ensemble_decode(ensemble_encode(tiled)), tiled)              # (K, m)
+            thr = float(threshold_topo)
+            tau = max(thr / 5.0, 1e-12)
+            soft = -tau * torch.logsumexp(-err / tau, dim=0)
+            return torch.relu(soft / thr - (1.0 - float(protect_margin_frac))).mean()
+
         def _protection_need(reconstruction):
             """(rv_competence, core_protection_need) for the current chart set.
 
@@ -2900,7 +2958,7 @@ class CompetitiveCAEFitter:
             nonlocal zero_exclusive_streak, chart_ids
             nonlocal core_loss_cache, _rebatch_needed, shell_priority
             nonlocal phase1_stable_streak, boundary_collar
-            nonlocal core_protection_need
+            nonlocal core_protection_need, release_floor, covered_monotone
             nonlocal _last_shell_absorbed_per_chart
             nonlocal certificate_gate
             nonlocal _prev_core_mask, _prev_shell_union
@@ -2930,6 +2988,9 @@ class CompetitiveCAEFitter:
             multiplicity = cover_competent.sum(1).astype(float)
             coverage_complete = bool(cover_competent.any(1).all())
             rv_competence, core_protection_need = _protection_need(e_step_reconstruction)
+            release_floor = _release_floor(rv_competence)
+            if phase == 2 and covered_monotone is not None:
+                covered_monotone |= cover_competent.any(1)
             boundary_collar = _learned_boundary_collar(ownership, cover_competent, rv_competence)
             locally_certified = bool(hard_competent.any(1).all())
             # Completion is a local-atlas condition: a feasible one-cover,
@@ -3158,7 +3219,8 @@ class CompetitiveCAEFitter:
                         e_step_reconstruction, e_step_validity, gate)
                     # The pre-retirement need counted the retired chart as an
                     # "other" cover (need ~0 on its territory) and has its column.
-                    _, core_protection_need = _protection_need(e_step_reconstruction)
+                    _rv_comp, core_protection_need = _protection_need(e_step_reconstruction)
+                    release_floor = _release_floor(_rv_comp)
                     membership = ownership
                     if monotone_frontier:
                         # No new admission here -- only the chart set shrank;
@@ -3516,6 +3578,15 @@ class CompetitiveCAEFitter:
                     core_w = torch.as_tensor(np.clip(claims[ids[core_loc], chart], 1e-9, None),
                                              dtype=per.dtype, device=per.device)
                     L = (core_w * per[core_t]).sum() / core_w.sum()
+                elif phase == 2:
+                    # Phase-2 specialization: the chart that is best at a pose trains on it at full weight; the
+                    # others relax toward the rho floor ONLY where another chart holds the pose in its interior
+                    # (release_floor), so seams keep full weight and boundaries move by takeover, not by gaps.
+                    # The weights are the annealed phase-2 responsibilities, so capacity moves to where it wins.
+                    resp_w = np.maximum(np.maximum(np.asarray(responsibilities)[ids[core_loc], chart], float(rho)),
+                                        release_floor[ids[core_loc], chart])
+                    core_w = torch.as_tensor(resp_w, dtype=per.dtype, device=per.device)
+                    L = (core_w * per[core_t]).sum() / core_w.sum()
                 else:
                     L = per[core_t].mean()
                 _L_core = float(L.detach()) if epoch_trace else 0.0
@@ -3580,7 +3651,7 @@ class CompetitiveCAEFitter:
                 if phase == 2:
                     # ``threshold_fit`` is the actual final accuracy target,
                     # not merely a reported diagnostic.
-                    L = L + 2.0 * torch.relu(rv[core_t] - float(threshold_fit)).mean()
+                    L = L + 2.0 * (core_w * torch.relu(rv[core_t] - float(threshold_fit))).sum() / core_w.sum()
                 _L_protect = float(L.detach()) if epoch_trace else 0.0
                 chart_L.append(L)
                 if epoch_trace:
@@ -3610,8 +3681,15 @@ class CompetitiveCAEFitter:
                         absorbed.append(float((rv[probe_t] < float(threshold_topo)).double().mean()))
             objective = torch.stack(chart_L).mean()
             _obj_terms = {"chart": objective} if epoch_trace else None   # trace-only references
-            cover_target = float(threshold_topo) if phase == 1 else float(threshold_fit)
+            # Cover threshold in both phases: against threshold_fit (the phase-2 accuracy target) every pose
+            # reads uncovered, the sigmoid saturates and the term carries no gradient.
+            cover_target = float(threshold_topo)
             _cov_term = 0.5 * _coverage_margin_loss(cover_target, phase)
+            if phase == 2:
+                _keep_term = _keep_covered_loss()
+                _cov_term = _cov_term + _keep_term
+                if epoch_trace:
+                    _trace_margin.update(keep_covered=float(_keep_term.detach()))
             objective = objective + _cov_term
             if epoch_trace:
                 _obj_terms["coverage_margin"] = _cov_term
@@ -3795,6 +3873,7 @@ class CompetitiveCAEFitter:
         # gate-excluded poses (~20% on genus surfaces) out of every phase-2
         # batch, so 60 fresh-LR epochs drift the decoder off them -- exactly the
         # slop visible in a D(E(q)) overlay and fatal for a mechanism's joints.
+        covered_monotone = np.asarray(cover_competent, bool).any(1).copy()
         frozen_owned = [np.flatnonzero(cover_competent[:, i]) if cover_competent[:, i].any()
                         else np.flatnonzero(responsibilities.argmax(1) == i)
                         for i in range(len(models))]
@@ -3865,13 +3944,27 @@ class CompetitiveCAEFitter:
                     & (polish_angles <= float(threshold_topo_angle_deg)) & (polish_folds >= float(fold_ratio_floor)),
                     pairs, n)
                 sels = []
+                # Every pose of the monotone covered set is trained by its currently best chart, even outside that
+                # chart's largest competent component: a covered pose in no chart's set is a pose the polish drops.
+                best_chart = err_all.argmin(0).cpu().numpy()
+                held = covered_monotone if covered_monotone is not None else np.zeros(n, bool)
                 for k in range(n_k):
-                    sel = torch.as_tensor(np.flatnonzero(polish_competent[:, k]), dtype=torch.long, device=Q.device)
+                    own = polish_competent[:, k] | (held & (best_chart == k))
+                    sel = torch.as_tensor(np.flatnonzero(own), dtype=torch.long, device=Q.device)
                     sels.append(sel if len(sel) >= 40 else err_all[k].argsort()[:120])
                 n_pad = max(len(x) for x in sels)
                 pad_idx = torch.stack([torch.cat([x, x[:1].repeat(n_pad - len(x))]) for x in sels])
                 pad_mask = torch.stack([torch.cat([torch.ones(len(x)), torch.zeros(n_pad - len(x))])
                                         for x in sels]).to(dtype=Q.dtype, device=Q.device)
+                # Same specialization weights as the phase-2 M-step: full weight where the chart is the best
+                # (responsibility); relax toward rho only where another chart holds the pose in its interior.
+                _pi = pad_idx.cpu().numpy()
+                _comp = 1.0 / (1.0 + np.exp(np.clip((err_all.T.cpu().numpy() - float(threshold_topo)) /
+                                                    max(float(threshold_topo) / 5.0, 1e-12), -60.0, 60.0)))
+                _floor = _release_floor(_comp)
+                _rw = np.maximum(np.maximum(np.asarray(responsibilities)[_pi, np.arange(n_k)[:, None]], float(rho)),
+                                 _floor[_pi, np.arange(n_k)[:, None]])
+                pad_mask = pad_mask * torch.as_tensor(_rw, dtype=Q.dtype, device=Q.device)
                 X_pad, pad_count = Q[pad_idx], pad_mask.sum(1)
                 # The polish must also hold the decoder tangent plane to the observed simulator frame: recon +
                 # closure alone drive pose agreement in the seam while leaving the tangent free to bend there.
@@ -3902,7 +3995,8 @@ class CompetitiveCAEFitter:
 
                 def _polish_losses():
                     fit, tangent = _polish_terms()
-                    return fit + float(tangent_weight) * tangent
+                    # the keep-covered hinge is shared; split it evenly so the per-chart accept test still applies
+                    return fit + float(tangent_weight) * tangent + _keep_covered_loss(sample=False) / n_k
 
                 round_tick = time.perf_counter()
                 backup = {name: value.detach().clone() for name, value in ensemble_params.items()}

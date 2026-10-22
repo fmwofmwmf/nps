@@ -653,6 +653,14 @@ class SamplingOptions:
     # their poses must be solved from joints/contact, not independently driven
     # toward an inconsistent predicted transform.
     actuated_bodies: list[str] | None = None
+    # libuipc contact oracle: "drive_relax" (soft drive, then relax frames) or
+    # "proximal_step" (one implicit step whose inertial target is the command).
+    projection_mode: str = "drive_relax"
+    # Newton displacement tolerance is newton_velocity_tol * dt; proximal_step
+    # needs it well below proximal_tol's scale (None keeps libuipc's 0.05).
+    newton_velocity_tol: float | None = None
+    proximal_tol: float = 1e-5        # fixed-point tolerance of proximal_step
+    proximal_max_steps: int = 8
 
     def to_dict(self) -> dict:
         return {"sampler": self.sampler,
@@ -680,7 +688,11 @@ class SamplingOptions:
                 "continuation_replay_window": self.continuation_replay_window,
                 "d_hat": self.d_hat, "max_kappa": self.max_kappa,
                 "newton_max_iter": self.newton_max_iter,
-                "actuated_bodies": self.actuated_bodies}
+                "actuated_bodies": self.actuated_bodies,
+                "projection_mode": self.projection_mode,
+                "newton_velocity_tol": self.newton_velocity_tol,
+                "proximal_tol": self.proximal_tol,
+                "proximal_max_steps": self.proximal_max_steps}
 
     @classmethod
     def from_dict(cls, d: dict) -> "SamplingOptions":

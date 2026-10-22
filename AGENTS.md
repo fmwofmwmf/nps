@@ -35,10 +35,12 @@ runtime gate is evidence of a problem, never its fix.  Do not respond to an
 AE/transition aliasing or folding failure by adding another routing model,
 lookup, or rejection gate as the primary solution.  Fix the chart method:
 train off-anchor decoder probes to remain on the local physical manifold,
-train AE overlap replay across local source neighbourhoods, enforce physical
-separation in latent coordinates, and automatically shrink/split charts that
-cannot satisfy those properties.  Runtime must remain learned-field/AE based
-with no topology declaration or training-data membership lookup.
+train AE overlap replay across local source neighbourhoods, and enforce
+physical separation in latent coordinates.  Charts must not be shrunk or split
+manually (masking, releasing, or reassigning poses by rule); a chart's extent
+may change only through its training losses.  Runtime must remain
+learned-field/AE based with no topology declaration or training-data
+membership lookup.
 
 ### Physical chart atlas: strict no-priors / no-cheating policy
 
@@ -170,3 +172,21 @@ pipeline changes to shared code that now apply to every case.
   (see `patch_atlas.py` `build()` / `main()` for the pattern).
 - `competitive_cae` device choice: batched / parallel sweeps use
   `device="cuda"`; single one-off runs use `device="cpu"`.
+- IPC pre-flight check (mandatory).  Anything that touches an IPC system --
+  libuipc scenes, `contact_model != "none"` cases, IPC meshes/geometry
+  (SDFs, distance grids, contact preprocessing), oracles, samplers,
+  benchmarks, scratch scripts -- must be double-checked for crash and
+  resource risk BEFORE it runs, and the check reported to the user with the
+  run preview.  The check states, with numbers computed or bounded before
+  any heavy allocation:
+  - peak RAM and GPU memory (array sizes, grid cell counts, batch sizes,
+    per-call library allocations such as trimesh proximity queries);
+  - disk writes (outputs, logs, caches, checkpoints) and that nothing can
+    push the machine into swap;
+  - crash/hang modes (`world.advance()` stalls, near-singular contact,
+    CUDA OOM, solver retries) and the OS-level timeout that bounds them;
+  - wall-time estimate.
+  Scripts must enforce the bounds themselves: compute sizes first and abort
+  if over budget, process in bounded chunks, never build an unbounded dense
+  array.  An estimate that was not checked against the actual sizes does not
+  count.

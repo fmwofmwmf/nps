@@ -240,6 +240,8 @@ def build_oracle(spec, *, dt=0.01, abd_stiffness=None, joint_strength=1e9,
                  newton_max_iter=None,
                  gravity=0.0, actuated_bodies=None, initial_configuration=None,
                  hold_drive_during_projection=False,
+                 projection_mode="drive_relax", newton_velocity_tol=None,
+                 proximal_tol=1e-5, proximal_max_steps=8,
                  log=print):
     """MechanismSpec -> a ready `LibuipcConfigOracle` (world already initialized).
 
@@ -296,6 +298,10 @@ def build_oracle(spec, *, dt=0.01, abd_stiffness=None, joint_strength=1e9,
             float(cfg["contact"]["adaptive"]["min_kappa"]), float(max_kappa))
     if newton_max_iter is not None:
         cfg["newton"]["max_iter"] = int(newton_max_iter)
+    if newton_velocity_tol is not None:
+        # Newton stops when max |dx| / dt < velocity_tol, i.e. an absolute
+        # displacement tolerance of velocity_tol * dt.
+        cfg["newton"]["velocity_tol"] = float(newton_velocity_tol)
     scene = Scene(cfg)
     scene.contact_tabular().default_model(0.5, 1.0 * GPa)
     scene.animator().substep(1)
@@ -567,11 +573,41 @@ def build_oracle(spec, *, dt=0.01, abd_stiffness=None, joint_strength=1e9,
 
     world.init(scene)
     world.retrieve()
+    accessor = body_index = None
+    if projection_mode == "proximal_step":
+        if any(j.kind == "cylindrical" for j in mech.joints):
+            raise NotImplementedError(
+                "projection_mode='proximal_step' does not support the reduced "
+                "cylindrical wrapper yet")
+        from uipc.core import AffineBodyStateAccessorFeature
+        accessor = world.features().find(AffineBodyStateAccessorFeature)
+        if accessor is None:
+            raise RuntimeError("this uipc build has no AffineBodyStateAccessorFeature")
+        # Backend ABD rows follow geometry creation order; the declared bodies
+        # are created first, before any helper (world/carriage) body.
+        body_index = {b.name: i for i, b in enumerate(mech.bodies)}
+        if accessor.body_count() < len(mech.bodies):
+            raise RuntimeError(f"accessor reports {accessor.body_count()} ABD bodies, "
+                               f"spec declares {len(mech.bodies)}")
+        probe = accessor.create_geometry()
+        from uipc import Matrix4x4
+        probe.instances().create(builtin.transform, Matrix4x4.Zero())
+        accessor.copy_to(probe)
+        rows = np.asarray(view(probe.transforms()), float).reshape(-1, 4, 4)
+        for body in mech.bodies:
+            scene_T = np.asarray(view(slots[body.name].geometry().transforms())[0]).reshape(4, 4)
+            if not np.allclose(rows[body_index[body.name]], scene_T, atol=1e-9):
+                raise RuntimeError(f"accessor row {body_index[body.name]} does not match "
+                                   f"body {body.name!r}; creation-order mapping is wrong")
     raw = LibuipcConfigOracle(world, scene, driven, target, state,
                               drive_iters=drive_iters, relax_iters=relax_iters,
                               settle_tol=settle_tol, probe_count=probe_count,
                               engine=engine, actuated=actuated,
-                              hold_drive_during_projection=hold_drive_during_projection)
+                              hold_drive_during_projection=hold_drive_during_projection,
+                              projection_mode=projection_mode, accessor=accessor,
+                              body_index=body_index, dt=dt,
+                              proximal_tol=proximal_tol,
+                              proximal_max_steps=proximal_max_steps)
     raw.joint_torques = joint_torque
 
     def set_joint_torque(name, value):

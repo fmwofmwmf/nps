@@ -17,6 +17,8 @@ Interface (every driver)::
   pose    kinematic: solve the learned decoder for the requested actuator angles (`--joint NAME=START[:END]`, ramped over `--seconds`), no dynamics.  The way to get a still or a prescribed sweep.
   joints  dynamic: joint-space computed-torque PD on the ROM's own dynamics (`joint_pd_controls`).  Only as good as the learned fields; it saturates and stalls where they are wrong.
   pen     task-space PD drives a pen along a closed curve while balls rain on the mechanism (the pantograph clip).  Needs the case's `PEN_TARGET` hook.
+  torque  constant open-loop torque on one actuator (`--torque`), ending after `--laps` revolutions of its joint or at `--seconds`.
+  release  place the ROM at the `--joint` START angles (the pose driver's solve, unrecorded, zero momentum), then let go: free dynamics, no control.
 """
 from __future__ import annotations
 
@@ -45,7 +47,7 @@ class Driver:
         self.args = args
 
     def make_sim(self, rom, args):
-        return RomBase(rom, dt=args.dt, damping=args.damping)
+        return RomBase(rom, dt=args.dt, damping=args.damping, gravity=getattr(args, "gravity", None))
 
     def prepare(self, sim, spf):
         return {}
@@ -173,8 +175,10 @@ class JointDriver(JointTargets):
 
 
 class PoseDriver(JointTargets):
-    """Levenberg-Marquardt on the latent coordinate so the decoded pose has the requested actuator angles; warm-started from the previous frame and handed between charts through
-    `rom.encode`.  Nothing is integrated, so the pose is exactly what the decoder says; the residual is reported and a miss beyond `--solve-tol` aborts rather than render a wrong pose."""
+    """Levenberg-Marquardt on the latent coordinate so the decoded pose has the requested actuator angles AND keeps every declared joint closed; warm-started from the previous
+    frame and handed between charts through `rom.encode`.  Angles alone are relative rotations and leave link positions free, so an angle-only solve can push a chart off its
+    domain into a torn pose with exact angles; the joint-gap rows rule that out.  Nothing is integrated, so the pose is exactly what the decoder says; a miss beyond `--solve-tol`
+    (angles) or `--closure-tol` (worst joint gap) aborts rather than render a wrong pose."""
     name = "pose"
 
     @staticmethod
@@ -182,68 +186,110 @@ class PoseDriver(JointTargets):
         JointTargets.add_args(ap)
         g = ap.add_argument_group("pose driver")
         g.add_argument("--solve-tol", type=float, default=1e-3, help="largest acceptable joint-angle residual in radians")
+        g.add_argument("--closure-tol", type=float, default=5e-3, help="largest acceptable joint gap (distance between a joint pivot's two images, grounded joints included)")
 
-    def _angles_fn(self, sim, ch, idx):
+    def _residual_fn(self, sim, ch, idx, tgt):
+        """u -> (angle errors, then the xyz gap of every declared joint pivot), so one LM drives both to zero."""
         import torch
         from atlas_rom.rom import ops
+        from atlas_rom.charts.validity import closure_attachments
         rom = sim.rom
         joints = [sim.joints[k] for k in idx]
+        att = closure_attachments(rom.case, include_grounded=True)
+        if att is not None:
+            ia, pa, ib, pb = att
+            ground = torch.as_tensor(ib < 0)
+            ib = np.where(ib < 0, 0, ib)
+            pa, pb = torch.as_tensor(pa, dtype=torch.float64), torch.as_tensor(pb, dtype=torch.float64)
 
         def f(u):
             Tm = rom.models[ch].transforms(u.unsqueeze(0)).squeeze(0)
-            return torch.stack([ops.joint_angle_torch(Tm, j, rom.body_order) for j in joints])
+            ang = torch.stack([ops.joint_angle_torch(Tm, j, rom.body_order) for j in joints])
+            e = torch.remainder(tgt - ang + np.pi, 2 * np.pi) - np.pi
+            if att is None:
+                return e
+            wa = (Tm[ia, :, :3] @ pa.unsqueeze(-1)).squeeze(-1) + Tm[ia, :, 3]
+            wb = (Tm[ib, :, :3] @ pb.unsqueeze(-1)).squeeze(-1) + Tm[ib, :, 3]
+            wb = torch.where(ground.unsqueeze(-1), pb, wb)
+            return torch.cat([e, (wa - wb).reshape(-1)])
         return f
 
-    def _solve(self, sim, ch, u0, tg, idx, iters=60):
+    def _solve(self, sim, ch, u0, tg, idx, iters=80):
+        """-> (u, worst angle error in rad, worst joint gap)."""
         import torch
-        f = self._angles_fn(sim, ch, idx)
-        u = torch.as_tensor(np.asarray(u0, float)).clone()
         tgt = torch.as_tensor([tg[k] for k in idx], dtype=torch.float64)
-        wrap = lambda e: torch.remainder(e + np.pi, 2 * np.pi) - np.pi
+        f = self._residual_fn(sim, ch, idx, tgt)
+        n = len(idx)
+        u = torch.as_tensor(np.asarray(u0, float)).clone()
         lam = 1e-3
-        fv = lambda z: f(z).detach()
-        err = wrap(tgt - fv(u))
+        r = f(u).detach()
         for _ in range(iters):
-            if float(err.abs().max()) < 1e-6:
+            if float(r.abs().max()) < 1e-7:
                 break
-            J = torch.autograd.functional.jacobian(f, u)                 # (n, d)
-            step = torch.linalg.solve(J.T @ J + lam * torch.eye(len(u), dtype=torch.float64), J.T @ err)
-            new = wrap(tgt - fv(u + step))
-            if float(new.abs().max()) < float(err.abs().max()):
-                u, err, lam = u + step, new, max(lam * 0.3, 1e-9)
+            J = torch.autograd.functional.jacobian(f, u)                 # (n + 3 * joints, d)
+            step = torch.linalg.solve(J.T @ J + lam * torch.eye(len(u), dtype=torch.float64), -J.T @ r)
+            new = f(u + step).detach()
+            if float(new @ new) < float(r @ r):
+                u, r, lam = u + step, new, max(lam * 0.3, 1e-9)
             else:
                 lam *= 10.0
-        return u.detach().numpy(), float(err.abs().max())
+        gap = float(r[n:].reshape(-1, 3).norm(dim=1).max()) if len(r) > n else 0.0
+        return u.detach().numpy(), float(r[:n].abs().max()), gap
 
     def _pose_to(self, sim, t):
         idx, tg = self.joint_idx(sim), self.targets(sim, t)
         st = sim.trk.state
         cur, q = int(st["chart"]), np.asarray(sim.pose(), float).reshape(-1)
-        best = None
+        a, best = self.args, None
         for c in [cur] + [c for c in range(len(sim.rom.models)) if c != cur]:
             u0 = st["u"] if c == cur else np.asarray(sim.rom.encode(c, q), float)
-            u, res = self._solve(sim, c, u0, tg, idx)
-            if best is None or res < best[2]:
-                best = (c, u, res)
-            if res < self.args.solve_tol:
+            u, res, gap = self._solve(sim, c, u0, tg, idx)
+            score = max(res / a.solve_tol, gap / a.closure_tol)              # <= 1 means both within tolerance
+            if best is None or score < best[4]:
+                best = (c, u, res, gap, score)
+            if score <= 1.0:
                 break
-        c, u, res = best
+        c, u, res, gap, score = best
         self.worst = max(self.worst, res)
-        if res > self.args.solve_tol:
+        self.worst_gap = max(self.worst_gap, gap)
+        if score > 1.0:
             want = {sim.acts[k].name: round(tg[k], 4) for k in idx}
-            raise SystemExit(f"pose driver: no chart reaches {want} (best residual {res:.4f} rad > --solve-tol {self.args.solve_tol}); the targets are probably outside the mechanism's reachable range")
+            raise SystemExit(f"pose driver: no chart reaches {want} with closed joints (best: angle residual {res:.4f} rad vs --solve-tol {a.solve_tol}, "
+                             f"joint gap {gap:.4f} vs --closure-tol {a.closure_tol}); the targets may be outside the mechanism's reachable range or outside every chart's domain")
         st.update(chart=c, u=np.asarray(u, float), p=np.zeros_like(u), time=float(t))
 
     def prepare(self, sim, spf):
-        self.worst = 0.0
+        self.worst, self.worst_gap = 0.0, 0.0
         self._pose_to(sim, 0.0)
-        return {"kinematic": True, "solve_residual": self.worst}
+        return {"kinematic": True, "solve_residual": self.worst, "solve_joint_gap": self.worst_gap}
 
     def advance(self, sim, spf, t):
         self._pose_to(sim, t + spf * sim.settings.dt)
 
     def report(self, sim):
-        return {"actuators": self.names, "targets": self.spec, "worst_solve_residual": self.worst, "closure_residual": sim.closure(sim.pose()), "chart": int(sim.trk.state["chart"])}
+        return {"actuators": self.names, "targets": self.spec, "worst_solve_residual": self.worst, "worst_solve_joint_gap": self.worst_gap,
+                "closure_residual": sim.closure(sim.pose()), "chart": int(sim.trk.state["chart"])}
+
+
+class ReleaseDriver(PoseDriver):
+    """Pose at the `--joint` START angles with zero momentum (PoseDriver's latent solve, unrecorded), then step the ROM's free dynamics: gravity and learned
+    fields only, no actuator torque.  The way to drop a mechanism from a chosen configuration, e.g. a double pendulum held off vertical."""
+    name = "release"
+
+    def prepare(self, sim, spf):
+        self.worst, self.worst_gap = 0.0, 0.0
+        self._pose_to(sim, 0.0)
+        return {"release_pose_residual": self.worst, "release_joint_gap": self.worst_gap, "chart": int(sim.trk.state["chart"])}
+
+    def advance(self, sim, spf, t):
+        sim.step(spf)
+
+    def control(self, sim, t):
+        return t >= self.args.seconds or bool(sim.error)
+
+    def report(self, sim):
+        return {"actuators": self.names, "release_angles": {n: v[0] for n, v in self.spec.items()}, "release_pose_residual": self.worst, "release_joint_gap": self.worst_gap,
+                "handoffs": int(sim.trk.state["handoffs"]), "stalls": int(sim.trk.state["stalls"]), "error": sim.error or None}
 
 
 class PenDriver(Driver):
@@ -349,4 +395,49 @@ class PenDriver(Driver):
                 "tracking_error": {"mean": float(te.mean()), "p95": float(np.percentile(te, 95)), "max": float(te.max())} if len(te) else None}
 
 
-DRIVERS = {d.name: d for d in (FreeDriver, RestDriver, PoseDriver, JointDriver, PenDriver)}
+class TorqueDriver(Driver):
+    """Constant open-loop torque on one joint-torque actuator, clipped to its [lo, hi]; the clip ends once that joint has turned `--laps` full revolutions
+    (unwrapped, either direction) or at `--seconds`, whichever comes first.  Records the joint angle, the applied torque and the active chart per frame."""
+    name = "torque"
+
+    @staticmethod
+    def add_args(ap):
+        g = ap.add_argument_group("torque driver")
+        g.add_argument("--torque", type=float, default=5.0, help="constant actuator command (the actuator's own units, e.g. N*m), clipped to its [lo, hi]")
+        g.add_argument("--actuator", default=None, help="actuator name or the joint it drives (default: the first joint-torque actuator)")
+        g.add_argument("--laps", type=float, default=1.0, help="end once the driven joint has turned this many revolutions; --seconds is the safety cap")
+
+    def make_sim(self, rom, args):
+        sim = super().make_sim(rom, args)
+        idx = [k for k, ac in enumerate(sim.acts) if ac.kind == "joint_torque" and (args.actuator is None or args.actuator in (ac.name, ac.target))]
+        if not idx:
+            raise SystemExit(f"--actuator {args.actuator!r} matches no joint-torque actuator; this case has {[(a.name, a.target, a.kind) for a in sim.acts]}")
+        self.k = idx[0]
+        ac = sim.acts[self.k]
+        self.tau = float(np.clip(args.torque, ac.lo, ac.hi))
+        ctl = [0.0] * len(sim.acts)
+        ctl[self.k] = self.tau
+        sim.controller = lambda s: (list(ctl), [])
+        self.prev, self.turned = None, 0.0
+        return sim
+
+    def _track(self, sim):
+        a = float(sim.angles()[self.k])
+        if self.prev is not None:
+            self.turned += ((a - self.prev + np.pi) % (2 * np.pi)) - np.pi
+        self.prev = a
+        return a
+
+    def control(self, sim, t):
+        return abs(self.turned) >= 2 * np.pi * self.args.laps or t >= self.args.seconds or bool(sim.error)
+
+    def extras(self, sim):                                              # called once per recorded frame (including the first), so the unwrap sees every frame
+        return {"joint_angle": self._track(sim), "torque": self.tau, "chart": np.int64(sim.trk.state["chart"])}
+
+    def report(self, sim):
+        return {"actuator": sim.acts[self.k].name, "torque": self.tau, "requested_torque": self.args.torque,
+                "revolutions": self.turned / (2 * np.pi), "complete": bool(abs(self.turned) >= 2 * np.pi * self.args.laps),
+                "handoffs": int(sim.trk.state["handoffs"]), "stalls": int(sim.trk.state["stalls"]), "error": sim.error or None}
+
+
+DRIVERS = {d.name: d for d in (FreeDriver, RestDriver, PoseDriver, JointDriver, PenDriver, TorqueDriver, ReleaseDriver)}

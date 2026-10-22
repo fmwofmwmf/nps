@@ -60,6 +60,7 @@ def parse():
     ap.add_argument("--seconds", type=float, default=0.0, help="recorded clip length in simulated seconds; 0 = a single frame (a still).  The pen driver ends by its own laps/--wait instead")
     ap.add_argument("--dt", type=float, default=0.01)
     ap.add_argument("--damping", type=float, default=0.0)
+    ap.add_argument("--gravity", type=float, default=None, help="gravity magnitude for the ROM runtime (default: the case's own); not wired for --drive pen")
     ap.add_argument("--fps", type=float, default=30.0, help="exported frame rate (steps per frame = round(1 / (fps * dt)))")
     ap.add_argument("--out", default=None)
     b = ap.add_argument_group("blender")
@@ -69,6 +70,8 @@ def parse():
     b.add_argument("--render", default=None, metavar="PNG", help="render one frame to this PNG (relative paths land in the output directory)")
     b.add_argument("--render-frame", type=int, default=0, help="0-based exported frame to render (default 0)")
     b.add_argument("--fast", action="store_true", help="10x fewer Cycles samples, for iterating")
+    b.add_argument("--case-colors", action="store_true", help="colour each body with the case's declared BodyDef.color instead of the cycling paper palette")
+    b.add_argument("--group-colors", action="store_true", help="one colour per body group (the body-name suffix after '@', e.g. one leg of an array case)")
     DRIVERS[drive].add_args(ap)
     return ap.parse_args()
 
@@ -123,6 +126,10 @@ def main():
         cmd = [exe, "-b", "-P", os.path.join(HERE, "blender_import_rom.py"), "--", out, "--camera", args.camera]
         if args.fast:
             cmd.append("--fast")
+        if args.case_colors:
+            cmd.append("--case-colors")
+        if args.group_colors:
+            cmd.append("--group-colors")
         if args.render:
             png = args.render if os.path.isabs(args.render) else os.path.join(out, args.render)
             cmd += ["--render", png, "--frame", str(args.render_frame)]

@@ -16,8 +16,9 @@ import os
 BASE = os.environ.get("BASE", "rotate"); PER = int(os.environ.get("PER", "0")); OUTN = os.environ.get("OUTN", "")
 d = np.load(ROOT / "work" / BASE / "new_dataset.npz"); q0, F0 = d["q"], d["frames"]; n0 = len(q0)
 rng = np.random.default_rng(123)
-nn0 = np.median(cKDTree(q0).query(q0, k=2)[0][:, 1]); r = nn0 / np.sqrt(FACTOR)     # target spacing for density x FACTOR
-print(f"original {n0} poses, NN median {nn0:.3f}; target min spacing {r:.3f}", flush=True)
+dim = F0.shape[2]                                                                   # measured manifold dimension
+nn0 = np.median(cKDTree(q0).query(q0, k=2)[0][:, 1]); r = nn0 / FACTOR ** (1.0 / dim)   # target spacing for density x FACTOR
+print(f"original {n0} poses, dim {dim}, NN median {nn0:.3f}; target min spacing {r:.3f}", flush=True)
 
 def tangent_basis(x, eps=1e-6):
     cols = []

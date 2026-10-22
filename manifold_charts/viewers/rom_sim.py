@@ -24,19 +24,20 @@ from atlas_rom.spec.geometry import build_bodies  # noqa: E402
 
 
 class RomBase:
-    def __init__(self, rom, dt=0.01, damping=0.0):
+    def __init__(self, rom, dt=0.01, damping=0.0, gravity=None):
         self.rom = rom
         self.acts = list(rom.case.actuators)
         self.joints = [rom.case.mechanism.joint(a.target) for a in self.acts]
         self.validity = validity_from_case(rom.case, include_grounded=False)
         self.anchor_trees = [cKDTree(np.asarray(a, float) / np.maximum(np.asarray(a, float).std(0), 1e-4)) for a in rom.anchors]
         self.anchor_std = [np.maximum(np.asarray(a, float).std(0), 1e-4) for a in rom.anchors]
-        self.settings = T.Settings(dt=dt, lookahead=1, damping=damping)
+        self.settings = T.Settings(dt=dt, lookahead=1, damping=damping, gravity=gravity)   # gravity None = the case's own
         self.trk = AdvRouterTrack(rom, self.settings)
         self.control_on = True
         self.controller = None                                      # optional callable(sim) -> (controls, rows); None = no control
         bodies = build_bodies(rom.mechanism)
         self.mesh_local = list(zip(bodies["V"], bodies["F"]))       # local-frame (V, F) per body, in `rom.body_order`
+        self.mesh_color = [b.color for b in rom.mechanism.driven_bodies]   # the case's declared rgb per body (None where undeclared), same order
         self.rows = []
         self.error = ""
         self.reset()
@@ -114,6 +115,7 @@ class ReferenceSim:
         bodies = build_bodies(self.case.mechanism)
         self.rom = type("NoRom", (), {"body_order": list(bodies["names"])})()
         self.mesh_local = list(zip(bodies["V"], bodies["F"]))
+        self.mesh_color = [b.color for b in self.case.mechanism.driven_bodies]
         self.acts, self.error = [], ""
         self.settings = T.Settings(dt=0.01, lookahead=1, damping=0.0)
 

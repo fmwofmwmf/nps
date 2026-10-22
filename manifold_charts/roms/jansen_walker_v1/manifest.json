@@ -88,7 +88,7 @@
   "rollout_report": null,
   "source": {
     "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\manifold_charts\\work\\jansen_walker_native_walker_v1",
-    "artifact_sha256": "c5464f1445b0937ea68ecc85c38532258d9dc9a160d64d2ef0202805e501c321",
+    "artifact_sha256": "6337a043abd1e6ecaf4921d63effc0d80b7c4696ab15ff55e150ab99e0c5d2f8",
     "build_report_sha256": "3ae62781dcd5409ffbb816f274563b41a02849f4e719c87f5736b770d9a68946"
   },
   "gates": {
@@ -102,5 +102,5 @@
     "control_maps_ok": true
   },
   "rom_mode_ready": false,
-  "staged_at": "2026-10-20T06:17:20.815095+00:00"
+  "staged_at": "2026-10-20T16:56:15.326732+00:00"
 }
