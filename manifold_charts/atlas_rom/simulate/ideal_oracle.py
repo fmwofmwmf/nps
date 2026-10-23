@@ -176,15 +176,20 @@ class IdealJointOracle(ManifoldOracle):
                 trial2 = (np.array([0.0, 1.0, 0.0])
                           if abs(float(ax2[0])) > 0.9 else np.array([1.0, 0.0, 0.0]))
                 u2 = np.cross(ax2, trial2); u2 /= np.linalg.norm(u2)
+                # A grounded carrier (a final drive whose pinion and ring both
+                # turn in bearings fixed to the frame) never moves: its frame is
+                # the world's, so its directions are the world ones and it
+                # contributes no columns.
+                in_c = (lambda v: to_local(j.body_c, v, True)) if j.body_c in index else (lambda v: v)
                 self.joints.append({
                     "name": j.name, "kind": j.kind,
                     "ia": index.get(j.body_a), "ib": index.get(j.body_b),
                     "ic": index.get(j.body_c),
-                    "axle_c": to_local(j.body_c, axle, True),
-                    "p_c": to_local(j.body_c, p_w, True),
+                    "axle_c": in_c(axle),
+                    "p_c": in_c(p_w),
                     "p_pin": to_local(j.body_a, p_w, True),
                     "qd_side": to_local(j.body_b, u2, True),
-                    "qd_c2": to_local(j.body_c, u2, True),
+                    "qd_c2": in_c(u2),
                     "ax2": ax2, "u2": u2, "w2": np.cross(ax2, u2),
                     "ratio": float(j.ratio),
                 })
@@ -344,7 +349,8 @@ class IdealJointOracle(ManifoldOracle):
 
     def _bevel_row(self, e, T):
         """Signed carrier-relative rolling residual for one bevel-gear mesh."""
-        R_c, R_pin, R_side = T[e["ic"], :, :3], T[e["ia"], :, :3], T[e["ib"], :, :3]
+        R_c = T[e["ic"], :, :3] if e["ic"] is not None else np.eye(3)
+        R_pin, R_side = T[e["ia"], :, :3], T[e["ib"], :, :3]
         a_w = R_c @ e["axle_c"]
         ref_c = R_c @ e["p_c"]
         ref_pin = R_pin @ e["p_pin"]
@@ -367,7 +373,8 @@ class IdealJointOracle(ManifoldOracle):
         """Vectorised :meth:`_bevel_row` over a stack ``Tb`` of packed poses,
         shape ``(M, n_bodies, 3, 4)`` -> ``(M,)``.  Used to evaluate all 72
         central-difference perturbations of one bevel row in a single pass."""
-        R_c = Tb[:, e["ic"], :, :3]
+        R_c = (Tb[:, e["ic"], :, :3] if e["ic"] is not None
+               else np.broadcast_to(np.eye(3), (len(Tb), 3, 3)))
         R_pin = Tb[:, e["ia"], :, :3]
         R_side = Tb[:, e["ib"], :, :3]
         a_w = R_c @ e["axle_c"]
@@ -473,9 +480,9 @@ class IdealJointOracle(ManifoldOracle):
                 # columns is exact to ~1e-7 and far less error-prone to carry
                 # than the hand Jacobian.
                 h = 1e-6
-                cols = np.fromiter(
-                    (12 * b + cc for b in (e["ia"], e["ib"], e["ic"]) for cc in range(12)),
-                    dtype=int, count=36)
+                moving = [b for b in (e["ia"], e["ib"], e["ic"]) if b is not None]
+                cols = np.fromiter((12 * b + cc for b in moving for cc in range(12)),
+                                   dtype=int, count=12 * len(moving))
                 perturb = np.zeros((2 * len(cols), q_flat.size))
                 perturb[np.arange(len(cols)) * 2, cols] = h
                 perturb[np.arange(len(cols)) * 2 + 1, cols] = -h
@@ -617,9 +624,17 @@ class IdealJointOracle(ManifoldOracle):
             free_cols = [c for i in range(self.n_bodies) if i not in held
                         for c in range(12 * i, 12 * i + 12)]
         target = q.copy()
+        # Stop on the STEP as well as the residual.  The constraint residual
+        # converges quadratically, but the closest-point (tangential) part of
+        # this Gauss-Newton converges only linearly, so the first iterate under
+        # `tol` can still sit ~1e-6 along the manifold from the closest point --
+        # by an amount that depends on how many iterations it took.  Paired
+        # +-h probe responses then differ by that jitter / h, which on
+        # `drivetrain` buried the rank gap of the advancing front's secants.
+        last_step = np.inf
         for _ in range(max_iterations):
             res = self.residual(q)
-            if np.linalg.norm(res, np.inf) <= tol:
+            if np.linalg.norm(res, np.inf) <= tol and last_step <= tol:
                 break
             J = self.jacobian(q)
             if free_cols is not None:
@@ -635,11 +650,13 @@ class IdealJointOracle(ManifoldOracle):
                 # occur when an exploratory affine chart is temporarily
                 # close to a rank-changing configuration.
                 z = scipy_lstsq(J, rhs, lapack_driver="gelsy")[0]
+            previous = q
             if free_cols is None:
                 q = target + z
             else:
                 q = target.copy()
                 q[free_cols] = target[free_cols] + z
+            last_step = float(np.linalg.norm(q - previous, np.inf))
         return q
 
     def stationary_bodies(self, tangent, rel_tol=1e-6):

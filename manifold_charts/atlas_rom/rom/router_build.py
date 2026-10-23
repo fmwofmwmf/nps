@@ -36,7 +36,8 @@ def _models_from_artifact(state):
     models = []
     for sd in chart["states"]:
         d, width = _model_dims(sd)
-        Model = pca._module(n_bodies, width, d=d, encoder_kind=kind)
+        Model = pca._module(n_bodies, width, d=d, encoder_kind=kind,
+                            rotation_head=pca.rotation_head_of(sd, n_bodies))
         m = Model(np.zeros_like(sd["centre"]), np.ones_like(sd["scale"]))
         m.load_state_dict(sd, strict=False)
         models.append(m.eval())

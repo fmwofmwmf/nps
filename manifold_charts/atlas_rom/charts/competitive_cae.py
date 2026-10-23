@@ -914,7 +914,9 @@ class CompetitiveCAEFitter:
         scale = q.reshape(n, n_bodies, 3, 4)[..., 3].std((0, 1)).clip(1e-6)
 
         def new_model(seed_index=None):
-            model = pca._module(n_bodies, config.width, d=d, encoder_kind=encoder_kind)(centre, scale).float().to(compute_device)
+            # exp rotation head: a valid rotation with a bounded Jacobian at every latent (see pca module docstring)
+            model = pca._module(n_bodies, config.width, d=d, encoder_kind=encoder_kind,
+                                rotation_head="exp")(centre, scale).float().to(compute_device)
             if seed_index is not None:
                 # The birth is centered on its actual worst physical witness;
                 # this is normalization, never a latent-coordinate shortcut.

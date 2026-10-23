@@ -98,7 +98,8 @@ def _torus(radius=0.3, tube=0.04, center=(0, 0, 0), axis=(0, 0, 1), sections=40)
 
 def _bevel_gear(pitch_angle=45.0, toe=0.28, heel=0.68, teeth=18, tooth_phase=0.0,
                 addendum=0.05, backlash=0.16, clearance=0.0, hub_radius=0.10, hub_len=0.28,
-                center=(0, 0, 0), axis=(0, 0, 1), flip=False):
+                center=(0, 0, 0), axis=(0, 0, 1), flip=False, bore=0.0, bolts=0,
+                normal_recess=False):
     """A bevel gear whose pitch cone has its APEX AT THE LOCAL ORIGIN.
 
     `pitch_angle` (deg) is the pitch-cone half-angle from the local +z axis;
@@ -111,6 +112,21 @@ def _bevel_gear(pitch_angle=45.0, toe=0.28, heel=0.68, teeth=18, tooth_phase=0.0
     tooth into the mate's gap; `backlash` thins each tooth by that fraction of
     its pitch.  Local axis +z with the cone opening toward +z; `flip` opens it
     toward -z.  `_orient`/`center` then place it like `_cylinder`.
+
+    `bore` > 0 makes the blank an ANNULUS -- a ring gear with an open centre of
+    that radius (and no hub), the way a final-drive ring bolts around a
+    differential carrier.  Its back is a real ring's: a cylindrical rim behind
+    the heel two tooth-depths thick (so steep-cone tooth roots, which sink back
+    along the cone normal, stay buried), a 45 deg chamfer, and a FLAT back face
+    down to the bore; `bolts` > 0 seats that many bolt heads square on that
+    face.  0 (the default) is the solid blank.
+
+    `normal_recess` cuts the tooth spaces `ded` deep along the cone NORMAL --
+    the direction the teeth stand out -- instead of radially, and across the
+    whole face width.  Radially, a
+    steep cone's tooth space is only ded*cos(pitch_angle) deep, shallower than
+    its mate's addendum, so the mate's tips sink into it (~0.008 on a 63 deg
+    ring gear).  Off by default, which keeps existing gears' meshes unchanged.
     """
     g = np.radians(float(pitch_angle))
     sg, cg = np.sin(g), np.cos(g)
@@ -125,8 +141,41 @@ def _bevel_gear(pitch_angle=45.0, toe=0.28, heel=0.68, teeth=18, tooth_phase=0.0
     z_hb = z_h + 0.32 * heel * sg                     # the back cone stands proud of the heel rim
     # frustum wall: smooth to d0, recessed by `ded` through the toothed band
     # (so a mate tooth has a real space to enter), smooth again to the heel.
-    rings_zr = [(z_t, toe * sg), (d0 * cg, d0 * sg - ded),
-                (d1 * cg, d1 * sg - ded), (z_h, heel * sg)]
+    rz, rr = (ded * sg, ded * cg) if normal_recess else (0.0, ded)     # recess (z, r) offset
+    # A normal recess is cut across the WHOLE face, as a real bevel gear's
+    # tooth spaces are: no ramp back up at toe and heel for a mate's tooth-top
+    # corners to clip.
+    ez, er = (rz, rr) if normal_recess else (0.0, 0.0)
+    rings_zr = [(z_t + ez, toe * sg - er), (d0 * cg + rz, d0 * sg - rr),
+                (d1 * cg + rz, d1 * sg - rr), (z_h + ez, heel * sg - er)]
+    bore = float(bore)
+    if bore > 0.0:
+        # One closed revolved profile: toe -> heel along the toothed cone, the
+        # back cone in to the bore, the bore wall back to the toe plane, and the
+        # toe annulus out again.  Same quad winding as the solid blank's rings.
+        r_h = heel * sg
+        rim, chamfer = 2.0 * ded, 0.3 * max(r_h - bore, 0.0)
+        z_face = z_h + rim + chamfer                      # the flat back face
+        prof = list(rings_zr) + [(z_h + rim, r_h), (z_face, r_h - chamfer),
+                                 (z_face, bore), (z_t, bore)]
+        V = [np.c_[r * ca, r * sa, np.full(n, z)] for z, r in prof]
+        F = []
+        for i in range(len(prof)):
+            a0, b0 = i * n, ((i + 1) % len(prof)) * n
+            for k in range(n):
+                j = (k + 1) % n
+                F += [[a0 + k, a0 + j, b0 + j], [a0 + k, b0 + j, b0 + k]]
+        Vs, Fs = [np.vstack(V)], [np.asarray(F, np.int32)]
+        off = len(Vs[0])
+        r_bolt = bore + 0.75 * (r_h - chamfer - bore)    # out toward the chamfer, clear of the bore
+        h_bolt = 0.25 * (r_h - chamfer - bore)
+        for k in range(int(bolts)):                       # heads square on the flat face
+            a = 2.0 * np.pi * (k + 0.5) / int(bolts) + float(tooth_phase)
+            bv, bf = _cylinder(radius=0.18 * (r_h - chamfer - bore), height=h_bolt,
+                               center=(r_bolt * np.cos(a), r_bolt * np.sin(a), z_face + 0.3 * h_bolt))
+            Vs.append(bv); Fs.append(bf + off); off += len(bv)
+        return _bevel_teeth(Vs, Fs, off, N, sg, cg, d0, d1, ded, addendum, backlash,
+                            tooth_phase, clearance, flip, axis, center)
     V, F, off = [], [], 0
     prev = None
     for z, r in rings_zr:
@@ -152,7 +201,13 @@ def _bevel_gear(pitch_angle=45.0, toe=0.28, heel=0.68, teeth=18, tooth_phase=0.0
     hv, hf = _cylinder(radius=float(hub_radius), height=float(hub_len))
     hv = hv.copy(); hv[:, 2] += z_hb + float(hub_len) / 2.0 - 0.04     # from the back cone outward
     Vs.append(hv); Fs.append(hf + off); off += len(hv)
+    return _bevel_teeth(Vs, Fs, off, N, sg, cg, d0, d1, ded, addendum, backlash,
+                        tooth_phase, clearance, flip, axis, center)
 
+
+def _bevel_teeth(Vs, Fs, off, N, sg, cg, d0, d1, ded, addendum, backlash, tooth_phase,
+                 clearance, flip, axis, center):
+    """Add `_bevel_gear`'s block teeth to a blank, then clear, flip and place it."""
     u = np.array([sg, 0.0, cg])                       # slant direction (apex -> heel) at azimuth 0
     nrm = np.array([cg, 0.0, -sg])                    # cone outward normal at azimuth 0
     tang = np.array([0.0, 1.0, 0.0])

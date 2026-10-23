@@ -2,7 +2,7 @@
 
 Run headless (this is what the exporter does)::
 
-    blender -b -P viewers/blender_import_rom.py -- <export_dir> [--camera auto|ortho|persp] [--render out.png --frame N] [--zsep REL] [--auto-camera] [--fast]
+    blender -b -P viewers/blender_import_rom.py -- <export_dir> [--camera auto|ortho|persp] [--render out.png --frame N] [--zsep REL] [--auto-camera] [--fast] [--display parts.blend]
 
 or open it in Blender's Scripting tab, set EXPORT_DIR below, and press Run.
 
@@ -32,6 +32,10 @@ CAMERA = _opt("--camera", "auto")                              # auto | ortho | 
 CASE_COLORS = "--case-colors" in _ARGV                          # colour bodies by the case's declared rgb (meshes.npz `color`) instead of LINK_COLORS
 GROUP_COLORS = "--group-colors" in _ARGV                        # one colour per body group: the name suffix after "@" (e.g. one leg of an array case)
 RENDER, FRAME = _opt("--render"), int(_opt("--frame", 0))      # render this 0-based exported frame to a PNG
+DISPLAY = _opt("--display")                                     # detailed render-only parts (.blend, rest-pose world frame) hung on the links by name; see attach_display
+HIDE = [_ARGV[i + 1] for i, a in enumerate(_ARGV[:-1]) if a == "--hide"]   # object-name patterns (fnmatch) hidden in viewport and render
+FLOOR_Z = _opt("--floor-z")                                  # world z of the shadow-catcher floor (default: just under the lowest geometry); lights keep their default placement
+TEMPLATE = _opt("--template")                                 # a saved scene to take the camera, render settings and object visibility from; see read_template
 EXPORT_DIR = ""                                              # used only when run from the Scripting tab
 # palette copied from viewers/render_utility/definitions.py (the paper's colours)
 _c = lambda r, g, b: (r / 255.0, g / 255.0, b / 255.0, 1.0)
@@ -80,11 +84,23 @@ def curve_object(name, pts3, rgba, closed, radius):
 
 
 def z_separation(pose0, me, nb, rel):
-    """Vertex displacements that remove z-fighting between coplanar mesh PIECES -- pieces of one link (a handle built as two flush boxes) as well as pieces of different links.
-    Every link mesh is split into connected pieces (vertices merged by position, union-find over faces).  A piece's "levels" are the world-z planes of its z-facing faces at the first frame; two
-    pieces sharing a level are neighbours, and a greedy colouring of that graph gives each piece a colour c, so no two pieces that share a plane get the same one.  Piece p is then displaced by
-    c * eps along world z (as a local-frame displacement, so it stays put relative to its link).  eps = rel * the largest link's local size: pose-independent, hence identical for every export of a case.
-    Returns (list of (nv, 3) displacements per link, number of pieces, number of colours)."""
+    """Vertex displacements that remove z-fighting between coplanar mesh PIECES -- pieces of one link (a handle built as two flush boxes, a crank web and its
+    counterweight disc) as well as pieces of different links.  Done independently along each world axis (x, y, z): a piece's "levels" along axis a are the
+    world-a planes of its a-facing faces at the first frame; two pieces with overlapping faces on a shared level are neighbours, and a greedy colouring of that
+    graph gives each piece a colour c_a.  Piece p is displaced by sum_a c_a * eps * e_a (as a local-frame displacement, so it stays put relative to its link).
+    eps = rel * the largest link's local size: pose-independent, hence identical for every export of a case.
+    Returns (list of (nv, 3) displacements per link, number of pieces, largest number of colours over the axes)."""
+    dV, n_layers, npieces = None, 1, 0
+    for axis in (0, 1, 2):
+        d_axis, npieces, ncol = _axis_separation(pose0, me, nb, rel, axis)
+        dV = d_axis if dV is None else [a + b for a, b in zip(dV, d_axis)]
+        n_layers = max(n_layers, ncol)
+    return dV, npieces, n_layers
+
+
+def _axis_separation(pose0, me, nb, rel, axis):
+    """``z_separation`` along one world axis (``axis`` 0/1/2): the faces facing that axis, levels by that coordinate, overlap tested in the other two."""
+    other = [k for k in (0, 1, 2) if k != axis]
     diag = max(float(np.linalg.norm(np.ptp(np.asarray(me[f"V_{i}"], float), axis=0))) for i in range(nb))
     eps, tol = rel * diag, max(1e-4 * diag, 1e-9)
     pieces, vpiece = [], []                                     # pieces: (link, set(levels)); vpiece[i]: piece index per vertex of link i
@@ -106,11 +122,11 @@ def z_separation(pose0, me, nb, rel):
         P = W[Fc]
         n = np.cross(P[:, 1] - P[:, 0], P[:, 2] - P[:, 0])
         a = np.linalg.norm(n, axis=1)
-        zf = (a > 1e-12) & (np.abs(n[:, 2]) > 0.999 * a)
+        zf = (a > 1e-12) & (np.abs(n[:, axis]) > 0.999 * a)
         ids = {int(r): len(pieces) + k for k, r in enumerate(np.unique(root))}
-        levels = {j: {} for j in ids.values()}                   # piece -> {level: [xy triangles of its z-facing faces at that level]}
+        levels = {j: {} for j in ids.values()}                   # piece -> {level: [in-plane triangles of its axis-facing faces at that level]}
         for f in np.nonzero(zf)[0]:
-            levels[ids[int(root[Fc[f, 0]])]].setdefault(int(round(P[f, 0, 2] / tol)), []).append(P[f, :, :2])
+            levels[ids[int(root[Fc[f, 0]])]].setdefault(int(round(P[f, 0, axis] / tol)), []).append(P[f][:, other])
         pieces += [(i, levels[j]) for j in sorted(levels)]
         vpiece.append(np.array([ids[int(r)] for r in root]))
     by_level = {}
@@ -150,7 +166,9 @@ def z_separation(pose0, me, nb, rel):
         R = pose0[i, :, :3]
         for j in np.unique(vpiece[i]):
             if colour[j]:
-                d[vpiece[i] == j] = np.linalg.solve(R, np.array([0.0, 0.0, colour[j] * eps]))
+                step = np.zeros(3)
+                step[axis] = colour[j] * eps
+                d[vpiece[i] == j] = np.linalg.solve(R, step)
         dV.append(d)
     return dV, len(pieces), int(colour.max()) + 1
 
@@ -177,6 +195,125 @@ def read_existing_camera(path):
         return None
 
 
+def read_template(path):
+    """Camera, render settings and object visibility of a saved scene, as plain values (the file is opened, read, and
+    replaced by the factory scene again in ``main``).  An object hidden there in any way -- render toggle, viewport
+    toggle or the eye -- is hidden in the new scene's viewport AND render: the template is a picture of what to show."""
+    bpy.ops.wm.open_mainfile(filepath=os.path.abspath(path))
+    sc = bpy.context.scene
+    out = {"objects": {o.name: bool(o.hide_render or o.hide_viewport or o.hide_get()) for o in sc.objects}}
+    co = sc.camera
+    if co is not None:
+        d = co.data
+        loc, rot, _ = co.matrix_world.decompose()
+        out["camera"] = dict(loc=tuple(loc), rot=tuple(rot.to_euler()), type=d.type, lens=d.lens, sensor=d.sensor_width, ortho=d.ortho_scale,
+                             clip=(d.clip_start, d.clip_end), shift=(d.shift_x, d.shift_y))
+    r = sc.render
+    out["render"] = dict(resolution_x=r.resolution_x, resolution_y=r.resolution_y, resolution_percentage=r.resolution_percentage,
+                         film_transparent=r.film_transparent, engine=r.engine)
+    out["cycles"] = dict(samples=sc.cycles.samples, use_denoising=sc.cycles.use_denoising) if r.engine == "CYCLES" else {}
+    v = sc.view_settings
+    out["view"] = dict(view_transform=v.view_transform, look=v.look, exposure=v.exposure, gamma=v.gamma)
+    print(f"template {path}: camera {'yes' if co else 'none'}, {r.resolution_x}x{r.resolution_y}, "
+          f"hidden {sorted(n for n, h in out['objects'].items() if h)}")
+    return out
+
+
+def animate_actuator_colors(ob, active, names):
+    """A display part with custom properties ``active_when`` (an actuator name) and ``active_color`` (rgb) shows its own
+    material colour while that actuator is idle and ``active_color`` on the frames the export recorded it as engaged
+    (``frames.npz`` ``actuator_active``), switching hard between frames."""
+    want = ob.get("active_when")
+    if want is None or active is None:
+        return False
+    if want not in names:                                # a display kit shared by cases with different actuators
+        print(f"display part {ob.name}: active_when={want!r} names no actuator of this export {names}; it keeps its idle colour")
+        return False
+    k = names.index(want)
+    on_rgb = tuple(float(c) for c in ob.get("active_color", (0.72, 0.06, 0.05)))
+    set_interp("CONSTANT")
+    for slot in ob.material_slots:                       # own copy: the idle colour of every other part sharing the material stays put
+        if slot.material is None:
+            continue
+        m = slot.material = slot.material.copy()
+        bsdf = m.node_tree.nodes.get("Principled BSDF") if m.use_nodes else None
+        if bsdf is None:
+            continue
+        sock = bsdf.inputs["Base Color"]
+        idle = tuple(sock.default_value)
+        colour = lambda on: (*on_rgb, 1.0) if on else idle
+        prev = None
+        for f, row in enumerate(np.asarray(active, bool)):
+            if row[k] != prev:
+                if prev is not None:                     # hold the old colour through the frame before the switch, so every whole frame is exact
+                    sock.default_value = colour(prev)
+                    sock.keyframe_insert("default_value", frame=f)
+                sock.default_value = colour(row[k])
+                sock.keyframe_insert("default_value", frame=f + 1)
+                prev = row[k]
+        for fc in _fcurves(m.node_tree):
+            for kp in fc.keyframe_points:
+                kp.interpolation = "CONSTANT"
+    set_interp("LINEAR")
+    return True
+
+
+def _fcurves(id_data):
+    """F-curves of an ID's action: Blender 5 keeps them in the action slot's channelbag (``Action.fcurves`` is gone)."""
+    ad = id_data.animation_data
+    if ad is None or ad.action is None:
+        return []
+    try:
+        from bpy_extras.anim_utils import action_get_channelbag_for_slot
+        bag = action_get_channelbag_for_slot(ad.action, ad.action_slot)
+        return list(bag.fcurves) if bag is not None else []
+    except ImportError:
+        return list(ad.action.fcurves)
+
+
+def attach_display(path, link_objects, sc, active=None, act_names=()):
+    """Append a display .blend's objects and hang each on the body it names.
+
+    Display parts are modelled in the case's world frame AT THE REST POSE, the
+    frame the exported link meshes are baked in, so a part parented to its link
+    with an identity parent-inverse follows the link's keyframed transform
+    exactly.  Naming convention (the name as stored in the display file):
+
+        <body>          replaces that body's functional mesh (which is hidden)
+        <body>.<part>   detail added to that body; the functional mesh stays
+        anything else   static scenery, left where it was modelled
+
+    A part may also carry ``active_when`` / ``active_color`` (see animate_actuator_colors).
+    """
+    with bpy.data.libraries.load(os.path.abspath(path), link=False) as (src, dst):
+        names = [str(n) for n in src.objects]
+        dst.objects = list(names)          # Blender swaps loaded objects into THIS list in place
+    attached, replaced, static, corners, coloured = 0, set(), 0, [], 0
+    for name, ob in zip(names, dst.objects):
+        if ob is None:
+            continue
+        sc.collection.objects.link(ob)
+        coloured += animate_actuator_colors(ob, active, list(act_names))
+        rest = ob.matrix_world.copy()
+        corners += [list(rest @ Vector(c)) for c in ob.bound_box]
+        body = name if name in link_objects else name.split(".", 1)[0]
+        link = link_objects.get(body)
+        if link is None:
+            static += 1
+            continue
+        ob.parent = link
+        ob.matrix_parent_inverse = Matrix.Identity(4)
+        ob.matrix_basis = rest
+        attached += 1
+        if name == body:
+            replaced.add(body)
+    for body in replaced:
+        link_objects[body].hide_render = link_objects[body].hide_viewport = True
+    print(f"display {path}: {attached} parts on bodies ({len(replaced)} functional meshes replaced), "
+          f"{static} static scenery objects, {coloured} coloured by actuator activity")
+    return np.asarray(corners, float).reshape(-1, 3)
+
+
 def main(export_dir):
     fr = np.load(os.path.join(export_dir, "frames.npz"))
     me = np.load(os.path.join(export_dir, "meshes.npz"))
@@ -187,7 +324,13 @@ def main(export_dir):
     fps, radius = float(fr["fps"]), float(fr["ball_radius"]) if "ball_radius" in fr.files else 0.04
     body_order = [str(b) for b in fr["body_order"]]
 
+    active = fr["actuator_active"] if "actuator_active" in fr.files else None
+    act_names = [str(n) for n in fr["actuator_names"]] if "actuator_names" in fr.files else []
+
     old_cam = None if AUTO_CAMERA else read_existing_camera(os.path.abspath(os.path.join(export_dir, "scene.blend")))
+    template = read_template(TEMPLATE) if TEMPLATE else None
+    if template and template.get("camera"):
+        old_cam = template["camera"]
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     sc.frame_start, sc.frame_end = 1, F
@@ -227,6 +370,8 @@ def main(export_dir):
             ob.location, ob.rotation_quaternion, ob.scale = loc, quat, scl
             for path in ("location", "rotation_quaternion", "scale"):
                 ob.keyframe_insert(path, frame=f + 1)
+    if DISPLAY:                                                  # rest-pose extents: floor and camera must clear the display parts too
+        allV.append(attach_display(DISPLAY, {ob.name: ob for ob, _V in links}, sc, active, act_names))
     for f in range(0, F, max(1, F // 40)):
         for i, (_ob, V) in enumerate(links):
             allV.append((pose[f, i, :, :3] @ V.T).T + pose[f, i, :, 3])
@@ -285,7 +430,7 @@ def main(export_dir):
     lo, hi = allV[:, :2].min(0), allV[:, :2].max(0)
     ctr, ext = (lo + hi) / 2.0, float((hi - lo).max()) * 1.15 + 4 * radius
     zback = float(allV[:, 2].min()) - 0.05
-    bpy.ops.mesh.primitive_plane_add(size=ext * 6.0, location=(ctr[0], ctr[1], zback))
+    bpy.ops.mesh.primitive_plane_add(size=ext * 6.0, location=(ctr[0], ctr[1], float(FLOOR_Z) if FLOOR_Z is not None else zback))
     bpy.context.active_object.name = "backdrop"
     bpy.context.active_object.data.materials.append(material("backdrop", (0.92, 0.92, 0.92, 1.0), roughness=1.0))
     bpy.context.active_object.is_shadow_catcher = True           # the floor shows only its shadows over the (white) background, like the paper's invisibleGround
@@ -357,9 +502,26 @@ def main(export_dir):
         cam.clip_start, cam.clip_end = old_cam["clip"]
         cam.shift_x, cam.shift_y = old_cam["shift"]
         co.location, co.rotation_euler = old_cam["loc"], old_cam["rot"]
-        print("camera: kept the one already in scene.blend (--auto-camera to recompute)")
+        print("camera: from --template" if template and template.get("camera") else "camera: kept the one already in scene.blend (--auto-camera to recompute)")
     sc.camera = co
     sc.render.resolution_x = sc.render.resolution_y = 1080
+    if template:
+        for k, v in template["render"].items():
+            setattr(sc.render, k, v)
+        for k, v in template["cycles"].items():
+            setattr(sc.cycles, k, v)
+        for k, v in template["view"].items():
+            setattr(sc.view_settings, k, v)
+        for name, hidden in template["objects"].items():
+            ob = bpy.data.objects.get(name)
+            if ob is not None and hidden:
+                ob.hide_render = ob.hide_viewport = True
+    if HIDE:
+        import fnmatch
+        gone = [ob for ob in bpy.data.objects if any(fnmatch.fnmatchcase(ob.name, p) for p in HIDE)]
+        for ob in gone:
+            ob.hide_render = ob.hide_viewport = True
+        print(f"hidden by --hide {HIDE}: {sorted(ob.name for ob in gone)}")
 
     out = os.path.join(export_dir, "scene.blend")
     bpy.ops.wm.save_as_mainfile(filepath=out)
@@ -373,5 +535,5 @@ def main(export_dir):
 
 
 if __name__ == "__main__":
-    pos = [a for i, a in enumerate(_ARGV) if not a.startswith("--") and (i == 0 or _ARGV[i - 1] not in ("--camera", "--render", "--frame", "--zsep"))]
+    pos = [a for i, a in enumerate(_ARGV) if not a.startswith("--") and (i == 0 or _ARGV[i - 1] not in ("--camera", "--render", "--frame", "--zsep", "--display", "--template", "--floor-z", "--hide"))]
     main(pos[0] if pos else EXPORT_DIR)

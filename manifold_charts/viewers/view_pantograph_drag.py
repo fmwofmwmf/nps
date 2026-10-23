@@ -172,14 +172,15 @@ class LatentAtlas:
 
     def __init__(self, checkpoint_path: str) -> None:
         import torch
-        from atlas_rom.charts.physical_chart_autoencoder import _module
+        from atlas_rom.charts.physical_chart_autoencoder import _module, rotation_head_of
         from atlas_rom.charts.competitive_cae import PhysicalRBFSelector
 
         ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         ca = ckpt["chart_atlas"]
-        cls = _module(ca["n_bodies"], width=96, d=2, encoder_kind=ca["encoder_kind"])
         self.models = []
         for state in ca["states"]:
+            cls = _module(ca["n_bodies"], width=96, d=2, encoder_kind=ca["encoder_kind"],
+                          rotation_head=rotation_head_of(state, ca["n_bodies"]))
             model = cls(state["centre"].numpy(), state["scale"].numpy())
             model.load_state_dict(state)
             model.eval()

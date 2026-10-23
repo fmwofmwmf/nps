@@ -323,7 +323,13 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
                                 [np.stack([U_map[n][k] for n in range(S)]) for k in range(K)])
         for k in range(K):
             dM[:, k] = per[k][:, 0]
-            dV[:, k] = per[k][:, 1] / (per[k][:, 2] + max(g_ref, 1e-12))
+            # A RELATIVE force error needs a nonzero teacher force.  With no
+            # potential at all (gravity 0) every teacher force is exactly zero,
+            # and dividing the learned field's residual gradient by the 1e-12
+            # floor made delta_V ~1e8 at every chart -- every score clipped to
+            # -A_CLIP, every advantage 0, and a router that never hands off.
+            if g_ref > 0.0:
+                dV[:, k] = per[k][:, 1] / (per[k][:, 2] + g_ref)
         timing["dynamics_labels_seconds"] = time.time() - t0
         log(f"router: dynamics labels (mass + force mismatch vs the fields' teacher) [{timing['dynamics_labels_seconds']:.0f}s]")
 

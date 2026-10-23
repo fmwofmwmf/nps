@@ -85,9 +85,10 @@ class PatchAtlasROM:
         width = manifest["width"]
         d = manifest["latent_dim"]
         encoder_kind = state.get("encoder_kind", "current")
-        Model = pca._module(n_bodies, width, d=d, encoder_kind=encoder_kind)
         models = []
         for sd in state["states"]:
+            Model = pca._module(n_bodies, width, d=d, encoder_kind=encoder_kind,
+                                rotation_head=pca.rotation_head_of(sd, n_bodies))
             centre = np.zeros(3) if "centre" not in sd else np.zeros_like(sd["centre"])
             scale = np.ones(3) if "scale" not in sd else np.ones_like(sd["scale"])
             model = Model(centre, scale)

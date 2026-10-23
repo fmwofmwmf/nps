@@ -93,44 +93,106 @@ class JointTargets(Driver):
     @staticmethod
     def add_args(ap):
         g = ap.add_argument_group("joint targets (pose / joints drivers)")
-        g.add_argument("--joint", action="append", default=[], metavar="NAME=START[:END]",
-                       help="NAME = an actuator's name or the joint it drives; its target angle in radians; START:END ramps linearly over --seconds.  Repeat per actuator.  Unnamed actuators hold 0")
+        g.add_argument("--joint", action="append", default=[], metavar="NAME=START[:END] | NAME=V@T,V@T,...",
+                       help="NAME = an actuator's name or the joint it drives; its target angle in radians.  START:END ramps linearly over --seconds; "
+                            "V@T,V@T,... are keyframes (angle V at simulated second T) joined by min-jerk blends and held flat outside them.  Repeat per actuator.  Unnamed actuators hold 0")
+        g.add_argument("--brake", action="append", default=[], metavar="NAME=T_ON:T_OFF",
+                       help="(joints driver) the actuator is free -- no command -- except as a brake inside [T_ON, T_OFF): armed at T_ON, it engages once the joint's "
+                            "distance to its next full turn equals |speed| / w0, then the critically damped law decelerates it to rest exactly on that turn "
+                            "(error d*exp(-w0 t): never reverses).  Repeat per window")
 
     def __init__(self, args):
         super().__init__(args)
         self.spec = {}
         for item in args.joint:
             name, _, val = item.partition("=")
-            a, _, b = val.partition(":")
-            self.spec[name.strip()] = (float(a), float(b) if b else float(a))
+            if "@" in val:
+                keys = sorted((float(t), float(v)) for v, t in (kv.split("@") for kv in val.split(",")))
+                self.spec[name.strip()] = ("keys", keys)
+            else:
+                a, _, b = val.partition(":")
+                self.spec[name.strip()] = ("ramp", (float(a), float(b) if b else float(a)))
+        self.brake_spec = {}
+        for item in getattr(args, "brake", []) or []:
+            name, _, val = item.partition("=")
+            on, _, off = val.partition(":")
+            self.brake_spec.setdefault(name.strip(), []).append((float(on), float(off) if off else float("inf")))
         self.names = None
+        self.brakes = {}                     # actuator index -> {"windows": [...], "engaged": bool}
         self.t = 0.0
+
+    @staticmethod
+    def _value(kind, data, t, T):
+        if kind == "ramp":
+            s = 0.0 if T <= 0 else min(max(t / T, 0.0), 1.0)
+            return data[0] + s * (data[1] - data[0])
+        if t <= data[0][0]:
+            return data[0][1]
+        for (t0, v0), (t1, v1) in zip(data, data[1:]):
+            if t <= t1:
+                s = (t - t0) / max(t1 - t0, 1e-12)
+                return v0 + (v1 - v0) * s ** 3 * (10.0 - 15.0 * s + 6.0 * s * s)      # min-jerk: zero speed and acceleration at both keys
+        return data[-1][1]
+
+    def _resolve(self, sim):
+        keys = [{a.name, a.target} for a in sim.acts]                 # an actuator is addressed by its own name or by the joint it drives
+        bad = sorted(n for n in list(self.spec) + list(self.brake_spec) if not any(n in k for k in keys))
+        if bad:
+            raise SystemExit(f"--joint/--brake names {bad} match no actuator; this case has {[(a.name, a.target) for a in sim.acts]} as (name, joint)")
+        self.names = [a.name for a in sim.acts]
+        pick = lambda d, a: next((v for n, v in d.items() if n in (a.name, a.target)), None)
+        self.spec = {a.name: pick(self.spec, a) for a in sim.acts if pick(self.spec, a) is not None}
+        self.brakes = {k: {"windows": pick(self.brake_spec, a), "engaged": False}
+                       for k, a in enumerate(sim.acts) if pick(self.brake_spec, a) is not None}
+        clash = sorted(sim.acts[k].name for k in self.brakes if sim.acts[k].name in self.spec)
+        if clash:
+            raise SystemExit(f"{clash}: an actuator is either a --joint target or a --brake, not both")
 
     def targets(self, sim, t):
         if self.names is None:
-            keys = [{a.name, a.target} for a in sim.acts]                 # an actuator is addressed by its own name or by the joint it drives
-            bad = sorted(n for n in self.spec if not any(n in k for k in keys))
-            if bad:
-                raise SystemExit(f"--joint names {bad} match no actuator; this case has {[(a.name, a.target) for a in sim.acts]} as (name, joint)")
-            self.names = [a.name for a in sim.acts]
-            self.spec = {a.name: next(v for n, v in self.spec.items() if n in (a.name, a.target)) for a in sim.acts if any(n in (a.name, a.target) for n in self.spec)}
-        T = self.args.seconds
-        s = 0.0 if T <= 0 else min(max(t / T, 0.0), 1.0)
-        return [(lambda ab: ab[0] + s * (ab[1] - ab[0]))(self.spec.get(n, (0.0, 0.0))) for n in self.names]
+            self._resolve(sim)
+        return [self._value(*self.spec[n], t, self.args.seconds) if n in self.spec else 0.0 for n in self.names]
 
     def joint_idx(self, sim):
         return [k for k, ac in enumerate(sim.acts) if ac.kind == "joint_torque"]
 
+    def active(self, sim, t):
+        """Actuators commanded at time t: every joint-torque actuator except a brake that is not engaged."""
+        if self.names is None:
+            self._resolve(sim)
+        return [k for k in self.joint_idx(sim) if k not in self.brakes or self.brakes[k]["engaged"]]
+
+    def update_brakes(self, sim, t, w0):
+        """Arm / engage / release each brake from the ROM state (decoded angle, learned-field speed); its target is the full turn (angle 0 mod 2pi)."""
+        if not self.brakes:
+            return
+        from viewers.view_routing_test import joint_state
+        idx = list(self.brakes)
+        theta, theta_dot, _J, _M = joint_state(sim.rom, sim.trk, idx)
+        for k, th, w in zip(idx, theta, theta_dot):
+            b = self.brakes[k]
+            inside = any(on <= t < off for on, off in b["windows"])
+            if not inside:
+                b["engaged"] = False
+            elif not b["engaged"]:
+                ahead = (-th) % (2 * np.pi) if w >= 0 else th % (2 * np.pi)      # distance to the next full turn in the direction of motion
+                b["engaged"] = ahead <= abs(w) / w0
+
     def angle_error(self, sim, t=0.0):
         tg, th = self.targets(sim, t), sim.angles()
-        return float(max(abs(((tg[k] - th[k] + np.pi) % (2 * np.pi)) - np.pi) for k in self.joint_idx(sim)))
+        return float(max([abs(((tg[k] - th[k] + np.pi) % (2 * np.pi)) - np.pi) for k in self.active(sim, t)] or [0.0]))
 
     def control(self, sim, t):
         self.t = t
         return t >= self.args.seconds
 
     def extras(self, sim):
-        return {"joint_angles": np.asarray(sim.angles(), float)}
+        act = set(self.active(sim, self.t))
+        return {"joint_angles": np.asarray(sim.angles(), float),
+                "actuator_active": np.array([k in act for k in range(len(self.names))], bool)}
+
+    def static(self, sim):
+        return {"actuator_names": np.asarray(self.names)} if self.names is not None else {}
 
 
 class JointDriver(JointTargets):
@@ -150,7 +212,11 @@ class JointDriver(JointTargets):
         from viewers.view_routing_test import joint_pd_controls          # lazy: keeps this module importable without the viewer's dependencies
         sim = super().make_sim(rom, args)
         a = self.args
-        sim.controller = lambda s: joint_pd_controls(s.rom, s.trk, self.targets(s, self.t), a.w0, a.zeta, a.torque_limit, True, [0.0] * len(s.acts))
+        def controller(s):
+            self.update_brakes(s, self.t, a.w0)
+            return joint_pd_controls(s.rom, s.trk, self.targets(s, self.t), a.w0, a.zeta, a.torque_limit, True, [0.0] * len(s.acts),
+                                     active=self.active(s, self.t))
+        sim.controller = controller
         return sim
 
     def prepare(self, sim, spf):
@@ -171,7 +237,8 @@ class JointDriver(JointTargets):
         return info
 
     def report(self, sim):
-        return {"actuators": self.names, "targets": self.spec, "final_error": self.angle_error(sim, self.t)}
+        return {"actuators": self.names, "targets": self.spec, "brakes": {sim.acts[k].name: b["windows"] for k, b in self.brakes.items()},
+                "final_error": self.angle_error(sim, self.t)}
 
 
 class PoseDriver(JointTargets):
@@ -288,7 +355,7 @@ class ReleaseDriver(PoseDriver):
         return t >= self.args.seconds or bool(sim.error)
 
     def report(self, sim):
-        return {"actuators": self.names, "release_angles": {n: v[0] for n, v in self.spec.items()}, "release_pose_residual": self.worst, "release_joint_gap": self.worst_gap,
+        return {"actuators": self.names, "release_angles": {n: self._value(*v, 0.0, self.args.seconds) for n, v in self.spec.items()}, "release_pose_residual": self.worst, "release_joint_gap": self.worst_gap,
                 "handoffs": int(sim.trk.state["handoffs"]), "stalls": int(sim.trk.state["stalls"]), "error": sim.error or None}
 
 

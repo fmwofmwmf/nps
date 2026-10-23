@@ -218,7 +218,8 @@ def _support_values(case: str, state, visual_uvs, limits):
         d = encoder_biases[-1].shape[0]
         n_bodies = int(model_state["encoder.0.weight"].shape[1] // 9)
         model = pca._module(n_bodies, width=width, d=d,
-                            encoder_kind=state.get("encoder_kind", "current"))(
+                            encoder_kind=state.get("encoder_kind", "current"),
+                            rotation_head=pca.rotation_head_of(model_state, n_bodies))(
             np.zeros_like(model_state["centre"].numpy()), np.ones_like(model_state["scale"].numpy())).double()
         model.load_state_dict(model_state); model.eval()
         support = learned.load_scalar(support_state)
@@ -263,7 +264,8 @@ def _latent_embeddings(work: str, state):
         d = encoder_biases[-1].shape[0]
         n_bodies = int(model_state["encoder.0.weight"].shape[1] // 9)
         model = pca._module(n_bodies, width=width, d=d,
-                            encoder_kind=state.get("encoder_kind", "current"))(
+                            encoder_kind=state.get("encoder_kind", "current"),
+                            rotation_head=pca.rotation_head_of(model_state, n_bodies))(
             np.zeros_like(model_state["centre"].numpy()), np.ones_like(model_state["scale"].numpy())).double()
         model.load_state_dict(model_state); model.eval()
         support = np.asarray(state.get("patches", [])[chart], int)

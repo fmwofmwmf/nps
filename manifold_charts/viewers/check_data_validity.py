@@ -93,7 +93,8 @@ def _load_chart_atlas(work: str, artifact: str | None):
     return None, chart_atlas, os.path.abspath(path)
 
 
-def check_data_validity(case, work, *, n_test, offset, seed, sigma, artifact=None, use_dataset=False):
+def check_data_validity(case, work, *, n_test, offset, seed, sigma, artifact=None, use_dataset=False,
+                        rank_by_error=False):
     spec = load_spec(case)
     n_bodies = len(spec.mechanism.driven_bodies)
 
@@ -151,25 +152,32 @@ def check_data_validity(case, work, *, n_test, offset, seed, sigma, artifact=Non
     gt_mesh.register(ps, Tg[0], name_prefix="GT/", include_static=False,
                      color_override=(0.30, 0.72, 0.38))
 
-    state = {"i": 0, "offset": float(offset)}
+    # slider position -> pose index; "rank by error" walks the worst reconstructions first
+    worst_first = np.argsort(-rms, kind="stable")
+    state = {"slot": 0, "offset": float(offset), "ranked": bool(rank_by_error)}
+    order = lambda: worst_first if state["ranked"] else np.arange(len(q_test))
 
     def _apply():
-        i = state["i"]
+        i = state["i"] = int(order()[state["slot"]])
         shifted = Tg[i].copy()
         shifted[:, :3, 3] = shifted[:, :3, 3] + np.array([state["offset"], 0.0, 0.0])
         gt_mesh.update(shifted)
         rt_mesh.update(Tr[i])
 
     def _callback():
-        changed, value = imgui.SliderInt("pose", state["i"], 0, len(q_test) - 1)
+        changed, value = imgui.SliderInt("pose", state["slot"], 0, len(q_test) - 1)
         if changed:
-            state["i"] = int(value); _apply()
+            state["slot"] = int(value); _apply()
+        changed, value = imgui.Checkbox("rank by error (worst first)", state["ranked"])
+        if changed:
+            state["ranked"] = bool(value); state["slot"] = 0; _apply()
         changed, value = imgui.SliderFloat("offset", state["offset"], 0.0, 8.0)
         if changed:
             state["offset"] = float(value); _apply()
         imgui.Separator()
         i = state["i"]
-        imgui.Text(f"pose {i + 1}/{len(q_test)}")
+        imgui.Text(f"pose {i + 1}/{len(q_test)}"
+                   + (f"   (error rank {state['slot'] + 1})" if state["ranked"] else ""))
         imgui.Text(f"best chart  {int(best[i])}")
         imgui.Text(f"recon rms   {rms[i]:.4f}")
         imgui.Text(f"RT joint gap {rt_gap[i]:.4f}   (GT {gt_gap[i]:.1e})")
@@ -202,6 +210,9 @@ def main():
                         help="slide over the actual training-set poses instead of fresh "
                              "oracle-perturbed ones (a fit check, not a generalization probe; "
                              "--test-poses caps how many, --seed picks the subsample)")
+    parser.add_argument("--rank-by-error", action="store_true",
+                        help="start with the pose slider ordered worst reconstruction first "
+                             "(also a checkbox in the viewer)")
     args = parser.parse_args()
 
     work = args.work if os.path.isdir(args.work) else os.path.join(_HERE, "work", args.work)
@@ -210,7 +221,7 @@ def main():
     case = resolve_case_name(args.case) if args.case else _infer_case(work, os.path.basename(work))
     check_data_validity(case, work, n_test=args.n_test, offset=args.offset,
                         seed=args.seed, sigma=args.sigma, artifact=args.artifact,
-                        use_dataset=args.use_dataset)
+                        use_dataset=args.use_dataset, rank_by_error=args.rank_by_error)
 
 
 if __name__ == "__main__":

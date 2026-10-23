@@ -1578,9 +1578,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/scripts/pipeline/run_native_case.py": {
-    "mtime": 1792083428.0103867,
-    "seen": 1792084274.1850193,
-    "ast_hash": "8e2c99b06a6934b97a73c2525914130b",
+    "mtime": 1792716747.1821625,
+    "seen": 1792716762.8958957,
+    "ast_hash": "96d06d1c77154662f576c3e89a77f955",
     "semantic_hash": ""
   },
   "manifold_charts/systems.json": {
@@ -1602,27 +1602,27 @@
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_chart_exploration.py": {
-    "mtime": 1792082745.9206078,
-    "seen": 1792083013.67145,
-    "ast_hash": "f05454587c1ed7b9c92c9147ac671f02",
+    "mtime": 1792723581.541053,
+    "seen": 1792723733.794085,
+    "ast_hash": "fe8ffc6bec5ff04b245ab03489cfd5e0",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_pantograph_drag.py": {
-    "mtime": 1792083428.0046525,
-    "seen": 1792084274.1850193,
-    "ast_hash": "273a5d3f439e2910bfe17b8ae4546bf5",
+    "mtime": 1792723581.5747747,
+    "seen": 1792723733.794085,
+    "ast_hash": "2dd7812fe316390d805bdd84831fd0cc",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_routing_test.py": {
-    "mtime": 1792120697.1726644,
-    "seen": 1792139999.8235474,
-    "ast_hash": "e3bc462a5263ece6e202979f4175ddc4",
+    "mtime": 1792727324.0306654,
+    "seen": 1792727731.4499536,
+    "ast_hash": "12cc7aa4cec3e352131140be20ac353a",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_sample_set.py": {
-    "mtime": 1792083428.0076945,
-    "seen": 1792084274.1850193,
-    "ast_hash": "c232564424345f89bc956a27efeb1bb1",
+    "mtime": 1792723581.4473145,
+    "seen": 1792723733.794085,
+    "ast_hash": "45d5c65537db214dc01e28cacb2c622f",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/view_samples.py": {
@@ -1656,9 +1656,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/charts/competitive_cae.py": {
-    "mtime": 1792594814.3415344,
-    "seen": 1792594832.9205759,
-    "ast_hash": "359a30f0f86cc19537db7e69fd0d625a",
+    "mtime": 1792723556.8327823,
+    "seen": 1792723733.7736402,
+    "ast_hash": "4f9d5aad261c90b79fd5bedab3b81cba",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/charts/latent_support.py": {
@@ -1668,9 +1668,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/charts/physical_chart_autoencoder.py": {
-    "mtime": 1792082856.8503616,
-    "seen": 1792083013.6634505,
-    "ast_hash": "3f9dd21c1401b185e19a832f01fb3c4b",
+    "mtime": 1792723547.0708826,
+    "seen": 1792723733.7736402,
+    "ast_hash": "79c319bf49186a71b715106b2bb67161",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/charts/physics_fitting.py": {
@@ -1704,9 +1704,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/adv_labels.py": {
-    "mtime": 1792594814.3425336,
-    "seen": 1792594832.9210799,
-    "ast_hash": "6bee73b5a9c731522e454b8597541c78",
+    "mtime": 1792673030.544559,
+    "seen": 1792673552.711195,
+    "ast_hash": "899729a5ed7bb739bc122f505640ad60",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/adv_router.py": {
@@ -1728,9 +1728,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/loader.py": {
-    "mtime": 1792084183.5826664,
-    "seen": 1792084274.173465,
-    "ast_hash": "7e6bec923fc14c2b738b6187ffc45e07",
+    "mtime": 1792723556.8063595,
+    "seen": 1792723733.7752128,
+    "ast_hash": "eceaccb8b272295535c72d9c06255b60",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/ops.py": {
@@ -1752,9 +1752,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/router_build.py": {
-    "mtime": 1792594814.343534,
-    "seen": 1792594832.9210799,
-    "ast_hash": "ac4ab605158fe4289c535a3fed0e4372",
+    "mtime": 1792723556.778444,
+    "seen": 1792723733.7752128,
+    "ast_hash": "eb1ac4763eabc7a5610bf69c9fff8394",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/routing_test_tracks.py": {
@@ -1842,9 +1842,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/simulate/ideal_oracle.py": {
-    "mtime": 1792082745.896778,
-    "seen": 1792083013.6634505,
-    "ast_hash": "ab88989b7560ab4f0c20e9fb84a9f310",
+    "mtime": 1792702579.824451,
+    "seen": 1792713207.8762574,
+    "ast_hash": "b15149bbf38a5ac5399bad1cb3485f30",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/simulate/ideal_sim.py": {
@@ -1896,9 +1896,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/spec/geometry.py": {
-    "mtime": 1792629427.0193439,
-    "seen": 1792629504.5158434,
-    "ast_hash": "f121857056e39c7fd7d74e2f45286501",
+    "mtime": 1792704452.1720665,
+    "seen": 1792713207.8762574,
+    "ast_hash": "eff30dbc43df3d2544470a6f1f520872",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/spec/physical_domain.py": {
@@ -1944,15 +1944,15 @@
     "semantic_hash": ""
   },
   "manifold_charts/viewers/check_data_validity.py": {
-    "mtime": 1792083437.999158,
-    "seen": 1792084274.1850193,
-    "ast_hash": "64a1a92ab182459d9286a743599c795d",
+    "mtime": 1792718864.1183746,
+    "seen": 1792718878.5115788,
+    "ast_hash": "4473191a9e0ecd7afb151e1f83491eae",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/generic_manifold_diagnostics.py": {
-    "mtime": 1792082745.896778,
-    "seen": 1792084274.1850193,
-    "ast_hash": "a20f3acf782d343843e1fa0e50fce61f",
+    "mtime": 1792723581.5094392,
+    "seen": 1792723733.7915106,
+    "ast_hash": "721fb0c0b219ea97ba9c50695f601e3c",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/mesh_view.py": {
@@ -2196,15 +2196,15 @@
     "semantic_hash": ""
   },
   "manifold_charts/viewers/blender_import_rom.py": {
-    "mtime": 1792594814.360674,
-    "seen": 1792594832.9351015,
-    "ast_hash": "12b9d1889229376d694a02eb4e09f3d8",
+    "mtime": 1792728977.3202882,
+    "seen": 1792729107.5679312,
+    "ast_hash": "68997652c79dcab7ab89e79b52fa51ce",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/export_rom_blender.py": {
-    "mtime": 1792594814.360674,
-    "seen": 1792594832.9351015,
-    "ast_hash": "61e9c3c4a7dd83251b5268e1fdabb2b2",
+    "mtime": 1792727966.9909134,
+    "seen": 1792728011.300491,
+    "ast_hash": "2656f7197660c9a3ec2bb6ce1581bd06",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/ps_widgets.py": {
@@ -2226,15 +2226,15 @@
     "semantic_hash": ""
   },
   "manifold_charts/viewers/render_utility/render_utility/misc.py": {
-    "mtime": 1792120650.5070674,
-    "seen": 1792139999.8235474,
-    "ast_hash": "e149c30875ae41e55bd2639724425689",
+    "mtime": 1792719423.9749188,
+    "seen": 1792723733.7935755,
+    "ast_hash": "8c093fb141e44605ba3a8d1c6766e67c",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/rom_drivers.py": {
-    "mtime": 1792594814.3616736,
-    "seen": 1792594832.9361036,
-    "ast_hash": "c28496c1f1ca1e75f158b5535ae283a6",
+    "mtime": 1792727380.0779736,
+    "seen": 1792727731.4499536,
+    "ast_hash": "e9dfc6edf7bae72f89b56d85f329c334",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/rom_record.py": {
@@ -2283,6 +2283,624 @@
     "mtime": 1792596215.2833073,
     "seen": 1792596224.8632467,
     "ast_hash": "c741dd0e07d24c03d1b085c6c7bd7e23",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/_drivetrain_params.py": {
+    "mtime": 1792705196.1507044,
+    "seen": 1792713207.8612902,
+    "ast_hash": "3adf382d5ba567dca445e6aa1ecdf061",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/drivetrain.py": {
+    "mtime": 1792705196.1507044,
+    "seen": 1792713207.8622906,
+    "ast_hash": "a42abd3ea112398d652e5d998d6c32f1",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/tests/test_drivetrain.py": {
+    "mtime": 1792702784.6446662,
+    "seen": 1792713207.8777683,
+    "ast_hash": "c44683148cde8cba8a485420832e180b",
+    "semantic_hash": ""
+  },
+  "manifold_charts/roms/drivetrain_v1/manifest.json": {
+    "mtime": 1792673521.7704859,
+    "seen": 1792673552.7197287,
+    "ast_hash": "e47450a7bab0e9fe349ea3561c2375f3",
+    "semantic_hash": ""
+  },
+  "manifold_charts/scripts/assets/build_drivetrain_display.py": {
+    "mtime": 1792728977.2997038,
+    "seen": 1792729107.566417,
+    "ast_hash": "8fecb88f46a6a927a0fbb99185e212ae",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/drivetrain_v8.py": {
+    "mtime": 1792728977.2754107,
+    "seen": 1792729107.5339944,
+    "ast_hash": "c82cb280ca11ed2de93c47fca4ce3ebb",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/post_shadow.py": {
+    "mtime": 1792705941.0539942,
+    "seen": 1792713207.8909369,
+    "ast_hash": "8e0fd69be5cf288cf5fec23d17af3f53",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/render_diff.py": {
+    "mtime": 1792705941.0461576,
+    "seen": 1792713207.8909369,
+    "ast_hash": "6e32a063d655badc34f6d308ddcf53f0",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/7a_seed_tangent.png": {
+    "mtime": 1792705941.0838456,
+    "seen": 1792713207.9051056,
+    "ast_hash": "808b377052266f22a8ec7810dd42cde7",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/7b_growing.png": {
+    "mtime": 1792705941.1113396,
+    "seen": 1792713207.9051056,
+    "ast_hash": "d3623735ecd62ea3fa2ac85c301d6ef7",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/7c_dataset.png": {
+    "mtime": 1792705941.1403234,
+    "seen": 1792713207.9051056,
+    "ast_hash": "47b4d2dcd356e00c1ebe2594c2176b2c",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/8a_particles.png": {
+    "mtime": 1792705941.1662042,
+    "seen": 1792713207.9051056,
+    "ast_hash": "e4215ecb13d710ba1cbe880b42d984a1",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/8b_patches.png": {
+    "mtime": 1792705941.1932845,
+    "seen": 1792713207.9051056,
+    "ast_hash": "2f9128e0dc65536ef872072d6790833a",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/8c_merge.png": {
+    "mtime": 1792705941.2203224,
+    "seen": 1792713207.9051056,
+    "ast_hash": "61071ff317ecc9c967a9e6bd9d8a7cfd",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/8d_merge.png": {
+    "mtime": 1792705941.2462654,
+    "seen": 1792713207.9051056,
+    "ast_hash": "654d21583eb897a284695fed43a44c78",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/pipeline_png/diff_render/out/8e_cover.png": {
+    "mtime": 1792705941.2693293,
+    "seen": 1792713207.9051056,
+    "ast_hash": "7fde4d6426b047e88fab422a2d951a8a",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/tests/test_rotation_head.py": {
+    "mtime": 1792723695.855748,
+    "seen": 1792723733.7802527,
+    "ast_hash": "3a1ce12caf14cd2db59cb4c0abf507eb",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/__init__.py": {
+    "mtime": 1792719391.6157198,
+    "seen": 1792723733.7930565,
+    "ast_hash": "093a759fd8d9c702b183d89766dd76b1",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/blenderInit.py": {
+    "mtime": 1792719391.6172285,
+    "seen": 1792723733.7930565,
+    "ast_hash": "fffc1db2035b6a3070b579fda63bda37",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/colorMap.py": {
+    "mtime": 1792719391.6177423,
+    "seen": 1792723733.7930565,
+    "ast_hash": "798e7253b1a074f850183bb48cc87854",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/colorObj.py": {
+    "mtime": 1792719391.6182523,
+    "seen": 1792723733.7930565,
+    "ast_hash": "295accd16aec5d80e52fcbd13b32641b",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/copyArrowToVertex.py": {
+    "mtime": 1792719391.6182523,
+    "seen": 1792723733.7930565,
+    "ast_hash": "e62061c88e7cc611f7a2e651d4447a1c",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/copyToVertexSubset.py": {
+    "mtime": 1792719391.6182523,
+    "seen": 1792723733.7930565,
+    "ast_hash": "7ef6657ddd6e6a785f2df4be65423d47",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/createArrow.py": {
+    "mtime": 1792719391.6182523,
+    "seen": 1792723733.7930565,
+    "ast_hash": "2b9af96619d1779cec37e300ca57fb0e",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/createScaledVectorFieldMesh.py": {
+    "mtime": 1792719391.6182523,
+    "seen": 1792723733.7930565,
+    "ast_hash": "90efed2d875647b04e942f6520db22e4",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/createVectorFieldMesh.py": {
+    "mtime": 1792719391.619761,
+    "seen": 1792723733.7930565,
+    "ast_hash": "cbfc165b03f6cde52927af2da8fc073f",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/discreteColor.py": {
+    "mtime": 1792719391.619761,
+    "seen": 1792723733.7930565,
+    "ast_hash": "6a3aa99e7797a723c031ddf0a2c19f5e",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/drawBoundaryLoop.py": {
+    "mtime": 1792719391.619761,
+    "seen": 1792723733.7930565,
+    "ast_hash": "13ac3ca943e45844cf96b18c6b5d5586",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/drawEdgeSubset.py": {
+    "mtime": 1792719391.619761,
+    "seen": 1792723733.7930565,
+    "ast_hash": "71da0dfe1c4ebb7097ecaaa5e685e327",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/drawLines.py": {
+    "mtime": 1792719391.619761,
+    "seen": 1792723733.7930565,
+    "ast_hash": "0b3b6343cafe92d9295c9992615b0f3c",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/drawOutline.py": {
+    "mtime": 1792719391.6212716,
+    "seen": 1792723733.7930565,
+    "ast_hash": "13398fd18a46ac614be1cf57786c74a9",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/drawPoints.py": {
+    "mtime": 1792719391.6212716,
+    "seen": 1792723733.7930565,
+    "ast_hash": "f56e055aa51ac539e9ef65b7040513be",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/drawSphere.py": {
+    "mtime": 1792719391.6212716,
+    "seen": 1792723733.7930565,
+    "ast_hash": "29120e0df7d50bbb580fe88060d1b4da",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/edgeNormals.py": {
+    "mtime": 1792719391.6217816,
+    "seen": 1792723733.7930565,
+    "ast_hash": "d01169bcc90a34c330a1fa979c780160",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/genPolylineMesh.py": {
+    "mtime": 1792719391.6217816,
+    "seen": 1792723733.7930565,
+    "ast_hash": "27c5319a8c7566a10651052a25bca41f",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/getEdgeWire.py": {
+    "mtime": 1792719391.6222908,
+    "seen": 1792723733.7930565,
+    "ast_hash": "8b35066dfef34b11f6d835753f07af62",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/import_scene_from_blend.py": {
+    "mtime": 1792719391.6222908,
+    "seen": 1792723733.7930565,
+    "ast_hash": "277097ddbb33b3b275707f3692e91503",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/initColorNode.py": {
+    "mtime": 1792719391.622805,
+    "seen": 1792723733.7930565,
+    "ast_hash": "141c288e0e50ae2a30d99093ca1a4863",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/invisibleGround.py": {
+    "mtime": 1792719391.623321,
+    "seen": 1792723733.7930565,
+    "ast_hash": "97a5bf8c885241b77752c12d7d29e64d",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/loadShader.py": {
+    "mtime": 1792719391.623321,
+    "seen": 1792723733.7930565,
+    "ast_hash": "1811d2a83912d373a675c5c8d8e71e43",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/lookAt.py": {
+    "mtime": 1792719391.6238468,
+    "seen": 1792723733.7930565,
+    "ast_hash": "847a59aec239de635cd7ace21c516946",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readImagePlane.py": {
+    "mtime": 1792719391.6238468,
+    "seen": 1792723733.7930565,
+    "ast_hash": "1c43ca41305f9bab373ec8b672722032",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readMesh.py": {
+    "mtime": 1792719391.6243567,
+    "seen": 1792723733.7930565,
+    "ast_hash": "00c4c8112ee9e6387644ee029941e4a4",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readNumpyMesh.py": {
+    "mtime": 1792719391.6243567,
+    "seen": 1792723733.7930565,
+    "ast_hash": "70a42dc57fbf2d31b5bb94c36e5684f5",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readNumpyPoints.py": {
+    "mtime": 1792719391.624866,
+    "seen": 1792723733.7930565,
+    "ast_hash": "768a6615502ba3153e011dd728a115aa",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readOBJ.py": {
+    "mtime": 1792719391.624866,
+    "seen": 1792723733.7930565,
+    "ast_hash": "0383d3c868f9bf2700bc276f963222ba",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readPLY.py": {
+    "mtime": 1792719391.625431,
+    "seen": 1792723733.7930565,
+    "ast_hash": "b032ef7ba2d3d3e5ed7feee139a35cbf",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readSTL.py": {
+    "mtime": 1792719391.625431,
+    "seen": 1792723733.7930565,
+    "ast_hash": "dcaedb4fc2db9f437bcd98d63678cce1",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/readSimplicialComplex.py": {
+    "mtime": 1792719391.625431,
+    "seen": 1792723733.7930565,
+    "ast_hash": "39261a4a39125f876c7ece8f45479435",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/recalculateNormals.py": {
+    "mtime": 1792719391.625431,
+    "seen": 1792723733.7930565,
+    "ast_hash": "63a712a09c2d17064bdaf66ab4b78487",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/renderAnimation.py": {
+    "mtime": 1792719391.6305425,
+    "seen": 1792723733.7930565,
+    "ast_hash": "85e5ba8a0f6a40b8204a374c0b1b4f10",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/renderImage.py": {
+    "mtime": 1792719391.6310449,
+    "seen": 1792723733.7930565,
+    "ast_hash": "94798a44d43b6900f1c8ea8d3e2cc8fc",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/render_mesh_default.py": {
+    "mtime": 1792719391.6315525,
+    "seen": 1792723733.7930565,
+    "ast_hash": "bdfd72cb74c7afcd01be40658982a70c",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/render_point_cloud_default.py": {
+    "mtime": 1792719391.6315525,
+    "seen": 1792723733.7930565,
+    "ast_hash": "6519aa79a41763ad476af1b1baa4fdaa",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/selectOBJ.py": {
+    "mtime": 1792719391.6315525,
+    "seen": 1792723733.7930565,
+    "ast_hash": "3757fcae83e1e6ed6c8c116df27fae38",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setCamera.py": {
+    "mtime": 1792719391.6315525,
+    "seen": 1792723733.7930565,
+    "ast_hash": "2a0c97e351e01fa9d21a97aa2df941e5",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setCameraPath.py": {
+    "mtime": 1792719391.6315525,
+    "seen": 1792723733.7930565,
+    "ast_hash": "22c1d2bf13f9ef811bb9be8b819f8f30",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setCamera_from_UI.py": {
+    "mtime": 1792719391.6330597,
+    "seen": 1792723733.7930565,
+    "ast_hash": "21c1e9b9162763700622c68b9297e4e4",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setCamera_orthographic.py": {
+    "mtime": 1792719391.6335824,
+    "seen": 1792723733.7930565,
+    "ast_hash": "825edef66d5fea7b7878520dd5272a5e",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setGraphMesh.py": {
+    "mtime": 1792719391.6335824,
+    "seen": 1792723733.7930565,
+    "ast_hash": "3480b57e2919d779b822ba50741f2705",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setLight_ambient.py": {
+    "mtime": 1792719391.6340966,
+    "seen": 1792723733.7930565,
+    "ast_hash": "87f69b7823b7d3caf8e5c5bf00cd78ba",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setLight_sun.py": {
+    "mtime": 1792719391.6340966,
+    "seen": 1792723733.7930565,
+    "ast_hash": "5b93f50c4d3dde7844ecc4dacbfc9c36",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setLight_threePoints.py": {
+    "mtime": 1792719391.6340966,
+    "seen": 1792723733.7930565,
+    "ast_hash": "a9952e41aac230752120fd85eaf5b347",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_VColor.py": {
+    "mtime": 1792719391.634607,
+    "seen": 1792723733.7930565,
+    "ast_hash": "37f44893720fa6400feaaee87d0ea85c",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_VColorAO.py": {
+    "mtime": 1792719391.634607,
+    "seen": 1792723733.7930565,
+    "ast_hash": "57fdcd655147d92c6ae375ee4b37453a",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_VColorEdge.py": {
+    "mtime": 1792719391.6351185,
+    "seen": 1792723733.7930565,
+    "ast_hash": "d671e95707f0133d0041ba51afd120a9",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_amber.py": {
+    "mtime": 1792719391.6356273,
+    "seen": 1792723733.7930565,
+    "ast_hash": "98a39a54c59efe30ad10e0d056058a54",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_ambient_occlusion.py": {
+    "mtime": 1792719391.6356273,
+    "seen": 1792723733.7930565,
+    "ast_hash": "d993e015131148a5582177d2f69a0294",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_balloon.py": {
+    "mtime": 1792719391.6361377,
+    "seen": 1792723733.7930565,
+    "ast_hash": "dfec4822573b7159b1b11d0d3c3d22c5",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_carPaint.py": {
+    "mtime": 1792719391.6361377,
+    "seen": 1792723733.7930565,
+    "ast_hash": "88ecaaca5d285d1f848cacf88d0fef03",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_ceramic.py": {
+    "mtime": 1792719391.6361377,
+    "seen": 1792723733.7930565,
+    "ast_hash": "082c02486ba885264a621a9ed89977f2",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_chrome.py": {
+    "mtime": 1792719391.6361377,
+    "seen": 1792723733.7930565,
+    "ast_hash": "b3e31136f3779c8fa487f7978023fb2d",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_crackedCeramic.py": {
+    "mtime": 1792719391.637142,
+    "seen": 1792723733.7930565,
+    "ast_hash": "fa94f1736adcd8021669c9edb2bf96f0",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_edge.py": {
+    "mtime": 1792719391.637142,
+    "seen": 1792723733.7930565,
+    "ast_hash": "3c8c0a130cdc5e011e5a9fc8f6a55c79",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_edgeWithTexture.py": {
+    "mtime": 1792719391.637142,
+    "seen": 1792723733.7930565,
+    "ast_hash": "ca3b8efcbdaf65b0b0d0aae7140de375",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_emission.py": {
+    "mtime": 1792719391.637142,
+    "seen": 1792723733.7930565,
+    "ast_hash": "76775e22e9147befd0cd1466abb643fe",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_glass.py": {
+    "mtime": 1792719391.6383078,
+    "seen": 1792723733.7930565,
+    "ast_hash": "8bacdd10522c9752a953f23026fb950e",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_graph.py": {
+    "mtime": 1792719391.6383078,
+    "seen": 1792723733.7930565,
+    "ast_hash": "cbbc244156f636e8cb527abdc810db0a",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_honey.py": {
+    "mtime": 1792719391.6383078,
+    "seen": 1792723733.7930565,
+    "ast_hash": "9854cfd85de02fb559b475b0490d685f",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_matcap.py": {
+    "mtime": 1792719391.6383078,
+    "seen": 1792723733.7930565,
+    "ast_hash": "edff69c75dccf67e9baf46870b8302a4",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_metal.py": {
+    "mtime": 1792719391.6383078,
+    "seen": 1792723733.7930565,
+    "ast_hash": "0adaeaa15e01e7e09e9625e5a3d17b67",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_monotone.py": {
+    "mtime": 1792719391.6383078,
+    "seen": 1792723733.7930565,
+    "ast_hash": "dec338fff4ebcecfb4f56906c0d6ad3f",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_muscle.py": {
+    "mtime": 1792719391.6398182,
+    "seen": 1792723733.7930565,
+    "ast_hash": "32e6a573907c2ff7a9b2ba3ed043e830",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_plastic.py": {
+    "mtime": 1792719391.640325,
+    "seen": 1792723733.7930565,
+    "ast_hash": "4a5f3243382cd29210555437fc71354c",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_pointCloud.py": {
+    "mtime": 1792719391.640325,
+    "seen": 1792723733.7930565,
+    "ast_hash": "a6fca1187dea74ec57b012cba9acebc7",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_pointCloudColored.py": {
+    "mtime": 1792719391.6409054,
+    "seen": 1792723733.7930565,
+    "ast_hash": "949f1d30ccbf8f96201412e8162b21f0",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_poop.py": {
+    "mtime": 1792719391.6409054,
+    "seen": 1792723733.7930565,
+    "ast_hash": "7ee611eba6ece94424ffac4421cb96f9",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_simplicialComplex.py": {
+    "mtime": 1792719391.6409054,
+    "seen": 1792723733.7930565,
+    "ast_hash": "3964d8b705abcf89990330f6f27fe08f",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_singleColor.py": {
+    "mtime": 1792719391.6409054,
+    "seen": 1792723733.7930565,
+    "ast_hash": "6de65f8e34afd209c7d98fc6c76bb13b",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_stone.py": {
+    "mtime": 1792719391.6419125,
+    "seen": 1792723733.7930565,
+    "ast_hash": "2c30a70897f26d0de3da81c1210c4657",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_texture.py": {
+    "mtime": 1792719391.6419125,
+    "seen": 1792723733.7930565,
+    "ast_hash": "d20435d510e4b466ad6cc994d5adeac9",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_thindielectric.py": {
+    "mtime": 1792719391.6419125,
+    "seen": 1792723733.7930565,
+    "ast_hash": "57c363b4863001ef6d8ee78f09f9f5fd",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_transparent.py": {
+    "mtime": 1792719391.6419125,
+    "seen": 1792723733.7930565,
+    "ast_hash": "1a27e07a5810d367c1171fec32515efc",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMat_transparentWithEdge.py": {
+    "mtime": 1792719391.6419125,
+    "seen": 1792723733.7930565,
+    "ast_hash": "b02c108025e1a8a130c1e272a6bee79e",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMeshColors.py": {
+    "mtime": 1792719391.6435318,
+    "seen": 1792723733.7930565,
+    "ast_hash": "275b396caa5f0576ae777e004c88638a",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setMeshScalars.py": {
+    "mtime": 1792719391.6435318,
+    "seen": 1792723733.7930565,
+    "ast_hash": "103acaeea54c660cb26ae8dfdacf02b9",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setPointColors.py": {
+    "mtime": 1792719391.6440496,
+    "seen": 1792723733.7930565,
+    "ast_hash": "47842d551c5fec64eeb563d327fbbab3",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/setPointScalars.py": {
+    "mtime": 1792719391.6440496,
+    "seen": 1792723733.7930565,
+    "ast_hash": "2191bdc7f2d8e48380d7b88b037ab824",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/set_background.py": {
+    "mtime": 1792719391.6445596,
+    "seen": 1792723733.7930565,
+    "ast_hash": "5310335e14ad74059bf7adb0519f485f",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/shadowThreshold.py": {
+    "mtime": 1792719391.6445596,
+    "seen": 1792723733.7930565,
+    "ast_hash": "07805db541f0703f2d13eb48687e3e44",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/subdivision.py": {
+    "mtime": 1792719391.6450703,
+    "seen": 1792723733.7930565,
+    "ast_hash": "0231b722739020c37ec561da38ecd990",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox/vertexScalarToUV.py": {
+    "mtime": 1792719391.6450703,
+    "seen": 1792723733.7930565,
+    "ast_hash": "b532710e31449e3f536870f13a063e85",
+    "semantic_hash": ""
+  },
+  "manifold_charts/viewers/render_utility/deps/BlenderToolbox/blendertoolbox-0.0.9.dist-info/top_level.txt": {
+    "mtime": 1792719391.6465812,
+    "seen": 1792723733.7986536,
+    "ast_hash": "c63caf067a4e7ac1462a6bfc974e7812",
     "semantic_hash": ""
   }
 }

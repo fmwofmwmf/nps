@@ -17,14 +17,14 @@ from atlas_rom.simulate import oracle_eval
 
 P2, STEP, GAMMA, TAG = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]), sys.argv[4]
 FT = int(sys.argv[5]) if len(sys.argv) > 5 else 6000
-MULT = 10.0
+MULT = float(os.environ.get("CLOSURE_MULT", "10.0"))
 case = os.environ.get("CASE", "rotate"); dev = torch.device("cuda")
 OUT = ROOT / "work" / f"{case}_native_{TAG}"; OUT.mkdir(parents=True, exist_ok=True)
 t0 = time.time()
 import os
 DATA = os.environ.get("DATASET_DIR", case)
 data = np.load(ROOT / "work" / DATA / "new_dataset.npz", allow_pickle=False)
-q_orig = np.asarray(np.load(ROOT / "work" / case / "new_dataset.npz")["q"], float)
+q_orig = np.asarray(np.load(ROOT / "work" / os.environ.get("ORIG_DATASET_DIR", case) / "new_dataset.npz")["q"], float)   # fresh-test seeds
 q = np.asarray(data["q"], float); n = len(q)
 spec = load_spec(case); nb = len(spec.mechanism.driven_bodies)
 inner = validity_from_case(spec)                                   # repo-native: includes grounded joints
@@ -41,7 +41,7 @@ config = ChartFitConfig(fitter_id="competitive_cae", width=96, epochs=1, constru
                         options={"n_charts": 8, "device": "cuda"})
 report, models, patches, anchors = CompetitiveCAEFitter().fit(
     evidence, config, work=str(OUT), case=case, device="cuda", n_charts=8, pretrain_steps=500,
-    phase1_max_epochs=3000, phase2_epochs=P2, validity=inner, closure_standardize_mult=10.0, lbfgs_polish_iters=int(os.environ.get('POLISH', '12000')),   # test hack: validity is already x(10/cs), so mult=cs gives closure*10/cs in the polish too
+    phase1_max_epochs=3000, phase2_epochs=P2, validity=inner, closure_standardize_mult=MULT, lbfgs_polish_closure_mult=MULT, lbfgs_polish_iters=int(os.environ.get('POLISH', '12000')),   # test hack: validity is already x(10/cs), so mult=cs gives closure*10/cs in the polish too
     exploration_snapshot_every=(int(os.environ["SNAP_EVERY"]) if os.environ.get("SNAP_EVERY") else None),
     phase2_exploration_snapshot_every=(int(os.environ["SNAP2_EVERY"]) if os.environ.get("SNAP2_EVERY") else None),
     epoch_trace=bool(os.environ.get("EPOCH_TRACE")), snapshot_prune_steps=bool(os.environ.get("PRUNE_SNAP")),

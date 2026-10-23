@@ -123,7 +123,8 @@ def _model_from_state(frame: dict, state: dict):
     scale = state["scale"].detach().cpu().numpy()
     width = int(state["encoder.0.weight"].shape[0])
     model = pca._module(int(frame["n_bodies"]), width=width, d=int(frame["d"]),
-                        encoder_kind=frame["encoder_kind"])(centre, scale).double()
+                        encoder_kind=frame["encoder_kind"],
+                        rotation_head=pca.rotation_head_of(state, int(frame["n_bodies"])))(centre, scale).double()
     model.load_state_dict(state)
     model.eval()
     return model

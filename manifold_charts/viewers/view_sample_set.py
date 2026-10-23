@@ -248,7 +248,8 @@ def _load_chart_model(model_state, encoder_kind: str):
     d = [v for k, v in model_state.items()
          if k.startswith("encoder.") and k.endswith(".bias")][-1].shape[0]
     n_bodies = int(model_state["encoder.0.weight"].shape[1] // 9)
-    model = pca._module(n_bodies, width=width, d=d, encoder_kind=encoder_kind)(
+    model = pca._module(n_bodies, width=width, d=d, encoder_kind=encoder_kind,
+                        rotation_head=pca.rotation_head_of(model_state, n_bodies))(
         np.zeros_like(model_state["centre"].numpy()),
         np.ones_like(model_state["scale"].numpy())).double()
     model.load_state_dict(model_state)

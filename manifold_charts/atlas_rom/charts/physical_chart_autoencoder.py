@@ -1,16 +1,40 @@
 """Chart-conditioned physical-pose autoencoder; deliberately has no ``z`` input.
 
 Each chart learns ``q -> E(q) in R^d -> D(E(q))`` directly from packed body
-transforms (``d`` defaults to 2 but is caller-supplied via ``_module(..., d=...)``).  The decoder emits translation plus two rotation columns per body;
-Gram--Schmidt produces SO(3), never an unconstrained affine matrix.
+transforms (``d`` defaults to 2 but is caller-supplied via ``_module(..., d=...)``).  The decoder emits translation plus
+a rotation per body, always on SO(3), never an unconstrained affine matrix.  Two rotation heads:
+
+* ``"exp"``: a rotation vector ``w`` per body, ``R = exp(hat(w))`` (Rodrigues).  Smooth and defined for EVERY ``w``,
+  and ``|dR| <= sqrt(2) |dw|`` everywhere, so the decoder Jacobian is bounded by the MLP's own Lipschitz constant at
+  any latent, on or off the chart's data.
+* ``"r6"``: two rotation columns, Gram--Schmidt.  Undefined where the second column is parallel to the first -- a
+  codimension-2 set, so generically isolated points in a 2-D latent -- and the decoder Jacobian diverges there
+  (clamped at 1e-8).  Kept so artifacts trained with it load and decode unchanged.
 """
 from __future__ import annotations
 import numpy as np
 
+ROTATION_OUTPUTS = {"exp": 3, "r6": 6}
 
-def _module(n_bodies, width=96, d=2, encoder_kind="current"):
+
+def rotation_head_of(state_dict, n_bodies):
+    """The rotation head a saved chart state was trained with, read off the decoder's output width."""
+    layers = sorted((int(k.split(".")[1]), k) for k in state_dict
+                    if k.startswith("decoder.") and k.endswith(".weight"))
+    per_body = int(state_dict[layers[-1][1]].shape[0]) // int(n_bodies)
+    heads = {3 + r: name for name, r in ROTATION_OUTPUTS.items()}
+    if per_body not in heads:
+        raise ValueError(f"decoder emits {per_body} values per body; expected one of {sorted(heads)}")
+    return heads[per_body]
+
+
+def _module(n_bodies, width=96, d=2, encoder_kind="current", rotation_head="r6"):
     import torch
     import torch.nn as nn
+
+    if rotation_head not in ROTATION_OUTPUTS:
+        raise ValueError(f"unknown rotation_head {rotation_head!r}")
+    n_rot = ROTATION_OUTPUTS[rotation_head]
 
     def mlp(a, b):
         return nn.Sequential(nn.Linear(a, width), nn.SiLU(), nn.Linear(width, width),
@@ -34,7 +58,8 @@ def _module(n_bodies, width=96, d=2, encoder_kind="current"):
                 self.encoder = mlp(9 * n_bodies, d)
             else:
                 raise ValueError(f"unknown encoder_kind {encoder_kind!r}")
-            self.decoder = mlp(d, 9 * n_bodies)
+            self.rotation_head = rotation_head
+            self.decoder = mlp(d, (n_rot + 3) * n_bodies)
             # Optional detached whitening gauge applied to the raw code.  When
             # ``gauge_use`` is false the encoder keeps its bounded sigmoid
             # domain; competitive_cae fills these buffers so the *same* latent
@@ -102,6 +127,27 @@ def _module(n_bodies, width=96, d=2, encoder_kind="current"):
             e2 = b / torch.linalg.vector_norm(b, dim=-1, keepdim=True).clamp_min(1e-8)
             return torch.stack((e1, e2, torch.linalg.cross(e1, e2, dim=-1)), dim=-1)
 
+        @staticmethod
+        def _rotation_exp(w):
+            """Rodrigues ``exp(hat(w)) = I + A hat(w) + B hat(w)^2``, Taylor series for A, B near ``w = 0`` so value
+            and gradient are finite everywhere."""
+            theta2 = (w * w).sum(-1, keepdim=True)[..., None]                   # [..., 1, 1]
+            small = theta2 < 1e-4
+            safe2 = torch.where(small, torch.ones_like(theta2), theta2)
+            theta = torch.sqrt(safe2)
+            A = torch.where(small, 1.0 - theta2 / 6.0 + theta2 * theta2 / 120.0, torch.sin(theta) / theta)
+            B = torch.where(small, 0.5 - theta2 / 24.0 + theta2 * theta2 / 720.0, (1.0 - torch.cos(theta)) / safe2)
+            x, y, z = w.unbind(-1)
+            o = torch.zeros_like(x)
+            K = torch.stack((torch.stack((o, -z, y), -1),
+                             torch.stack((z, o, -x), -1),
+                             torch.stack((-y, x, o), -1)), -2)
+            eye = torch.eye(3, dtype=w.dtype, device=w.device)
+            return eye + A * K + B * (K @ K)
+
+        def _rotation(self, x):
+            return self._rotation_exp(x) if self.rotation_head == "exp" else self._rotation6(x)
+
         def features(self, q):
             T = q.reshape(-1, self.n_bodies, 3, 4)
             # First two *columns* are the continuous 6D rotation representation.
@@ -122,9 +168,9 @@ def _module(n_bodies, width=96, d=2, encoder_kind="current"):
             return torch.sigmoid(raw)
 
         def transforms(self, u):
-            y = self.decoder(u).reshape(-1, self.n_bodies, 9)
-            R = self._rotation6(y[..., :6])
-            t = y[..., 6:] * self.scale + self.centre
+            y = self.decoder(u).reshape(-1, self.n_bodies, n_rot + 3)
+            R = self._rotation(y[..., :n_rot])
+            t = y[..., n_rot:] * self.scale + self.centre
             return torch.cat((R, t[..., None]), -1)
 
         def decode(self, u): return self.transforms(u).reshape(len(u), -1)

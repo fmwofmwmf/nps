@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Name: blendertoolbox
+Version: 0.0.9
+Summary: Some Blender functions for rendering paper figures
+Home-page: https://github.com/HTDerekLiu/BlenderToolbox/
+Author: Hsueh-Ti Derek Liu
+Author-email: hsuehtil@gmail.com
+License: Apache 2.0
+Classifier: Programming Language :: Python :: 3.11
+License-File: LICENSE
+

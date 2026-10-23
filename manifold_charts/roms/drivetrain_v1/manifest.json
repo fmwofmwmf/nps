@@ -1,0 +1,79 @@
+{
+  "format": "patch_rom_v2",
+  "case": "drivetrain",
+  "label": null,
+  "n_bodies": 14,
+  "body_order": [
+    "crankshaft",
+    "rod_1",
+    "rod_2",
+    "rod_3",
+    "rod_4",
+    "piston_1",
+    "piston_2",
+    "piston_3",
+    "piston_4",
+    "carrier",
+    "spider",
+    "spider_b",
+    "axle_left",
+    "axle_right"
+  ],
+  "latent_dim": 2,
+  "width": 96,
+  "n_patches": 6,
+  "control_schema": [
+    {
+      "name": "engine torque",
+      "kind": "joint_torque",
+      "target": "crank_main",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "left wheel brake",
+      "kind": "joint_torque",
+      "target": "left_bearing",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "engine torque",
+      "kind": "joint_torque",
+      "target": "crank_main",
+      "status": "analytic"
+    },
+    {
+      "name": "left wheel brake",
+      "kind": "joint_torque",
+      "target": "left_bearing",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": null,
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\manifold_charts\\work\\drivetrain_native_v1",
+    "artifact_sha256": "40dfb142e3e07681ba2384c87c44844ecd5435939320b93c5bdc90fcf8d71495",
+    "build_report_sha256": "7c34d8e8162f676fbeaec9ba9b34c9e8fb57bc2e8fdc94a94e347b3cf61982b2"
+  },
+  "gates": {
+    "build_status": "pass",
+    "build_all_pass": true,
+    "n_uncovered": 0,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": null,
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": true,
+  "staged_at": "2026-10-22T12:52:01.768469+00:00"
+}

@@ -74,22 +74,35 @@ def _layout(adapter, rom, n_columns):
     return offsets
 
 
-def joint_pd_controls(rom, track, targets, w0, zeta, lim_mult, gcomp, manual):
-    """Computed-torque PD in JOINT space for a track, using only the ROM's own learned quantities (decoder, mass field, potential field) plus the actuator joints for the angle readout.
-    theta_ddot = Lam^-1 tau - J M^-1 dV/du   (J = d theta/du, Lam = (J M^-1 J^T)^-1 the joint-space inertia)  ->  tau = Lam (a_des + J M^-1 dV/du) with a_des = w0^2 e - 2 zeta w0 theta_dot.
-    Returns (controls, rows[(name, angle, error, command, saturated)]); Coriolis terms are ignored (fine at the speeds this is used at)."""
+def joint_state(rom, track, idx=None):
+    """(theta, theta_dot, J, M) of the joint-torque actuators ``idx`` (default: all of them), read from the track's ROM state only:
+    the decoded pose for the angles, theta_dot = J M^-1 p with J = d theta/du from the learned decoder and M the learned mass field."""
     import torch
     from atlas_rom.rom import ops as _ops
     acts = list(rom.case.actuators)
-    idx = [k for k, a in enumerate(acts) if a.kind == "joint_torque"]
+    if idx is None:
+        idx = [k for k, a in enumerate(acts) if a.kind == "joint_torque"]
     ch, u, p = int(track.state["chart"]), track.state["u"], track.state["p"]
     joints = [rom.case.mechanism.joint(acts[k].target) for k in idx]
     pose = torch.as_tensor(track.pose(), dtype=torch.float64)
     theta = np.array([float(_ops.joint_angle_torch(pose, j, rom.body_order)) for j in joints])
-    J = np.stack([np.asarray(_ops.actuator_jacobian(rom.models[ch], u, j, rom.body_order), float) for j in joints])          # (n, d)
+    J = np.stack([np.asarray(_ops.actuator_jacobian(rom.models[ch], u, j, rom.body_order), float) for j in joints]).reshape(len(idx), -1)  # (n, d)
     M = track.rt._mass(ch, u)
-    Minv_p = np.linalg.solve(M, p)
-    theta_dot = J @ Minv_p
+    return theta, J @ np.linalg.solve(M, p), J, M
+
+
+def joint_pd_controls(rom, track, targets, w0, zeta, lim_mult, gcomp, manual, active=None):
+    """Computed-torque PD in JOINT space for a track, using only the ROM's own learned quantities (decoder, mass field, potential field) plus the actuator joints for the angle readout.
+    theta_ddot = Lam^-1 tau - J M^-1 dV/du   (J = d theta/du, Lam = (J M^-1 J^T)^-1 the joint-space inertia)  ->  tau = Lam (a_des + J M^-1 dV/du) with a_des = w0^2 e - 2 zeta w0 theta_dot.
+    ``active``: the actuator indices commanded this step (default: every joint-torque actuator); the others get no
+    command at all, so their joints move freely under the ROM's dynamics.
+    Returns (controls, rows[(name, angle, error, command, saturated)]); Coriolis terms are ignored (fine at the speeds this is used at)."""
+    acts = list(rom.case.actuators)
+    idx = [k for k, a in enumerate(acts) if a.kind == "joint_torque" and (active is None or k in active)]
+    if not idx:
+        return list(manual), []
+    ch, u = int(track.state["chart"]), track.state["u"]
+    theta, theta_dot, J, M = joint_state(rom, track, idx)
     err = np.array([((targets[k] - th + np.pi) % (2 * np.pi)) - np.pi for k, th in zip(idx, theta)])
     a_des = w0 ** 2 * err - 2.0 * zeta * w0 * theta_dot
     JMJ = J @ np.linalg.solve(M, J.T)

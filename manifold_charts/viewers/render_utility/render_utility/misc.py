@@ -2,7 +2,7 @@ import sys
 import os
 import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../deps/BlenderToolbox/')))
-import BlenderToolBox as bt
+import blendertoolbox as bt
 import math
 import bmesh
 import bpy

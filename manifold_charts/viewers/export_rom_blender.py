@@ -63,6 +63,7 @@ def parse():
     ap.add_argument("--gravity", type=float, default=None, help="gravity magnitude for the ROM runtime (default: the case's own); not wired for --drive pen")
     ap.add_argument("--fps", type=float, default=30.0, help="exported frame rate (steps per frame = round(1 / (fps * dt)))")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--loop", action="store_true", help="the clip is one period of a loop: report the seam (last frame vs first) and drop the last frame so playback does not show it twice")
     b = ap.add_argument_group("blender")
     b.add_argument("--no-blend", action="store_true", help="skip building scene.blend (arrays only)")
     b.add_argument("--blender", default=None, help="path to blender.exe (default: newest under C:/Program Files/Blender Foundation)")
@@ -72,6 +73,10 @@ def parse():
     b.add_argument("--fast", action="store_true", help="10x fewer Cycles samples, for iterating")
     b.add_argument("--case-colors", action="store_true", help="colour each body with the case's declared BodyDef.color instead of the cycling paper palette")
     b.add_argument("--group-colors", action="store_true", help="one colour per body group (the body-name suffix after '@', e.g. one leg of an array case)")
+    b.add_argument("--display", default=None, metavar="BLEND", help="detailed render-only parts modelled at the rest pose, hung on the bodies they name (see blender_import_rom.attach_display)")
+    b.add_argument("--hide", action="append", default=[], metavar="NAME", help="hide scene objects whose name matches (fnmatch wildcards, e.g. '*.boot_inner') in viewport and render; repeatable")
+    b.add_argument("--floor-z", type=float, default=None, help="world z of the shadow-catcher floor; geometry below it is hidden (default: just under the lowest geometry)")
+    b.add_argument("--template", default=None, metavar="BLEND", help="take the camera, render settings and object visibility from this saved scene (see blender_import_rom.read_template)")
     DRIVERS[drive].add_args(ap)
     return ap.parse_args()
 
@@ -114,6 +119,15 @@ def main():
         print()
     timing["sim_s"] = time.time() - t0
 
+    seam = None
+    if args.loop and len(rec) > 2:
+        P = np.asarray(rec.pose, float).reshape(len(rec), -1)
+        steps = np.abs(np.diff(P, axis=0)).max(1)
+        seam = {"seam_jump": float(np.abs(P[-1] - P[0]).max()), "median_frame_step": float(np.median(steps)), "max_frame_step": float(steps.max())}
+        print(f"loop seam: last vs first frame max |dpose| {seam['seam_jump']:.4f}  (per-frame step median {seam['median_frame_step']:.4f}, max {seam['max_frame_step']:.4f}); dropping the last frame")
+        rec.pose.pop(); rec.time.pop()
+        for v in rec.chan.values():
+            v.pop()
     rec.save(out, fps, args.dt, driver.static(sim))
     if args.render and not (0 <= args.render_frame < len(rec)):
         raise SystemExit(f"--render-frame {args.render_frame} is outside the {len(rec)} exported frames")
@@ -130,6 +144,14 @@ def main():
             cmd.append("--case-colors")
         if args.group_colors:
             cmd.append("--group-colors")
+        if args.display:
+            cmd += ["--display", os.path.abspath(args.display)]
+        if args.template:
+            cmd += ["--template", os.path.abspath(args.template)]
+        if args.floor_z is not None:
+            cmd += ["--floor-z", repr(args.floor_z)]
+        for pattern in args.hide:
+            cmd += ["--hide", pattern]
         if args.render:
             png = args.render if os.path.isabs(args.render) else os.path.join(out, args.render)
             cmd += ["--render", png, "--frame", str(args.render_frame)]
@@ -139,7 +161,7 @@ def main():
 
     timing.update(started_at=started, finished_at=dt_mod.datetime.now().isoformat(timespec="seconds"), wall_seconds=time.time() - t_start)
     report = {"case": args.case, "rom": args.rom, "drive": args.drive, "args": vars(args), "frames": len(rec), "fps": fps, "steps_per_frame": spf, "sim_seconds": sim_t,
-              "error": sim.error, "prepare": prepare, "render": png, "timing": timing, **driver.report(sim)}
+              "error": sim.error, "prepare": prepare, "render": png, "loop": seam, "timing": timing, **driver.report(sim)}
     with open(os.path.join(out, "report.json"), "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, default=str)
     print(f"wrote {out}: {len(rec)} frames @ {fps:.2f} fps" + (f", render {png}" if png else ""))
