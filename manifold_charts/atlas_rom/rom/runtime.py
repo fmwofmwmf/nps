@@ -29,7 +29,7 @@ from atlas_rom.rom.handoff import ProjectedHandoff
 
 class PatchAtlasRuntime:
     def __init__(self, rom, *, dt=1e-3, gravity=None,
-                 stall_guard=True, velocity_damping=4.0,
+                 stall_guard=True, velocity_damping=0.0,
                  project_boundary=True, euclidean_retraction=False,
                  switch_ratio=1.0 / 3.0, dwell=0, bisect=True, bisect_iters=8):
         self.rom = rom
