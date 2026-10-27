@@ -173,11 +173,15 @@ class IdealJointSim:
                 continue
             j = self._torque_joints[a.name]
             ia, ib = self._index.get(j.body_a), self._index.get(j.body_b)
-            # the axis belongs to body_a (joint_travel reads R_a^T R_b about it)
-            n = np.asarray(j.axis, float) if ia is None else T[ia, :, :3] @ j.axis
+            # the axis belongs to body_a (joint_travel reads R_a^T R_b about it),
+            # held in the bodies' rest frames as `joint_travel` holds it
+            rest = getattr(j, "rest_local", None) or {}
+            n = (np.asarray(j.axis, float) if ia is None
+                 else T[ia, :, :3] @ np.asarray(rest.get("axis_a", j.axis), float))
             n = n / np.linalg.norm(n)
             carrier = ib if ib is not None else ia
-            x = T[carrier, :, :3] @ np.asarray(j.pivot, float) + T[carrier, :, 3]
+            local = rest.get("pivot_b" if carrier == ib else "pivot_a", j.pivot)
+            x = T[carrier, :, :3] @ np.asarray(local, float) + T[carrier, :, 3]
             e, d = _perpendicular(n), 0.05
             f = tau / (2.0 * d) * np.cross(n, e)          # couple of moment tau * n
             for body, sign in ((ib, 1.0), (ia, -1.0)):

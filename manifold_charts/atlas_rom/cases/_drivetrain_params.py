@@ -131,3 +131,23 @@ def v8_wrist_pin(i, bank):
     across = CRANK_RADIUS * math.hypot(a[0], a[1])                 # |(pin - crank axis) x a|
     t = along + math.sqrt(ROD_LENGTH ** 2 - across ** 2)
     return (t * a[0], V8_PIN_Y[i] + V8_ROD_OFFSET[bank], t * a[2])
+
+
+# ── drivetrain_steer: the inline-4 transaxle with steered driven wheels ──────
+# Each wheel turns on a knuckle that swivels about a vertical kingpin through
+# the outer CV joint centre, so the half-shaft's line passes through the joint
+# at every steer angle.  A rack slides along x behind the axle, below it, and
+# pulls the steering arms through two tie rods.
+KINGPIN_X = 2.70                      # |x| of the kingpin axis and CV centre
+CV_RADIUS = 0.12                      # outer-race bell on the wheel stub
+SHAFT_OUTER_X = KINGPIN_X - 0.08      # inner half-shaft ends inside the bell
+STEER_Z = -0.40                       # plane of rack, tie rods and arm balls
+KINGPIN_BOSS_Z = 0.40                 # |z| of the upper and lower kingpin bosses
+RACK_Y = -0.80                        # behind the axle
+RACK_END_X = 1.40                     # |x| of the inner tie-rod joints at rest
+# Arm ball 0.17 inboard of the kingpin: the arms point toward the car's
+# centreline (Ackermann), and the tie rods run straight along x at rest.
+ARM_BALL_X = KINGPIN_X - 0.17
+# Rack travel stops.  The arm's lever across the rack is ~0.80, so +-0.15 of
+# rack travel is ~+-11 deg of steer, far from the arm/tie-rod toggle.
+RACK_TRAVEL = 0.15

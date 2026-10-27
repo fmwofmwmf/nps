@@ -58,8 +58,12 @@ def _refresh_manifest_hash(rom_dir: str, artifact: str) -> None:
 
 
 def attach(work_dir: str, case: str, *, dataset_dir: str | None = None, artifact: str = "patch_atlas.pt",
-           n_per: int = 300, epochs: int = 4000, device: str | None = None, log=print) -> dict:
-    """Train the router for ``<work_dir>/<artifact>`` and write it into ``physics_fields["router"]``."""
+           n_per: int = 300, epochs: int = 4000, device: str | None = None, workers: int | None = None,
+           log=print) -> dict:
+    """Train the router for ``<work_dir>/<artifact>`` and write it into ``physics_fields["router"]``.
+
+    ``workers`` caps the CPU processes that project the label claims (None: one per core).  Each builds
+    its own oracle, so on a large mechanism the count is a memory budget, not just a speed knob."""
     from atlas_rom.cases import load_spec
     from atlas_rom.simulate import oracle_eval
     path = os.path.join(work_dir, artifact)
@@ -83,7 +87,8 @@ def attach(work_dir: str, case: str, *, dataset_dir: str | None = None, artifact
     bodies = {**geometry.build_bodies(spec.mechanism), "up": spec.mechanism.up_vector, "gravity": spec.mechanism.gravity}
     payload, report = train_router(models, anchors, q_all, oracle, n_per=n_per, epochs=epochs,
                                    device=device or ("cuda" if torch.cuda.is_available() else "cpu"), log=log,
-                                   mass_fields=mass_fields, potential_fields=potential_fields, bodies=bodies, case=case)
+                                   mass_fields=mass_fields, potential_fields=potential_fields, bodies=bodies, case=case,
+                                   workers=workers)
     state["physics_fields"]["router"] = payload
     torch.save(state, path)
     _refresh_manifest_hash(work_dir, artifact)
@@ -126,13 +131,16 @@ def main():
     ap.add_argument("--n-per", type=int, default=300)
     ap.add_argument("--epochs", type=int, default=4000)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--workers", type=int, default=None,
+                    help="CPU processes projecting label claims (default: one per core)")
     ap.add_argument("--embed-file", default=None,
                     help="instead of training, embed this existing router file into --work's artifact")
     a = ap.parse_args()
     if a.embed_file:
         print("embedded into", embed(a.work, a.embed_file))
         return
-    attach(a.work, a.case, dataset_dir=a.dataset, n_per=a.n_per, epochs=a.epochs, device=a.device)
+    attach(a.work, a.case, dataset_dir=a.dataset, n_per=a.n_per, epochs=a.epochs, device=a.device,
+           workers=a.workers)
 
 
 if __name__ == "__main__":

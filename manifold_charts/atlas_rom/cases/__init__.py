@@ -16,12 +16,29 @@ import os
 import pkgutil
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+# Sub-folders that group spec files.  Their cases keep flat names (`generic_so3`,
+# not `generic.generic_so3`), so a folder is organisation only.
+_GROUPS = ("generic",)
+
+
+def _module_paths() -> dict[str, str]:
+    """Case name -> importable module path, for every spec file."""
+    paths = {m.name: f"{__name__}.{m.name}" for m in pkgutil.iter_modules([_HERE])
+             if not m.name.startswith("_") and not m.ispkg}
+    for group in _GROUPS:
+        for m in pkgutil.iter_modules([os.path.join(_HERE, group)]):
+            if m.name.startswith("_"):
+                continue
+            if m.name in paths:
+                raise ValueError(f"case {m.name!r} is defined twice "
+                                 f"(cases/ and cases/{group}/)")
+            paths[m.name] = f"{__name__}.{group}.{m.name}"
+    return paths
 
 
 def available_specs() -> list[str]:
     """Every case that has a spec file, whether or not it has been built."""
-    return sorted(m.name for m in pkgutil.iter_modules([_HERE])
-                  if not m.name.startswith("_"))
+    return sorted(_module_paths())
 
 
 def resolve_case_name(name: str) -> str:
@@ -50,7 +67,7 @@ def resolve_case_name(name: str) -> str:
 def load_spec(name: str):
     """Import `cases/<name>.py` and return its `CASE`."""
     name = resolve_case_name(name)
-    module = importlib.import_module(f"{__name__}.{name}")
+    module = importlib.import_module(_module_paths()[name])
     if not hasattr(module, "CASE"):
         raise AttributeError(f"cases/{name}.py must define CASE = AtlasCaseSpec(...)")
     spec = module.CASE
@@ -63,5 +80,5 @@ def load_spec(name: str):
 def load_sdf_system(name: str):
     """Return an optional first-class SDF system without reading ``CASE``."""
     name = resolve_case_name(name)
-    module = importlib.import_module(f"{__name__}.{name}")
+    module = importlib.import_module(_module_paths()[name])
     return getattr(module, "SDF_SYSTEM", None)

@@ -23,6 +23,9 @@ class AdvancingFrontOptions:
     cone_angle_deg: float = 22.5
     probe_scale: float | None = None
     rank_gap_ratio: float = 1e3
+    # Inside the gap-certified span, keep only directions whose secant at h is
+    # at least this fraction of the secant at h/2 (tangent ~1, clearance ~0.5).
+    scale_invariance_ratio: float = .75
     checkpoint_seconds: float | None = None
     report_every: int | None = None  # log progress/throughput every N accepted poses
     max_probes_per_node: int | None = None  # give up on a node's cone after this many tries
@@ -44,8 +47,123 @@ def _rank_by_gap(singular: np.ndarray, gap_ratio: float) -> int | None:
     return int(hits[0]) + 1 if len(hits) else None
 
 
+def _scale_invariant_frame(span: np.ndarray, odd_h: np.ndarray, odd_half: np.ndarray,
+                           min_ratio: float) -> tuple[np.ndarray, np.ndarray]:
+    """The part of `span` whose secant response does not shrink as the probe grows.
+
+    `odd_h` / `odd_half` hold the paired odd secants (columns) of the same probe
+    directions at sizes h and h/2.  Along a tangent the secant is the same at
+    both sizes.  Along clearance play the projection moves at most the play
+    width whatever the command, so the secant halves when h doubles; that play
+    is a fibre of the thin contact tube, not a direction of the mechanism.  In
+    span coordinates the responses obey ``A_h = K A_½`` with K the identity on
+    the tangent and one half on the play, so the right eigenvectors of the
+    least-squares ``K = A_h A_½⁺`` split the span into the two (they need not be
+    orthogonal).  Returns the orthonormal frame of the eigen-directions with
+    ``ratio >= min_ratio`` and all ratios (eigenvalue real parts), descending.
+    """
+    a_h, a_half = span.T @ odd_h, span.T @ odd_half
+    lam, vec = np.linalg.eig(a_h @ np.linalg.pinv(a_half))
+    order = np.argsort(-lam.real)
+    ratios, vec = lam.real[order], vec[:, order]
+    keep = ratios >= min_ratio
+    count = int(keep.sum())
+    if not count:
+        return np.empty((span.shape[0], 0)), ratios
+    # A complex pair's invariant real subspace is spanned by its Re and Im parts.
+    kept = np.column_stack((vec[:, keep].real, vec[:, keep].imag))
+    basis, _s, _vt = np.linalg.svd(span @ kept, full_matrices=False)
+    return basis[:, :count], ratios
+
+
+def _candidate_directions(used: np.ndarray, d: int) -> np.ndarray:
+    """Cheap maximin candidates: antipodes, centroid, +/- pairwise sums and
+    differences, and the frame axes (plain and with each probe removed)."""
+    blocks = [-used]
+    centroid = _unit(-used.sum(axis=0))
+    if centroid is not None:
+        blocks.append(centroid[None, :])
+    left, right = np.triu_indices(len(used), k=1)
+    if len(left):
+        pair = np.vstack((used[left] + used[right], used[left] - used[right]))
+        norms = np.linalg.norm(pair, axis=1)
+        keep = norms > 1e-12
+        pair = pair[keep] / norms[keep, None]
+        blocks.append(np.vstack((pair, -pair)))
+    # The frame axes, plain and with each probe's component removed.  Probes
+    # that are collinear (an antipodal pair, the first two pops of a fresh
+    # node) make every sum/difference above collinear too; these keep a
+    # direction orthogonal to them among the candidates.
+    axes = np.vstack((np.eye(d), -np.eye(d)))
+    orth = (axes[:, None, :] - (axes @ used.T)[:, :, None] * used[None, :, :]).reshape(-1, d)
+    norms = np.linalg.norm(orth, axis=1)
+    keep = norms > 1e-12
+    blocks.extend((axes, orth[keep] / norms[keep, None]))
+    return np.vstack(blocks)
+
+
+def _maximin_cover(probed: list[np.ndarray], radii: np.ndarray, d: int,
+                   cone: float) -> tuple[np.ndarray, float]:
+    """``_maximin_direction`` with a per-direction covered cone ``radii``.
+
+    Same two halves -- exact-scored candidates, then an annealed softmin
+    ascent -- on ``margin(p) = min_i (angle(u_i, p) - radii_i)``.  Every point
+    is scored by the exact margin and the best is kept, so the softening only
+    steers the search.  Returns ``(direction, cone + margin)``.
+    """
+    pairs = [(unit, radius) for value, radius in zip(probed, radii)
+             if (unit := _unit(value)) is not None]
+    if not pairs:
+        return np.ones(d, float) / np.sqrt(d), float(np.pi)
+    used = np.asarray([unit for unit, _radius in pairs], float)
+    radii = np.asarray([radius for _unit_value, radius in pairs], float)
+
+    def margins(points: np.ndarray) -> np.ndarray:
+        angles = np.arccos(np.clip(points @ used.T, -1.0, 1.0))
+        return (angles - radii).min(axis=1)
+
+    candidates = _candidate_directions(used, d)
+    scores = margins(candidates)
+    winner = int(scores.argmax())
+    best, best_margin = candidates[winner], float(scores[winner])
+    if best_margin > 0. or d == 1:
+        return best, cone + best_margin
+    # Unequal cones make the margin landscape multi-basin (a wide cone can
+    # swallow the candidate nearest a deep hole), so ascend from the few best
+    # candidates rather than one.
+    for start in np.argsort(-scores)[:8]:
+        point, local_best = _ascend_cover(candidates[start], used, radii, margins)
+        if local_best[1] > best_margin:
+            best, best_margin = local_best
+    return best, cone + best_margin
+
+
+def _ascend_cover(point, used, radii, margins):
+    best, best_margin = point, float(margins(point[None, :])[0])
+    for sharpness in (2., 4., 8., 16., 32., 64., 128., 256., 512.):
+        for _ in range(40):
+            angles = np.arccos(np.clip(used @ point, -1.0, 1.0))
+            scaled = -sharpness * (angles - radii)
+            weights = np.exp(scaled - scaled.max())
+            weights /= weights.sum()
+            # d angle_i / d p = -u_i / sin(angle_i); ascend the softmin.
+            pull = (weights / np.maximum(np.sin(angles), 1e-3)) @ used
+            tangent = pull - point * float(point @ pull)
+            if np.linalg.norm(tangent) <= 1e-12:
+                break
+            stepped = _unit(point - tangent / max(sharpness, 2.) / max(np.linalg.norm(tangent), 1.))
+            if stepped is None:
+                break
+            point = stepped
+            score = float(margins(point[None, :])[0])
+            if score > best_margin:
+                best, best_margin = point, score
+    return point, (best, best_margin)
+
+
 def _maximin_direction(probed: list[np.ndarray], d: int,
-                       cone_angle_deg: float | None = None) -> tuple[np.ndarray, float]:
+                       cone_angle_deg: float | None = None,
+                       radii: np.ndarray | None = None) -> tuple[np.ndarray, float]:
     """The direction of the widest unprobed cone, and its angular radius.
 
     Maximising the smallest angle to ``probed`` is the same as minimising the
@@ -85,7 +203,22 @@ def _maximin_direction(probed: list[np.ndarray], d: int,
     understating it retires a node while a real hole remains -- the failure
     that stalls exploration.  Overstating it merely costs one probe that comes
     back ``filled``.
+
+    ``radii`` (radians, one per entry of ``probed``) gives each direction its
+    own covered cone; the objective becomes ``max_p min_i (angle(u_i, p) -
+    radii_i)``, reported shifted by ``cone_angle_deg`` so the caller's
+    ``separation > cone`` test still reads "an uncovered direction remains".
+    Uniform radii reduce to the plain search above.
     """
+    if radii is not None and len(radii):
+        if cone_angle_deg is None:
+            raise ValueError("radii require cone_angle_deg as the reference cone")
+        radii = np.asarray(radii, float)
+        cone = np.deg2rad(cone_angle_deg)
+        if np.ptp(radii) > 1e-12:
+            return _maximin_cover(probed, radii, d, cone)
+        direction, separation = _maximin_direction(probed, d, cone_angle_deg=np.degrees(radii[0]))
+        return direction, separation - float(radii[0]) + cone
     used = np.asarray([unit for value in probed if (unit := _unit(value)) is not None], float)
     neutral = np.ones(d, float) / np.sqrt(d)
     if not len(used):
@@ -99,18 +232,8 @@ def _maximin_direction(probed: list[np.ndarray], d: int,
             return np.array([1.0]), float(np.arccos(np.clip(plus, -1.0, 1.0)))
         return np.array([-1.0]), float(np.arccos(np.clip(minus, -1.0, 1.0)))
 
-    blocks = [-used]
     centroid = _unit(-used.sum(axis=0))
-    if centroid is not None:
-        blocks.append(centroid[None, :])
-    left, right = np.triu_indices(len(used), k=1)
-    if len(left):
-        pair = np.vstack((used[left] + used[right], used[left] - used[right]))
-        norms = np.linalg.norm(pair, axis=1)
-        keep = norms > 1e-12
-        pair = pair[keep] / norms[keep, None]
-        blocks.append(np.vstack((pair, -pair)))
-    candidates = np.vstack(blocks)
+    candidates = _candidate_directions(used, d)
     scores = (candidates @ used.T).max(axis=1)
     winner = int(scores.argmin())
     best, best_score = candidates[winner], float(scores[winner])
@@ -119,7 +242,10 @@ def _maximin_direction(probed: list[np.ndarray], d: int,
     if cone_angle_deg is not None and best_separation > np.deg2rad(cone_angle_deg):
         return best, best_separation
 
-    point = centroid if centroid is not None else neutral
+    # Without a centroid (probes summing to zero) start from the best
+    # candidate: a fixed default can coincide with a probe, where the
+    # softened gradient is radial and the descent never moves.
+    point = centroid if centroid is not None else best
     for sharpness in (1., 2., 4., 8., 16., 32., 64., 128., 256.):
         for _ in range(40):
             scaled = sharpness * (used @ point)
@@ -153,6 +279,11 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
     options = options or AdvancingFrontOptions()
     if options.step <= 0 or not 0 < options.spacing_fraction <= 1:
         raise ValueError("step must be positive and spacing_fraction must be in (0, 1]")
+    # With the default metric, cone coverage counts every nearby sample under
+    # the fill test's own geometry (see ``enqueue``).  Edge neighbours with a
+    # fixed cone are too few in d >= 3: covering S^{d-1} with 22.5-degree cones
+    # needs tens of directions per node, each paid for with a probe.
+    euclidean = distance is None
     distance = distance or (lambda left, right: float(np.linalg.norm(left - right)))
     checkpoint_dir = None if checkpoint_dir is None else Path(checkpoint_dir)
     observations = list(seeds or [system.seed()])
@@ -217,6 +348,8 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             prior.extend(proposals[:, column] for column in range(count - len(prior)))
         h = options.probe_scale if options.probe_scale is not None else options.step * .25
         secants: list[np.ndarray] = []
+        odd_hs: list[np.ndarray] = []
+        odd_halves: list[np.ndarray] = []
         stable = 0
         valid = 0
         for direction in prior:
@@ -240,6 +373,8 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             if relative <= .2:
                 stable += 1
             secants.append(richardson)
+            odd_hs.append(odd_h)
+            odd_halves.append(odd_half)
         if not secants:
             frame = np.empty((ambient, 0))
             diagnostics = {"probe_count": len(prior), "valid_pairs": 0, "stable_pairs": 0,
@@ -249,10 +384,21 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             rank = _rank_by_gap(singular, options.rank_gap_ratio)
             gap_ratio = (float(singular[rank - 1] / max(singular[rank], np.finfo(float).tiny))
                          if rank is not None and 0 < rank < len(singular) else None)
-            frame = left[:, :rank] if rank is not None else np.empty((ambient, 0))
+            scale_ratios = None
+            if rank is not None:
+                # The gap certifies the span the joints leave free; clearance
+                # play inside it is removed by its scale response.
+                frame, scale_ratios = _scale_invariant_frame(
+                    left[:, :rank], np.column_stack(odd_hs), np.column_stack(odd_halves),
+                    options.scale_invariance_ratio)
+            else:
+                frame = np.empty((ambient, 0))
             diagnostics = {"probe_count": len(prior), "valid_pairs": valid, "stable_pairs": stable,
                            "singular_values": singular.tolist(), "spectral_gap_ratio": gap_ratio,
-                           "outcome": "certified_regular" if rank is not None and stable else "uncertain"}
+                           "gap_rank": rank,
+                           "scale_ratios": None if scale_ratios is None else scale_ratios.tolist(),
+                           "outcome": ("certified_regular" if frame.shape[1] and stable
+                                       else "uncertain")}
         record = {"index": index, "frame": frame, "rank": int(frame.shape[1]),
                   "outcome": diagnostics["outcome"], "diagnostics": diagnostics}
         records[index] = record
@@ -276,17 +422,37 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             retired.add(index)
             state_counts["exhausted"] += 1
             return
+        cone = np.deg2rad(options.cone_angle_deg)
         ambient = [np.asarray(probed[index], float)] if probed.get(index) else []
-        others = list(neighbours.get(index, ()))
-        if others:
-            ambient.append(np.asarray([poses[other] - poses[index] for other in others], float))
-        coordinates = np.empty((0, frame.shape[1]))
+        radii = [np.full(len(probed[index]), cone)] if probed.get(index) else []
+        if euclidean:
+            # Every sample the fill test could land on covers its own cone: a
+            # probe along u lands at x + step*u, which is "filled" when within
+            # s*step of sample y.  With r = |y - x| / step that is
+            #   cos(angle(u, y - x)) >= (1 + r^2 - s^2) / (2 r),
+            # non-empty for r in [1 - s, 1 + s].  The node retires exactly when
+            # this predicts every probe would come back filled.
+            s = options.spacing_fraction
+            gaps = pose_distances(poses[index]) / options.step
+            near = np.flatnonzero((gaps >= 1. - s) & (gaps <= 1. + s) & (gaps > 0.))
+            if len(near):
+                r = gaps[near]
+                ambient.append(pose_buffer[0][near] - poses[index])
+                radii.append(np.arccos(np.clip((1. + r * r - s * s) / (2. * r), -1., 1.)))
+        else:
+            others = list(neighbours.get(index, ()))
+            if others:
+                ambient.append(np.asarray([poses[other] - poses[index] for other in others], float))
+                radii.append(np.full(len(others), cone))
+        coordinates, cover = np.empty((0, frame.shape[1])), np.empty(0)
         if ambient:
             projected = np.vstack(ambient) @ frame
             norms = np.linalg.norm(projected, axis=1)
-            coordinates = projected[norms > 1e-12] / norms[norms > 1e-12, None]
+            keep = norms > 1e-12
+            coordinates, cover = projected[keep] / norms[keep, None], np.concatenate(radii)[keep]
         direction, separation = _maximin_direction(
-            list(coordinates), frame.shape[1], cone_angle_deg=options.cone_angle_deg)
+            list(coordinates), frame.shape[1], cone_angle_deg=options.cone_angle_deg,
+            radii=cover)
         if separation > np.deg2rad(options.cone_angle_deg):
             unit_ambient = _unit(frame @ direction)
             if unit_ambient is not None:
@@ -331,6 +497,23 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
     # (re-)measured and their open cone directions pushed onto the frontier.  On
     # a full-fidelity checkpoint ``records`` is already populated and this is a
     # no-op; on a bare re-open it rebuilds the frontier from the pose cloud.
+    # Contiguous copy of ``poses`` (capacity-doubled) so the fill test and cone
+    # coverage are one vectorised distance scan instead of a Python loop.
+    pose_buffer = [np.empty((max(64, 2 * len(poses)), poses[0].size)), 0]
+
+    def _store_pose(pose: np.ndarray) -> None:
+        stored, count = pose_buffer
+        if count == len(stored):
+            stored = np.concatenate([stored, np.empty_like(stored)])
+        stored[count] = pose
+        pose_buffer[:] = [stored, count + 1]
+
+    def pose_distances(point: np.ndarray) -> np.ndarray:
+        stored, count = pose_buffer
+        return np.linalg.norm(stored[:count] - point, axis=1)
+
+    for pose in poses:
+        _store_pose(pose)
     for index in range(len(poses)):
         if index in records and index not in dirty:
             continue
@@ -367,8 +550,12 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             state_counts["undersized"] += 1
             enqueue(parent, frame)
             continue
-        nearby = [index for index, value in enumerate(poses)
-                  if distance(candidate, value) < options.spacing_fraction * options.step]
+        if euclidean:
+            nearby = np.flatnonzero(pose_distances(candidate) <
+                                    options.spacing_fraction * options.step).tolist()
+        else:
+            nearby = [index for index, value in enumerate(poses)
+                      if distance(candidate, value) < options.spacing_fraction * options.step]
         if nearby:
             child = min(nearby, key=lambda index: distance(candidate, poses[index]))
             if child != parent and (parent, child) not in edges and (child, parent) not in edges:
@@ -384,6 +571,7 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             continue
         child = len(poses)
         poses.append(candidate); observations.append(response.observation); edges.append((parent, child))
+        _store_pose(candidate)
         neighbours.setdefault(parent, set()).add(child); neighbours.setdefault(child, set()).add(parent)
         dirty.add(parent); retired.discard(parent)
         state_counts["open"] += 1
@@ -417,9 +605,14 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
     counts = {state: state_counts[state]
               for state in ("filled", "open", "unknown", "solver_failure", "boundary",
                             "undersized", "exhausted")}
+    # A pose whose last frame measurement is uncertain was never queued, so no
+    # pop counted it as ``unknown``; it is still an unexplored state.
+    counts["uncertain_poses"] = sum(record["outcome"] != "certified_regular"
+                                    for record in records.values())
     budget_exhausted = bool(frontier) and (options.max_samples is not None and len(poses) >= options.max_samples or
                                            options.max_seconds is not None and time.perf_counter() - started >= options.max_seconds)
-    complete = not frontier and not counts["unknown"] and not counts["solver_failure"] and not budget_exhausted
+    complete = (not frontier and not counts["unknown"] and not counts["solver_failure"]
+                and not counts["uncertain_poses"] and not budget_exhausted)
     audit = [records[index] for index in regular]
     audit.extend({**record, "excluded_from_regular_training": True}
                  for index, record in records.items() if index not in remap)

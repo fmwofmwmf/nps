@@ -41,7 +41,13 @@ def joint_angle_torch(transforms, joint, body_order):
 
     Ra, Rb = rotation(joint.body_a), rotation(joint.body_b)
     R = Ra.transpose(-1, -2) @ Rb
-    axis = torch.as_tensor(np.asarray(joint.axis, float), dtype=Ra.dtype,
+    # Measured from the rest pose in body_a's rest frame (`MechanismSpec`
+    # attaches `rest_local`); a bare JointDef means identity rest poses.
+    rest = getattr(joint, "rest_local", None) or {}
+    if "rel" in rest:
+        R = R @ torch.as_tensor(np.asarray(rest["rel"], float).T, dtype=R.dtype,
+                                device=R.device)
+    axis = torch.as_tensor(np.asarray(rest.get("axis_a", joint.axis), float), dtype=Ra.dtype,
                            device=Ra.device)
     w = torch.stack([R[..., 2, 1] - R[..., 1, 2],
                      R[..., 0, 2] - R[..., 2, 0],

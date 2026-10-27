@@ -24,14 +24,17 @@ from atlas_rom.spec.geometry import build_bodies  # noqa: E402
 
 
 class RomBase:
-    def __init__(self, rom, dt=0.01, damping=0.0, gravity=None):
+    def __init__(self, rom, dt=0.01, damping=0.0, gravity=None, project_boundary=True):
         self.rom = rom
         self.acts = list(rom.case.actuators)
         self.joints = [rom.case.mechanism.joint(a.target) for a in self.acts]
         self.validity = validity_from_case(rom.case, include_grounded=False)
         self.anchor_trees = [cKDTree(np.asarray(a, float) / np.maximum(np.asarray(a, float).std(0), 1e-4)) for a in rom.anchors]
         self.anchor_std = [np.maximum(np.asarray(a, float).std(0), 1e-4) for a in rom.anchors]
-        self.settings = T.Settings(dt=dt, lookahead=1, damping=damping, gravity=gravity)   # gravity None = the case's own
+        # gravity None = the case's own; project_boundary False leaves the learned SDF as a pure penalty spring
+        # (no post-step retraction / outward-velocity removal), so a wall hit can rebound
+        self.settings = T.Settings(dt=dt, lookahead=1, damping=damping, gravity=gravity,
+                                   project_boundary=project_boundary)
         self.trk = AdvRouterTrack(rom, self.settings)
         self.control_on = True
         self.controller = None                                      # optional callable(sim) -> (controls, rows); None = no control

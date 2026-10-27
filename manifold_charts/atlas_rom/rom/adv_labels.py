@@ -11,7 +11,9 @@ eps is the atlas's own noise floor (median best-chart projection error over the 
 BUILD-TIME label source only; the runtime router never sees it.
 
 State sets: (a) territory -- anchors / jitter / interpolation inside each chart; (b) overlap -- dataset poses seen
-from each of their 3 best charts, where decisions are made; (c) wide jitter beyond each chart's anchors.
+from each of their 3 best charts, where decisions are made; (c) wide jitter beyond each chart's anchors; (d) exit --
+states each chart's own learned dynamics reach past its anchors (``exit_states``).  Off-territory (c + d) and
+on-territory (a + b) states carry equal total weight in the fit.
 
 The in-memory entry point is ``train_router``; ``router_build.attach`` calls it on a build's ``patch_atlas.pt`` and
 stores the result as ``physics_fields["router"]``.  Run from testing/manifold_charts.
@@ -116,6 +118,72 @@ def territory_states(anchors, sc, n_per, rng):
             else:
                 t = rng.random(); u = (1 - t) * b + t * A[rng.integers(len(A))]
             states.append((i, np.asarray(u, float)))
+    return states
+
+
+def exit_states(models, mass_fields, potential_fields, anchors, sc, case, body_order, rng, *, n_roll=200,
+                speed=(0.5, 5.0), record_every=20, max_steps=2000, near=1.0, far=10.0):
+    """(d) states each chart's OWN learned dynamics reach past the edge of its anchors.
+
+    Batched copy of ``PatchAtlasRuntime._integrate_chart`` (semi-implicit Euler on the learned mass / potential, joint
+    torques through the decoder; no routing, no boundary field): ``n_roll`` rollouts per chart from random anchors with
+    a random latent velocity (anchor-std x U(speed) per second) and a constant control drawn from each actuator's
+    [lo, hi].  A state is recorded every ``record_every`` steps once it is more than ``near`` anchor spacings from the
+    chart's anchors; a rollout ends at ``far`` spacings, a non-finite state, or ``max_steps``.  Build time only."""
+    from scipy.spatial import cKDTree
+    from atlas_rom.cases import load_spec
+    from atlas_rom.rom.ops import joint_angle_torch
+    spec = load_spec(case)
+    scen = spec.scenarios.get("default") or (next(iter(spec.scenarios.values())) if spec.scenarios else {})
+    dt = float(scen.get("dt", 1e-3))
+    acts = [(spec.mechanism.joint(a.target), float(a.gain), float(a.lo), float(a.hi))
+            for a in spec.actuators if a.kind == "joint_torque"]
+    states = []
+    for i, (model, mass, pot) in enumerate(zip(models, mass_fields, potential_fields)):
+        A = np.asarray(anchors[i], float); d = A.shape[1]
+        tree = cKDTree(A); spacing = float(np.median(tree.query(A, k=2)[0][:, 1]))
+        u = torch.as_tensor(A[rng.integers(len(A), size=n_roll)])
+        dirs = rng.standard_normal((n_roll, d)); dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+        udot = torch.as_tensor(dirs * sc[i] * rng.uniform(*speed, size=(n_roll, 1)))
+        tau = torch.as_tensor(np.stack([rng.uniform(lo, hi, n_roll) * g for _j, g, lo, hi in acts], 1)
+                              if acts else np.zeros((n_roll, 0)))
+        with torch.no_grad():
+            p = (mass(u) @ udot.unsqueeze(-1)).squeeze(-1)
+        alive = torch.ones(n_roll, dtype=torch.bool)
+        u_start = u.clone(); eye = torch.eye(d, dtype=u.dtype)
+        for step in range(1, max_steps + 1):
+            x = u.clone().requires_grad_(True)
+            Mx = mass(x)
+            # A learned mass that has lost positive definiteness is exactly a state the router must leave:
+            # record it as an exit state, end that rollout, and keep the batch solvable.
+            Md = Mx.detach(); finite = torch.isfinite(Md).all((-2, -1))
+            ev = torch.linalg.eigvalsh(torch.where(finite[:, None, None], Md, eye.expand_as(Md)))
+            singular = ~finite | (ev[:, 0] <= 1e-9 * ev[:, -1].abs())
+            if singular.any():
+                for r in torch.nonzero(singular & alive).flatten().tolist():
+                    states.append((i, u[r].numpy().copy()))
+                alive &= ~singular
+                Mx = torch.where(singular[:, None, None], eye.expand_as(Mx), Mx)
+            Hk = 0.5 * (p.unsqueeze(1) @ torch.linalg.solve(Mx, p.unsqueeze(-1))).sum()
+            total = Hk + pot(x).sum()
+            if acts:
+                T = model.transforms(x)
+                total = total - (tau * torch.stack([joint_angle_torch(T, j, body_order) for j, *_ in acts], 1)).sum()
+            (g,) = torch.autograd.grad(total, x)
+            with torch.no_grad():
+                p = p - dt * g
+                u = u + dt * torch.linalg.solve(Mx.detach(), p.unsqueeze(-1)).squeeze(-1)
+                alive &= torch.isfinite(u).all(1) & torch.isfinite(p).all(1)
+            if step % record_every == 0:
+                un = u.numpy(); dist = np.full(n_roll, np.inf)
+                ok = alive.numpy()
+                dist[ok] = tree.query(un[ok])[0] / spacing
+                for r in np.flatnonzero(ok & (dist > near) & (dist <= far)):
+                    states.append((i, un[r].copy()))
+                alive &= torch.as_tensor(dist <= far)
+                if not alive.any():
+                    break
+            u = torch.where(alive.unsqueeze(1), u, u_start); p = torch.where(alive.unsqueeze(1), p, torch.zeros_like(p))
     return states
 
 
@@ -297,16 +365,24 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
             states.append((int(i), u))
     n_b = len(states) - n_a
     for i in range(K):                               # (c) wide jitter: where a chart is on its way out
-        for _ in range(600):
+        for _ in range(2000):
             b = A_anchor[i][rng.integers(len(A_anchor[i]))]
             states.append((i, b + rng.standard_normal(len(b)) * sc[i] * np.exp(rng.uniform(np.log(0.1), np.log(3.0)))))
     n_c = len(states) - n_a - n_b
+    n_d = 0
+    if mass_fields is not None and potential_fields is not None and bodies is not None and case is not None:
+        t0 = time.time()                             # (d) exit states: where each chart's own dynamics leave its anchors
+        cpu_models = [copy.deepcopy(m).cpu().double().eval() for m in models]
+        ex = exit_states(cpu_models, mass_fields, potential_fields, A_anchor, sc, case, list(bodies["names"]), rng)
+        states.extend(ex); n_d = len(ex)
+        timing["exit_states_seconds"] = time.time() - t0
+        log(f"router: {n_d} exit states from each chart's own learned dynamics [{timing['exit_states_seconds']:.0f}s]")
 
     t0 = time.time()
     keep, E, U_map = label_states(M, oracle, states, eps, dev, case=case, workers=workers)
     timing["labels_seconds"] = time.time() - t0
-    log(f"router: labelled {len(keep)} of {len(states)} states ({n_a} territory, {n_b} overlap, {n_c} wide) [{timing['labels_seconds']:.0f}s]")
-    kind = np.array([0] * n_a + [1] * n_b + [2] * n_c)[keep]
+    log(f"router: labelled {len(keep)} of {len(states)} states ({n_a} territory, {n_b} overlap, {n_c} wide, {n_d} exit) [{timing['labels_seconds']:.0f}s]")
+    kind = np.array([0] * n_a + [1] * n_b + [2] * n_c + [3] * n_d)[keep]
     st = [states[k] for k in keep]
     S = len(st)
 
@@ -353,6 +429,15 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
     Wc = torch.as_tensor(c_w, device=dev)
     src_t = torch.as_tensor(c_src, device=dev)
     tr, ctr = torch.as_tensor(~te, device=dev), torch.as_tensor(c_tr, device=dev)
+    # Off-territory states (wide + exit) carry the same total fit weight as territory + overlap: they are rare but
+    # they are where the router must decide to leave.
+    off = kind >= 2
+    w = np.zeros(S)
+    for m_ in (~te & ~off, ~te & off):
+        if m_.any():
+            w[m_] = 1.0 / m_.sum()
+    w /= w.sum()
+    Wt = torch.as_tensor(w[~te], device=dev)
     net = ScoreNet(dmax, K).double().to(dev)
     opt = torch.optim.Adam(net.parameters(), 1e-3, weight_decay=1e-6)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs)
@@ -360,7 +445,7 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
     for _ in range(epochs):
         opt.zero_grad()
         s_all = net(Xt)
-        fit = ((s_all[tr] - Yt[tr]) ** 2).mean()
+        fit = (Wt * ((s_all[tr] - Yt[tr]) ** 2).mean(1)).sum()
         cons = (Wc[ctr] * ((s_all[src_t[ctr]] - net(Xc[ctr])) ** 2).mean(1)).mean()
         (fit + cons).backward()
         opt.step(); sched.step()
@@ -375,9 +460,9 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
     yy = np.stack([Y[n, cols[n]] - Y[n, st[n][0]] for n in range(S)])       # exact A(i -> j)
     pp = np.stack([P[n, cols[n]] - P[n, st[n][0]] for n in range(S)])       # predicted A(i -> j)
     report = {"kind": "score", "eps": eps, "n_charts": K,
-              "n_states": {"territory": n_a, "overlap": n_b, "wide": n_c, "labelled": int(S)},
+              "n_states": {"territory": n_a, "overlap": n_b, "wide": n_c, "exit": n_d, "labelled": int(S)},
               "n_per": n_per, "epochs": epochs, "held_out": {}}
-    for lab, kk in (("territory", 0), ("overlap", 1), ("wide", 2)):
+    for lab, kk in (("territory", 0), ("overlap", 1), ("wide", 2), ("exit", 3)):
         m = te & (kind == kk)
         if m.any():
             a, b = pp[m].ravel(), yy[m].ravel()

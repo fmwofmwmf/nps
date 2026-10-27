@@ -52,7 +52,8 @@ SPEC_FORMAT = "atlas_case_v1"
 MESH_KINDS = ("box", "sphere", "cylinder", "link", "file", "compound", "bevel_gear",
               "torus", "spur_gear")
 JOINT_KINDS = ("revolute", "prismatic", "cylindrical", "spherical", "universal",
-               "fixed", "phase_lock", "gear_ratio", "bevel_gear", "planar")
+               "constant_velocity", "fixed", "phase_lock", "gear_ratio", "bevel_gear",
+               "planar")
 # Kinds with exactly ONE freedom, so "the joint's travel" is a single number a
 # `limit_lo`/`limit_hi` pair can bound.
 LIMITED_JOINT_KINDS = ("revolute", "prismatic")
@@ -204,6 +205,12 @@ class JointDef:
     fixed in `body_a`, `axis2` the pin fixed in `body_b`, perpendicular at the
     rest pose.  It removes exactly the relative spin about `axis`, leaving two
     bending freedoms — a spherical joint with its idle roll taken away.
+    A `constant_velocity` (homokinetic) joint also pins the pivot and removes
+    one relative spin, but it removes the TWIST: `axis` is body_a's shaft axis,
+    and body_b may only swing off it (a relative rotation whose axis stays
+    perpendicular to the shaft), so body_b turns at exactly body_a's rate at
+    any bend angle.  A `universal` joint does not: its output wobbles twice a
+    turn.
     Attachment points are stored in world frame
     and converted to body-local at build time, so a pivot off a body's origin
     stays correct under large rotations.
@@ -261,7 +268,7 @@ class JointDef:
                 raise ValueError(f"{self.name}: joint axis is zero")
             self.axis = self.axis / n
         if self.kind in ("revolute", "prismatic", "cylindrical", "phase_lock", "gear_ratio",
-                         "bevel_gear", "universal") and self.axis is None:
+                         "bevel_gear", "universal", "constant_velocity") and self.axis is None:
             raise ValueError(f"{self.name}: {self.kind} joint needs an axis")
         if self.kind == "phase_lock" and self.body_b is None:
             raise ValueError(f"{self.name}: phase_lock needs two driven bodies")
@@ -283,7 +290,7 @@ class JointDef:
             if self.ratio is None or not np.isfinite(float(self.ratio)) or float(self.ratio) == 0.0:
                 raise ValueError(f"{self.name}: bevel_gear needs a finite nonzero ratio")
             self.ratio = float(self.ratio)
-        if self.kind in ("spherical", "universal") and self.pivot is None:
+        if self.kind in ("spherical", "universal", "constant_velocity") and self.pivot is None:
             raise ValueError(f"{self.name}: {self.kind} joint needs a pivot")
         self.axis2 = _as_array(self.axis2, (3,))
         if self.axis2 is not None:
@@ -390,6 +397,31 @@ class MechanismSpec:
                     f"{bound.body!r}")
         if self.contact_pairs is not None:
             self.contact_pairs = [tuple(p) for p in self.contact_pairs]
+        self._attach_joint_rest_frames()
+
+    def _attach_joint_rest_frames(self):
+        """Give every joint its pivot and axis in its two bodies' REST frames.
+
+        Packed poses are world transforms of meshes stored body-locally, so a
+        joint's declared world pivot/axis is only the body-local one when that
+        body's rest transform is the identity.  The travel / angle readers
+        (`joint_travel`, `joint_angle_torch`, the joint-torque application)
+        read `joint.rest_local` so a body built at a rotated or offset rest
+        pose measures the same travel as one built at the identity.  A
+        non-driven body never moves and the readers take it as the identity,
+        so it is the identity here too.  Derived, never serialized."""
+        rest = {b.name: np.asarray(b.initial_transform, float) for b in self.driven_bodies}
+        for j in self.joints:
+            Ta = rest.get(j.body_a, np.eye(4))
+            Tb = rest.get(j.body_b, np.eye(4)) if j.body_b is not None else np.eye(4)
+            local = {"rel": Ta[:3, :3].T @ Tb[:3, :3]}
+            if j.axis is not None:
+                local["axis_a"] = Ta[:3, :3].T @ j.axis
+            if j.pivot is not None:
+                p = np.append(j.pivot, 1.0)
+                local["pivot_a"] = (np.linalg.inv(Ta) @ p)[:3]
+                local["pivot_b"] = (np.linalg.inv(Tb) @ p)[:3]
+            j.rest_local = local
 
     # -- derived views ---------------------------------------------------------
     @property
@@ -1011,7 +1043,12 @@ class AtlasCaseSpec:
             raise ValueError(f"{self.name}: sampling.sampler must be 'analytic' or "
                              f"'contact', got {sampler!r}")
         if sampler == "analytic" and self.contact_model != "none":
-            raise ValueError(f"{self.name}: analytic sampling requires contact_model='none'")
+            # Exact clearance between declared sphere pairs is closed form, so
+            # the analytic oracle can enforce it; any other contact cannot be.
+            from atlas_rom.spec.primitive_clearance import sphere_pairs
+            if self.contact_model != "exact_clearance" or sphere_pairs(self.mechanism) is None:
+                raise ValueError(f"{self.name}: analytic sampling requires contact_model='none', "
+                                 "or 'exact_clearance' with only sphere-sphere contact pairs")
         # A prior-free atlas begins with physical poses and an oracle, not a
         # coordinate declaration.  Its intrinsic dimension is still recorded
         # as the discovered/certified expectation for downstream tensor shapes.

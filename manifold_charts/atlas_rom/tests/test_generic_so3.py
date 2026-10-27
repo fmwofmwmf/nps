@@ -5,7 +5,7 @@ import numpy as np
 
 from atlas_rom.simulate import ideal_oracle
 from atlas_rom.cases import load_spec
-from manifold_charts.atlas_rom.cases.generic.generic_so3 import VIEW_EMBED, _rotvec
+from atlas_rom.cases.generic.generic_so3 import VIEW_EMBED, _rotvec
 
 
 def _rot(axis, theta):

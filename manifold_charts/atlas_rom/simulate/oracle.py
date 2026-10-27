@@ -271,6 +271,11 @@ def build_oracle(spec, *, dt=0.01, abd_stiffness=None, joint_strength=1e9,
                                    SoftTransformConstraint)
     from uipc.geometry import trimesh as uipc_trimesh, label_surface
     from uipc.unit import GPa
+    from uipc import Logger
+
+    # libuipc logs every Newton iteration at info level (~1.7k lines/s here);
+    # the oracle only needs warnings and errors.
+    Logger.set_level(Logger.Level.Warn)
 
     from atlas_rom.simulate.projection_oracle import LibuipcConfigOracle
 

@@ -58,12 +58,27 @@ CASE = AtlasCaseSpec(
     actuators=[ActuatorDef("input torque", kind="joint_torque", target="input_axle", hi=40.0)],
     build=BuildOptions(
         sampling=SamplingOptions(
-            n_samples=1000,
-            # The meshed rest gap is ~0.00603, so this activates contact with
-            # ~0.004 clearance margin rather than requiring initial overlap.
-            d_hat=0.010,
+            # Explore until the frontier closes; the time budget only bounds the run.
+            n_samples=None,
+            max_seconds=7200.0,
+            # Coarse exploration; the fit pipeline densifies before training.
+            step=0.4,
+            # Backlash makes the contact set a thin tube (~0.02-0.05 in pose
+            # distance); response probes must be much wider than that.
+            tangent_eps=0.2,
+            # Separates the free axle span from joint-held directions (measured
+            # 626-1435x apart); clearance play inside it is removed by the
+            # explorer's scale test, not by this gap.
+            rank_gap_ratio=200.0,
+            # Measured flank gap at rest is 0.00549 per side (0.956 deg input
+            # backlash); d_hat stays well below it so both flanks are never
+            # inside the barrier at once.
+            d_hat=0.0015,
             max_kappa=1e9,
-            newton_max_iter=64,
+            newton_max_iter=100,
+            projection_mode="proximal_step",
+            proximal_max_steps=40,
+            newton_velocity_tol=1e-3,
         ),
         charts=ChartOptions(mode="single"),
         decoder=DecoderOptions(epochs=6000, n_harmonics=3, smooth_lambda=1e-4),

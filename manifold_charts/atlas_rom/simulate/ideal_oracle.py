@@ -41,16 +41,20 @@ singularity event instead of a silently varying atlas dimension.
 """
 from __future__ import annotations
 
+import dataclasses
 from fractions import Fraction
 
 import numpy as np
 from atlas_rom.simulate.oracle_base import ManifoldOracle
 from atlas_rom.spec.physical_domain import violation as physical_domain_violation
+from atlas_rom.spec.primitive_clearance import sphere_pairs
 
 try:
     from scipy.linalg import lstsq as scipy_lstsq
 except ImportError:  # pragma: no cover - NumPy-only installations
     scipy_lstsq = None
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import lsmr
 
 # Upper-triangular index pairs of RᵀR - I, in one fixed order so the residual
 # and the Jacobian cannot drift apart.
@@ -60,7 +64,8 @@ _ORTHONORMALITY_PAIRS = ((0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (2, 2))
 # listed here is not "unsupported forever" — it just has to be added as a
 # residual + Jacobian block before a case using it can take the analytic path.
 SUPPORTED_JOINTS = ("revolute", "prismatic", "cylindrical", "spherical",
-                    "universal", "fixed", "phase_lock", "gear_ratio", "bevel_gear")
+                    "universal", "constant_velocity", "fixed", "phase_lock",
+                    "gear_ratio", "bevel_gear")
 
 # Kinds whose anchor is confined to a LINE rather than to a point: the two
 # transverse components of the anchor separation are constrained and the axial
@@ -77,13 +82,40 @@ MIN_GAP_RATIO = 1e3
 # (`project` converges to 1e-11 when it converges at all).
 RESPONSE_RESIDUAL_TOL = 1e-8
 
+# `project()` switches from dense LAPACK least squares to sparse LSMR at this
+# many ambient columns.  The constraint Jacobian has at most a few dozen
+# nonzeros per row (each joint touches two bodies), so its dense solve is all
+# wasted work on a large mechanism: on the 299-body Hoberman sphere (4674 x
+# 3588) a dense step took 7.9 s against 0.1 s for LSMR, agreeing to 5e-11.
+# Below the threshold the dense path is kept exactly, so every existing case
+# (the largest, jansen arrays, is under 700 columns) projects as before.
+SPARSE_MIN_AMBIENT = 1200
+# LSMR stopping tolerances (relative residual / normal-equation residual) and
+# condition cap.  Starting from zero, LSMR's iterates stay in the row space, so
+# the step it returns is the MINIMUM-NORM least-squares step, as lstsq's is.
+_LSMR_TOL = 1e-14
+_LSMR_CONLIM = 1e14
+
 # How many dimension disagreements to name individually before summarising.
 _MISMATCH_REPORTS = 5
 
+# Swept clearance: the commanded path is re-projected at enough points that no
+# sub-chord moves a sphere pair's separation by more than this fraction of the
+# pair's clearance, so a step cannot tunnel through an obstacle and each
+# sub-chord's sagitta stays far below the clearance.  Capped per response.
+_SWEEP_FRACTION = .25
+_SWEEP_MAX_POINTS = 64
+
 
 def supports(spec) -> bool:
-    """Is this case's manifold algebraic, so the analytic oracle is valid?"""
-    if spec.contact_model != "none":
+    """Is this case's manifold algebraic, so the analytic oracle is valid?
+
+    Exact clearance is admitted only when every declared contact pair is
+    sphere-sphere: that inequality is closed form (`primitive_clearance`)."""
+    if spec.contact_model == "exact_clearance":
+        if sphere_pairs(spec.mechanism) is None:
+            return False
+    elif spec.contact_model != "none":
         return False
     if not spec.mechanism.joints:
         return False
@@ -242,6 +274,8 @@ class IdealJointOracle(ManifoldOracle):
                          # row separately (a scalar, not a vector equality), so
                          # it contributes no full-direction rows here.
                          "universal": (),
+                         # Likewise one scalar twist row, carried below.
+                         "constant_velocity": (),
                          "revolute": (np.asarray(j.axis, float),),
                          # The axis equality has rank two (both directions are
                          # unit vectors).  Together with the two transverse
@@ -287,9 +321,39 @@ class IdealJointOracle(ManifoldOracle):
                 entry["perp_b"] = to_local(j.body_b, nb, True)
                 entry["perp_world"] = (na, nb)
                 extra = 1
+            if j.kind == "constant_velocity":
+                # One scalar row: the relative rotation M = F_aᵀ F_b (F = R·R_restᵀ,
+                # each body's motion since rest, identity for ground) has no
+                # twist about the shaft axis n:  n · vee(M - Mᵀ) = <[n]x, M> = 0.
+                # vee(M - Mᵀ) = 2 sin(phi) k, so this holds exactly when the
+                # rotation axis k is perpendicular to n: a pure swing, which
+                # carries body_a's spin over to body_b at equal rate.  (It also
+                # vanishes at a 180-degree bend, far outside any real CV joint.)
+                n = np.asarray(j.axis, float)
+                entry["cv_skew"] = np.array([[0.0, -n[2], n[1]],
+                                             [n[2], 0.0, -n[0]],
+                                             [-n[1], n[0], 0.0]])
+                entry["cv_rest_a"] = (rest[j.body_a][:3, :3].T
+                                      if j.body_a in index else None)
+                entry["cv_rest_b"] = (rest[j.body_b][:3, :3].T
+                                      if j.body_b in index else None)
+                extra = 1
             self.joints.append(entry)
             self.n_rows += ((2 if j.kind in _SLIDING_JOINTS else 3)
                             + 3 * len(entry["dirs"]) + extra)
+
+        # Sphere-sphere clearances: each centre carried in its body's rest frame
+        # (world for a fixed body), like a joint pivot.  These are inequalities,
+        # enforced on responses, not equality rows of the projection.
+        self.clearance = [
+            {"names": (pair["body_a"], pair["body_b"]),
+             "ia": index.get(pair["body_a"]), "ib": index.get(pair["body_b"]),
+             "ca": (pair["center_a"] if pair["body_a"] not in index
+                    else to_local(pair["body_a"], pair["center_a"])),
+             "cb": (pair["center_b"] if pair["body_b"] not in index
+                    else to_local(pair["body_b"], pair["center_b"])),
+             "clearance": pair["clearance"]}
+            for pair in ((sphere_pairs(mech) or []) if spec.contact_model == "exact_clearance" else [])]
 
         self._rest_packed = np.concatenate(
             [np.asarray(rest[name], float)[:3, :4].reshape(-1) for name in self.order])
@@ -298,7 +362,8 @@ class IdealJointOracle(ManifoldOracle):
         self.expected_dim = spec.build.expect.dimension
         self.dim_mismatches = 0
         log(f"ideal oracle: {self.n_bodies} bodies, {len(self.joints)} joints, "
-            f"{self.n_rows} constraint rows over {self.dim_ambient} ambient dims")
+            f"{self.n_rows} constraint rows over {self.dim_ambient} ambient dims"
+            + (f", {len(self.clearance)} sphere clearances" if self.clearance else ""))
 
     # -- packing ---------------------------------------------------------------
     def _poses(self, q):
@@ -327,8 +392,67 @@ class IdealJointOracle(ManifoldOracle):
         residual = float(np.linalg.norm(self.residual(result), np.inf))
         if residual > RESPONSE_RESIDUAL_TOL:
             return False, {"projection_unconverged": True, "residual": residual}
+        for e, separation in zip(self.clearance, self._separations(result)):
+            gap = float(np.linalg.norm(separation)) - e["clearance"]
+            if gap < 0.0:
+                return False, {"physical_boundary": "clearance", "pair": list(e["names"]),
+                               "gap": gap}
         diagnostics = physical_domain_violation(self.spec, self._poses(result))
         return diagnostics is None, diagnostics or {}
+
+    # -- sphere clearance ----------------------------------------------------
+    def _separations(self, q):
+        """Per clearance pair, centre_a - centre_b at packed pose `q`."""
+        T = self._poses(q)
+
+        def centre(i, local):
+            return local if i is None else T[i, :, :3] @ local + T[i, :, 3]
+
+        return [centre(e["ia"], e["ca"]) - centre(e["ib"], e["cb"]) for e in self.clearance]
+
+    def _swept_clearance(self, baseline, direction, scale, result):
+        """First clearance violated along the commanded path, else ``None``.
+
+        A sphere centre is affine in its body's packed pose, so between two
+        packed poses the pair separation moves on a straight segment and its
+        closest approach is closed form.  The path itself is the projection of
+        the commanded line ``baseline + s * scale * direction``, re-projected at
+        enough points that each sub-chord stays short against the clearance.
+        """
+        start, end = self._separations(baseline), self._separations(result)
+        travel = max(float(np.linalg.norm(b - a)) / e["clearance"]
+                     for e, a, b in zip(self.clearance, start, end))
+        count = int(min(_SWEEP_MAX_POINTS, max(1, np.ceil(travel / _SWEEP_FRACTION))))
+        previous = start
+        for step in range(1, count + 1):
+            current = (end if step == count else
+                       self._separations(self.project(baseline + (step / count) * scale * direction)))
+            for e, a, b in zip(self.clearance, previous, current):
+                chord = b - a
+                length2 = float(chord @ chord)
+                s = 0.0 if length2 <= 0.0 else float(np.clip(-(a @ chord) / length2, 0.0, 1.0))
+                gap = float(np.linalg.norm(a + s * chord)) - e["clearance"]
+                if gap < 0.0:
+                    return {"physical_boundary": "clearance", "pair": list(e["names"]),
+                            "gap": gap, "swept": True}
+            previous = current
+        return None
+
+    def directional_response(self, snapshot, direction, scale, *, parent=None, reuse=True):
+        """The base response, rejected when its path crosses a sphere clearance.
+
+        The endpoint test in `response_validity` alone would accept a step that
+        jumps clean through an obstacle thinner than the step."""
+        response = super().directional_response(snapshot, direction, scale,
+                                                parent=parent, reuse=reuse)
+        if not self.clearance or not response.valid:
+            return response
+        hit = self._swept_clearance(response.baseline, response.direction,
+                                    response.scale, response.result)
+        if hit is None:
+            return response
+        return dataclasses.replace(response, valid=False,
+                                   diagnostics={**response.diagnostics, **hit})
 
     # -- the algebraic system --------------------------------------------------
     def _transverse(self, e, T):
@@ -453,12 +577,37 @@ class IdealJointOracle(ManifoldOracle):
                       else e["perp_world"][1])
                 out[row] = float(va @ vb)
                 row += 1
+            if e["kind"] == "constant_velocity":
+                Fa, Fb = self._cv_motion(e, T)
+                out[row] = float(np.sum((Fa @ e["cv_skew"]) * Fb))
+                row += 1
         return out
 
-    def jacobian(self, q):
-        """Closed form — every residual is quadratic in the packed poses."""
+    @staticmethod
+    def _cv_motion(e, T):
+        """Each side's rotation since rest, F = R · R_restᵀ (identity for ground)."""
+        Fa = np.eye(3) if e["ia"] is None else T[e["ia"], :, :3] @ e["cv_rest_a"]
+        Fb = np.eye(3) if e["ib"] is None else T[e["ib"], :, :3] @ e["cv_rest_b"]
+        return Fa, Fb
+
+    def _jacobian_entries(self, q):
+        """Closed form — every residual is quadratic in the packed poses.
+
+        Returned as (rows, cols, values) triplets in accumulation order, so the
+        dense and sparse assemblies below sum exactly the same terms."""
         T = self._poses(q)
-        J = np.zeros((self.n_rows, self.dim_ambient))
+        rows_, cols_, vals_ = [], [], []
+
+        def add(r, c, v):
+            rows_.append(r)
+            cols_.append(c)
+            vals_.append(v)
+
+        def add_many(r, cs, vs):
+            rows_.extend([r] * len(cs))
+            cols_.extend(cs)
+            vals_.extend(vs)
+
         row = 0
 
         def column(body, r, c):
@@ -469,8 +618,8 @@ class IdealJointOracle(ManifoldOracle):
             for k, l in _ORTHONORMALITY_PAIRS:
                 # d(RᵀR)_kl / dR_mc = delta(c,k) R_ml + delta(c,l) R_mk
                 for m in range(3):
-                    J[row, column(i, m, k)] += R[m, l]
-                    J[row, column(i, m, l)] += R[m, k]
+                    add(row, column(i, m, k), R[m, l])
+                    add(row, column(i, m, l), R[m, k])
                 row += 1
         q_flat = np.asarray(q, float).reshape(-1)
         for e in self.joints:
@@ -488,7 +637,7 @@ class IdealJointOracle(ManifoldOracle):
                 perturb[np.arange(len(cols)) * 2 + 1, cols] = -h
                 configs = (q_flat + perturb).reshape(-1, self.n_bodies, 3, 4)
                 vals = self._bevel_row_batched(e, configs)
-                J[row, cols] = (vals[0::2] - vals[1::2]) / (2.0 * h)
+                add_many(row, cols, (vals[0::2] - vals[1::2]) / (2.0 * h))
                 row += 1
                 continue
             if e["kind"] == "gear_ratio":
@@ -508,7 +657,7 @@ class IdealJointOracle(ManifoldOracle):
                     grad = (x * dy - y * e["phase"]) / max(x * x + y * y, 1e-15)
                     for r in range(3):
                         for c in range(3):
-                            J[row, column(i, r, c)] += coefficient * grad[r] * e[local][c]
+                            add(row, column(i, r, c), coefficient * grad[r] * e[local][c])
                 row += 1
                 continue
             if e["kind"] == "phase_lock":
@@ -517,7 +666,7 @@ class IdealJointOracle(ManifoldOracle):
                     i = e[side]
                     for r in range(3):
                         for c in range(3):
-                            J[row + r, column(i, r, c)] += sign * direction[c]
+                            add(row + r, column(i, r, c), sign * direction[c])
                 row += 3
                 continue
             if e["kind"] in _SLIDING_JOINTS:
@@ -532,8 +681,8 @@ class IdealJointOracle(ManifoldOracle):
                     for k, direction in enumerate(transverse):
                         for r in range(3):
                             for c in range(3):
-                                J[row + k, column(i, r, c)] += sign * direction[r] * p[c]
-                            J[row + k, column(i, r, 3)] += sign * direction[r]
+                                add(row + k, column(i, r, c), sign * direction[r] * p[c])
+                            add(row + k, column(i, r, 3), sign * direction[r])
                 ia = e["ia"]
                 if ia is not None:
                     # d/dR_a[r,c] of (delta . R_a t^local) = delta[r] * t^local[c]
@@ -546,7 +695,7 @@ class IdealJointOracle(ManifoldOracle):
                     for k, t_local in enumerate(e["transverse_local"]):
                         for r in range(3):
                             for c in range(3):
-                                J[row + k, column(ia, r, c)] += delta[r] * t_local[c]
+                                add(row + k, column(ia, r, c), delta[r] * t_local[c])
                 row += 2
             else:
                 for side, sign, local in (("ia", 1.0, "pa"), ("ib", -1.0, "pb")):
@@ -556,8 +705,8 @@ class IdealJointOracle(ManifoldOracle):
                     p = e[local]
                     for r in range(3):
                         for c in range(3):
-                            J[row + r, column(i, r, c)] += sign * p[c]
-                        J[row + r, column(i, r, 3)] += sign        # translation
+                            add(row + r, column(i, r, c), sign * p[c])
+                        add(row + r, column(i, r, 3), sign)        # translation
                 row += 3
             for local_a, local_b, _world in e["dirs"]:
                 for side, sign, a in (("ia", 1.0, local_a), ("ib", -1.0, local_b)):
@@ -566,7 +715,7 @@ class IdealJointOracle(ManifoldOracle):
                         continue
                     for r in range(3):
                         for c in range(3):
-                            J[row + r, column(i, r, c)] += sign * a[c]
+                            add(row + r, column(i, r, c), sign * a[c])
                 row += 3
             if e["kind"] == "universal":
                 # res = (R_a n_a) . (R_b n_b);  d/dR_a[r,c] = (R_b n_b)[r] n_a[c]
@@ -578,13 +727,41 @@ class IdealJointOracle(ManifoldOracle):
                 if ia is not None:
                     for r in range(3):
                         for c in range(3):
-                            J[row, column(ia, r, c)] += vb[r] * e["perp_a"][c]
+                            add(row, column(ia, r, c), vb[r] * e["perp_a"][c])
                 if ib is not None:
                     for r in range(3):
                         for c in range(3):
-                            J[row, column(ib, r, c)] += va[r] * e["perp_b"][c]
+                            add(row, column(ib, r, c), va[r] * e["perp_b"][c])
                 row += 1
+            if e["kind"] == "constant_velocity":
+                # res = <R_a A_a K, R_b A_b>_F  with A = R_restᵀ, K = [n]x:
+                #   d/dR_a = F_b Kᵀ A_aᵀ,   d/dR_b = F_a K A_bᵀ
+                Fa, Fb = self._cv_motion(e, T)
+                K = e["cv_skew"]
+                for side, grad in (("ia", lambda: Fb @ K.T @ e["cv_rest_a"].T),
+                                   ("ib", lambda: Fa @ K @ e["cv_rest_b"].T)):
+                    i = e[side]
+                    if i is None:
+                        continue
+                    G = grad()
+                    for r in range(3):
+                        for c in range(3):
+                            add(row, column(i, r, c), G[r, c])
+                row += 1
+        return (np.asarray(rows_, np.intp), np.asarray(cols_, np.intp),
+                np.asarray(vals_, float))
+
+    def jacobian(self, q):
+        """Dense constraint Jacobian, (n_rows, dim_ambient)."""
+        rows, cols, vals = self._jacobian_entries(q)
+        J = np.zeros((self.n_rows, self.dim_ambient))
+        np.add.at(J, (rows, cols), vals)
         return J
+
+    def jacobian_sparse(self, q):
+        """The same Jacobian as CSR (duplicate entries summed)."""
+        rows, cols, vals = self._jacobian_entries(q)
+        return csr_matrix((vals, (rows, cols)), shape=(self.n_rows, self.dim_ambient))
 
     # -- the oracle interface --------------------------------------------------
     def project(self, q, tol=1e-11, max_iterations=60, hold=None):
@@ -632,24 +809,29 @@ class IdealJointOracle(ManifoldOracle):
         # +-h probe responses then differ by that jitter / h, which on
         # `drivetrain` buried the rank gap of the advancing front's secants.
         last_step = np.inf
+        sparse = self.dim_ambient >= SPARSE_MIN_AMBIENT
         for _ in range(max_iterations):
             res = self.residual(q)
             if np.linalg.norm(res, np.inf) <= tol and last_step <= tol:
                 break
-            J = self.jacobian(q)
+            J = self.jacobian_sparse(q) if sparse else self.jacobian(q)
             if free_cols is not None:
                 J = J[:, free_cols]
             offset = (q - target) if free_cols is None else (q - target)[free_cols]
             rhs = -res + J @ offset
-            try:
-                z, *_ = np.linalg.lstsq(J, rhs, rcond=None)
-            except np.linalg.LinAlgError:
-                if scipy_lstsq is None:
-                    raise
-                # QR with pivoting avoids the SVD failure mode that can
-                # occur when an exploratory affine chart is temporarily
-                # close to a rank-changing configuration.
-                z = scipy_lstsq(J, rhs, lapack_driver="gelsy")[0]
+            if sparse:
+                z = lsmr(J, rhs, atol=_LSMR_TOL, btol=_LSMR_TOL, conlim=_LSMR_CONLIM,
+                         maxiter=10 * J.shape[1])[0]
+            else:
+                try:
+                    z, *_ = np.linalg.lstsq(J, rhs, rcond=None)
+                except np.linalg.LinAlgError:
+                    if scipy_lstsq is None:
+                        raise
+                    # QR with pivoting avoids the SVD failure mode that can
+                    # occur when an exploratory affine chart is temporarily
+                    # close to a rank-changing configuration.
+                    z = scipy_lstsq(J, rhs, lapack_driver="gelsy")[0]
             previous = q
             if free_cols is None:
                 q = target + z

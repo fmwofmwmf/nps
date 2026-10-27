@@ -76,17 +76,25 @@ def _lbfgs(params, loss_fn, iters):
 
 
 def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=800, grad_weight=1.0,
-                 lbfgs_iters=300):
+                 mass_grad_weight=1.0, lbfgs_iters=300):
     """Distill Jacobian-derived M and gravitational V into learned fields.
 
     Targets are normalized (the fields carry their physical scale as buffers) so the nets learn O(1)
     quantities whatever the body masses are.  V is trained on its value AND on its gradient, where the
     gradient is ``autograd`` of the SAME scalar network: the learned force ``-grad V`` is therefore exactly
-    conservative -- no separate force head.  Adam (``epochs``) is followed by a full-batch L-BFGS finish.
+    conservative -- no separate force head.  M is likewise trained on its value AND on dM/du: the runtime's
+    velocity force ``1/2 v^T (dM/du) v`` differentiates the learned field, so a value-only fit leaves the
+    speed-squared term unsupervised.  Both dM/du (teacher and learned) are central differences with the same
+    per-axis step.  Adam (``epochs``) is followed by a full-batch L-BFGS finish.
     """
     from atlas_rom.rom import ops
     U = np.asarray(anchors, float); d = U.shape[1]
     M = np.asarray([ops.mass_matrix(model, u, masses, inertia, com) for u in U])
+    # dM/du_k at every anchor, central difference; h_k scales with the anchors' spread on axis k
+    h = 1e-4 * np.maximum(U.std(0), 1e-3)
+    dM = np.stack([(np.asarray([ops.mass_matrix(model, u + h[k] * np.eye(d)[k], masses, inertia, com) for u in U])
+                    - np.asarray([ops.mass_matrix(model, u - h[k] * np.eye(d)[k], masses, inertia, com) for u in U]))
+                   / (2.0 * h[k]) for k in range(d)], axis=1)                                  # (N, d, d, d)
     VG = [ops.potential_and_grad(model, u, masses, com, up, gravity) for u in U]
     V = np.asarray([v for v, _ in VG]); G = np.asarray([g for _, g in VG])
     ut = torch.as_tensor(U, dtype=torch.float64)
@@ -102,9 +110,20 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
     gt = torch.as_tensor(G / v_scale, dtype=torch.float64)
     g_rms2 = float(gt.square().sum(-1).mean().clamp_min(1e-12))
     m_den = mt.square().sum((-2, -1)).clamp_min(1e-12)
+    dmt = torch.as_tensor(dM / m_scale, dtype=torch.float64)
+    dm_rms2 = float(dmt.square().sum((-3, -2, -1)).mean().clamp_min(1e-12))
+    shifts = [torch.as_tensor(h[k] * np.eye(d)[k], dtype=torch.float64) for k in range(d)]
+
+    def mass_grad_terms():
+        dml = torch.stack([(mass.normalized(ut + s) - mass.normalized(ut - s)) / (2.0 * float(h[k]))
+                           for k, s in enumerate(shifts)], dim=1)
+        return (dml - dmt).square().sum((-3, -2, -1)).mean() / dm_rms2
 
     def mass_loss():
-        return ((mass.normalized(ut) - mt).square().sum((-2, -1)) / m_den).mean()
+        value = ((mass.normalized(ut) - mt).square().sum((-2, -1)) / m_den).mean()
+        if float(mass_grad_weight) == 0.0:
+            return value
+        return value + float(mass_grad_weight) * mass_grad_terms()
 
     def pot_terms():
         x = ut.clone().requires_grad_(True)
@@ -123,7 +142,10 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
         _lbfgs(net.parameters(), fn, lbfgs_iters)
     with torch.enable_grad():
         v_err, g_err = pot_terms()
-    return mass.eval(), potential.eval(), {"mass_mse": float(mass_loss().detach()),
+    with torch.no_grad():
+        m_val = float(((mass.normalized(ut) - mt).square().sum((-2, -1)) / m_den).mean())
+        m_grad = float(mass_grad_terms())
+    return mass.eval(), potential.eval(), {"mass_mse": m_val, "mass_grad_rel_mse": m_grad,
                                            "potential_mse": float(v_err.detach()),
                                            "potential_grad_rel_mse": float(g_err.detach())}
 

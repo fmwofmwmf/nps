@@ -1092,6 +1092,13 @@ def _explore(spec, log=print, ledger_path=None, *, checkpoint_dir=None, resume_f
     return q, np.asarray(frames), edges, {}
 
 
+def _chord_k(options, frames) -> int:
+    """Chord candidates per sample for certification: ~2 per direction on each
+    side of the MEASURED frame rank (2^(rank+1)), capped by ``graph_k``."""
+    rank = int(np.asarray(frames).shape[2]) if np.asarray(frames).ndim == 3 else 0
+    return int(min(options.graph_k, 2 ** (max(rank, 1) + 1)))
+
+
 def prepare(case, work: str, root: str, *, log=print, sdf_system=None,
             write_ledger: bool | None = None, resume_from: str | None = None,
             resume_and_repair: bool = False) -> dict:
@@ -1176,7 +1183,7 @@ def prepare(case, work: str, root: str, *, log=print, sdf_system=None,
                 return np.asarray([max(float(sdf_system.sdf(state)) - sdf_system.tolerance, 0.0)])
 
         certified, graph_report = sample_graph.certified_edges(
-            q, edges, ObservedSDFResidual(), k=16, log=log)
+            q, edges, ObservedSDFResidual(), k=_chord_k(case.build.sampling, frames), log=log)
         sample_graph.save(os.path.join(work, sample_graph.ARTIFACT), certified, graph_report)
         from atlas_rom.sample import new_dataset
         built = new_dataset.build(work, log=log)
@@ -1228,7 +1235,8 @@ def prepare(case, work: str, root: str, *, log=print, sdf_system=None,
     # path so downstream training cannot distinguish a privileged branch.
     from atlas_rom.sample import new_dataset, sample_graph
     certificate_oracle, _unused = _select_oracle(case, options, None, log)
-    certified, graph_report = sample_graph.certified_edges(q, edges, certificate_oracle, k=16, log=log)
+    certified, graph_report = sample_graph.certified_edges(q, edges, certificate_oracle,
+                                                       k=_chord_k(options, frames), log=log)
     sample_graph.save(os.path.join(work, sample_graph.ARTIFACT), certified, graph_report)
     built = new_dataset.build(work, log=log)
     log(f"sampling[{options.sampler}]: {len(q)} states, {len(edges)} witnessed edges")

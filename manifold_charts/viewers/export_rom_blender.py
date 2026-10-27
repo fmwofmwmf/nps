@@ -60,6 +60,9 @@ def parse():
     ap.add_argument("--seconds", type=float, default=0.0, help="recorded clip length in simulated seconds; 0 = a single frame (a still).  The pen driver ends by its own laps/--wait instead")
     ap.add_argument("--dt", type=float, default=0.01)
     ap.add_argument("--damping", type=float, default=0.0)
+    ap.add_argument("--no-boundary-projection", dest="project_boundary", action="store_false",
+                    help="keep the learned boundary as a pure penalty spring: no post-step retraction onto the wall and no "
+                         "removal of outward velocity, so a wall hit rebounds instead of stopping dead")
     ap.add_argument("--gravity", type=float, default=None, help="gravity magnitude for the ROM runtime (default: the case's own); not wired for --drive pen")
     ap.add_argument("--fps", type=float, default=30.0, help="exported frame rate (steps per frame = round(1 / (fps * dt)))")
     ap.add_argument("--out", default=None)

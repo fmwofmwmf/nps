@@ -20,17 +20,24 @@ def joint_travel(transforms, joint, body_order):
     poses = np.asarray(transforms, float)
     ia = body_order.index(joint.body_a) if joint.body_a in body_order else None
     ib = body_order.index(joint.body_b) if joint.body_b in body_order else None
+    # Pivot/axis in the bodies' rest frames (`MechanismSpec` attaches them);
+    # a bare JointDef falls back to the world values, i.e. identity rest poses.
+    rest = getattr(joint, "rest_local", None) or {}
+    axis_a = rest.get("axis_a", joint.axis)
     if joint.kind == "revolute":
         left = np.eye(3) if ia is None else poses[ia, :, :3]
         right = np.eye(3) if ib is None else poses[ib, :, :3]
-        return _axis_angle(left.T @ right, joint.axis)
+        relative = left.T @ right
+        if "rel" in rest:
+            relative = relative @ rest["rel"].T
+        return _axis_angle(relative, axis_a)
 
-    def anchor(index):
+    def anchor(index, key):
         return (np.asarray(joint.pivot, float) if index is None else
-                poses[index, :, :3] @ np.asarray(joint.pivot, float) + poses[index, :, 3])
+                poses[index, :, :3] @ np.asarray(rest.get(key, joint.pivot), float) + poses[index, :, 3])
 
     rail = np.eye(3) if ia is None else poses[ia, :, :3]
-    return float((anchor(ib) - anchor(ia)) @ (rail @ np.asarray(joint.axis, float)))
+    return float((anchor(ib, "pivot_b") - anchor(ia, "pivot_a")) @ (rail @ np.asarray(axis_a, float)))
 
 
 def violation(spec, transforms):

@@ -47,7 +47,8 @@ class Driver:
         self.args = args
 
     def make_sim(self, rom, args):
-        return RomBase(rom, dt=args.dt, damping=args.damping, gravity=getattr(args, "gravity", None))
+        return RomBase(rom, dt=args.dt, damping=args.damping, gravity=getattr(args, "gravity", None),
+                       project_boundary=getattr(args, "project_boundary", True))
 
     def prepare(self, sim, spf):
         return {}

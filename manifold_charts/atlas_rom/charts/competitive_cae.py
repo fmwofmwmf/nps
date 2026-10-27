@@ -46,6 +46,31 @@ _SEPARATION_PHYS_QUANTILE = 0.7   # a batch pair is "physically separated" above
 # ``_SEPARATION_FRAC``'s use of the latent diameter, so the test is scale free.
 _FOLD_PHYS_FRAC = 0.25            # h = this * the core's physical diameter
 
+# Adam moves every weight by ~lr per step whatever the gradient's size, so one
+# step can shift an encoder first-layer pre-activation by up to lr * sum|x| over
+# the pose features -- a quantity that grows with the body count.  On the
+# 299-body hoberman sphere (2691 features, sum|x| ~1456) that is ~2.9 per step
+# at lr 2e-3: a few steps drive the tanh layer into saturation (|pre| ~50),
+# the latent freezes to a constant and every latent-dependent loss (including
+# the anti-collapse terms) loses its gradient.  The drivetrain V8 (198
+# features) moves ~0.2.  So that one layer's rate is scaled by fan-in above a
+# reference width, keeping the per-step pre-activation move at what small cases
+# already train with; every case at or below the reference trains unchanged.
+_ENCODER_FANIN_REF = 256
+
+
+def _adam_param_groups(named_params, lr):
+    """Per-parameter Adam groups; only ``encoder.0.weight`` (the input layer, any
+    encoder kind) gets ``lr * min(1, _ENCODER_FANIN_REF / fan_in)``.  Each group
+    carries its ``lr_scale`` so a schedule can set ``lr_now * lr_scale``."""
+    groups = []
+    for name, param in named_params:
+        scale = 1.0
+        if name == "encoder.0.weight":
+            scale = min(1.0, float(_ENCODER_FANIN_REF) / float(param.shape[-1]))
+        groups.append({"params": [param], "lr": lr * scale, "lr_scale": scale})
+    return groups
+
 
 class _Progress:
     """Minimal single-line epoch progress bar for the chart-training loops.
@@ -1367,7 +1392,8 @@ class CompetitiveCAEFitter:
         # No weight decay on the chart AEs: the atlas poses are exact, so decay
         # only trades reconstruction accuracy for a smoothness the evidence does
         # not ask for (see the mesh-free AE convergence finding).
-        optimizers = [torch.optim.Adam(m.parameters(), lr=2e-3, weight_decay=float(weight_decay)) for m in models]
+        optimizers = [torch.optim.Adam(_adam_param_groups(m.named_parameters(), 2e-3), lr=2e-3,
+                                       weight_decay=float(weight_decay)) for m in models]
         feat_mean, feat_scale = feature.mean(0), feature.std(0).clip(1e-6)
         F = torch.as_tensor((feature - feat_mean) / feat_scale, dtype=Q.dtype, device=Q.device)
         X = torch.as_tensor(feature, dtype=Q.dtype, device=Q.device)
@@ -1572,7 +1598,7 @@ class CompetitiveCAEFitter:
         ensemble_params = {name: torch.nn.Parameter(value.detach().clone())
                            for name, value in raw_params.items()}
         ensemble_buffers = {name: value.detach().clone() for name, value in raw_buffers.items()}
-        ensemble_opt = torch.optim.Adam(tuple(ensemble_params.values()), lr=2e-3,
+        ensemble_opt = torch.optim.Adam(_adam_param_groups(ensemble_params.items(), 2e-3), lr=2e-3,
                                          weight_decay=float(weight_decay))
         with torch.no_grad():
             transferred = []
@@ -1611,7 +1637,7 @@ class CompetitiveCAEFitter:
             keep = torch.as_tensor(keep_live, dtype=torch.bool, device=next(iter(old_params.values())).device)
             new_params = {name: torch.nn.Parameter(value.detach()[keep].clone())
                           for name, value in old_params.items()}
-            new_opt = torch.optim.Adam(tuple(new_params.values()), lr=2e-3,
+            new_opt = torch.optim.Adam(_adam_param_groups(new_params.items(), 2e-3), lr=2e-3,
                                         weight_decay=float(weight_decay))
             for name, old_param in old_params.items():
                 state = old_opt.state.get(old_param, {})
@@ -1650,7 +1676,7 @@ class CompetitiveCAEFitter:
                         ensemble_params[name][chart].copy_(value)
                     for name, value in model.named_buffers():
                         ensemble_buffers[name][chart].copy_(value)
-            ensemble_opt = torch.optim.Adam(tuple(ensemble_params.values()), lr=2e-3,
+            ensemble_opt = torch.optim.Adam(_adam_param_groups(ensemble_params.items(), 2e-3), lr=2e-3,
                                              weight_decay=float(weight_decay))
             selector_payload = resume.get("selector")
             if selector_payload is not None:
@@ -3075,7 +3101,13 @@ class CompetitiveCAEFitter:
             # block below adds a matching "post" only on E-steps that retire.
             if snapshot_prune_steps and phase == 1:
                 _write_prune_snapshot(epoch, "pre")
-            if (phase == 1 and coverage_complete and len(models) > 1 and
+            # Not gated on complete coverage: a chart with zero exclusive
+            # support covers nothing another chart does not, so retiring it
+            # cannot open a hole wherever the rest of the atlas stands.  The
+            # gate only tied pruning to unrelated uncovered poses (hoberman:
+            # 22 redundant-chart checks skipped while 9-45 poses elsewhere
+            # were open).
+            if (phase == 1 and len(models) > 1 and
                     epoch >= int(prune_warmup_epochs)):
                 _retirement_tick = sync_tick()
                 joint_timing["retirement_checkpoints"] = joint_timing.get("retirement_checkpoints", 0) + 1
@@ -3761,7 +3793,7 @@ class CompetitiveCAEFitter:
                 lr_now = max(float(lr_step_min),
                              base_lr * (float(lr_step_gamma) ** (epoch // int(lr_step_epochs))))
                 for group in ensemble_opt.param_groups:
-                    group["lr"] = lr_now
+                    group["lr"] = lr_now * group.get("lr_scale", 1.0)
             if epoch_trace:
                 _before = {name: value.detach().clone() for name, value in ensemble_params.items()}
             ensemble_opt.step()

@@ -64,11 +64,11 @@ def joint_travel(transforms, joint, body_order):
     Revolute  -> signed angle (rad) about the joint axis.
     Prismatic -> signed displacement (m) along it.
 
-    `transforms` is one sample's (n_bodies, 3, 4) stack.  Every body's mesh is
-    baked at its rest world pose and starts at transform = identity, so the
-    joint's declared world pivot IS its local pivot in both bodies and the rest
-    travel is exactly 0 — which is what makes `limit_lo <= 0 <= limit_hi` the
-    right thing for a spec to assert.  A `None` body index is ground.
+    `transforms` is one sample's (n_bodies, 3, 4) stack.  The joint's world
+    pivot and axis are read in each body's REST frame (`joint.rest_local`,
+    attached by `MechanismSpec`), so the rest travel is exactly 0 whatever the
+    bodies' rest transforms — which is what makes `limit_lo <= 0 <= limit_hi`
+    the right thing for a spec to assert.  A `None` body index is ground.
 
     This is the reader behind `JointDef.limit_lo/limit_hi`, and it is the same
     quantity `CoordinateDef(source="joint_angle")` reports for a revolute.
@@ -79,18 +79,22 @@ def joint_travel(transforms, joint, body_order):
     if ia is None and ib is None:
         raise ValueError(f"joint {joint.name!r} connects two non-driven bodies; "
                          f"it has no travel to read")
+    # Pivot/axis in the bodies' rest frames (`MechanismSpec` attaches them);
+    # a bare JointDef falls back to the world values, i.e. identity rest poses.
+    rest = getattr(joint, "rest_local", None) or {}
+    axis_a = rest.get("axis_a", joint.axis)
     if joint.kind == "revolute":
-        return _axis_angle(_relative_rotation(T, ia, ib), joint.axis)
+        return _axis_angle(_relative_rotation(T, ia, ib), axis_a, R0=rest.get("rel"))
 
-    def anchor(i):
+    def anchor(i, key):
         if i is None:                       # ground: the pivot never moves
             return np.asarray(joint.pivot, float)
-        return T[i, :, :3] @ np.asarray(joint.pivot, float) + T[i, :, 3]
+        return T[i, :, :3] @ np.asarray(rest.get(key, joint.pivot), float) + T[i, :, 3]
 
     # The rail belongs to body_a and turns with it, exactly as in
     # `ideal_oracle._transverse`.
     Ra = np.eye(3) if ia is None else T[ia, :, :3]
-    return float((anchor(ib) - anchor(ia)) @ (Ra @ np.asarray(joint.axis, float)))
+    return float((anchor(ib, "pivot_b") - anchor(ia, "pivot_a")) @ (Ra @ np.asarray(axis_a, float)))
 
 
 def outside_joint_limits(spec, transforms):
@@ -284,7 +288,13 @@ def joint_angle_torch(transforms, joint, body_order):
 
     Ra, Rb = rotation(joint.body_a), rotation(joint.body_b)
     R = Ra.transpose(-1, -2) @ Rb
-    axis = torch.as_tensor(np.asarray(joint.axis, float), dtype=Ra.dtype,
+    # Measured from the rest pose in body_a's rest frame (`MechanismSpec`
+    # attaches `rest_local`); a bare JointDef means identity rest poses.
+    rest = getattr(joint, "rest_local", None) or {}
+    if "rel" in rest:
+        R = R @ torch.as_tensor(np.asarray(rest["rel"], float).T, dtype=R.dtype,
+                                device=R.device)
+    axis = torch.as_tensor(np.asarray(rest.get("axis_a", joint.axis), float), dtype=Ra.dtype,
                            device=Ra.device)
     w = torch.stack([R[..., 2, 1] - R[..., 1, 2],
                      R[..., 0, 2] - R[..., 2, 0],
