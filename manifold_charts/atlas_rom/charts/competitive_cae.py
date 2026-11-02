@@ -46,6 +46,13 @@ _SEPARATION_PHYS_QUANTILE = 0.7   # a batch pair is "physically separated" above
 # ``_SEPARATION_FRAC``'s use of the latent diameter, so the test is scale free.
 _FOLD_PHYS_FRAC = 0.25            # h = this * the core's physical diameter
 
+# A pose block (one body's rotation or translation) whose dataset variance is at
+# most this fraction of the median block variance is degenerate, exactly like a
+# block with zero variance: compliant constraints and clearance leave a held
+# block (a pinned pivot, a lash-only centre) with jitter just above zero, and
+# standardizing by that jitter makes the noise the dominant reconstruction target.
+DEGENERATE_BLOCK_REL_VAR = 1e-3
+
 # Adam moves every weight by ~lr per step whatever the gradient's size, so one
 # step can shift an encoder first-layer pre-activation by up to lr * sum|x| over
 # the pose features -- a quantity that grows with the body count.  On the
@@ -466,6 +473,53 @@ def _largest_component(mask, edges, n):
     return keep
 
 
+def _frame_integrated_coordinate(q, frames, edges):
+    """A local coordinate integrated from simulator tangent frames alone.
+
+    ``frames`` (n, D, d) are the observed tangent bases at the poses ``q`` (n, D);
+    ``edges`` are witness pairs among them.  Each frame basis is first rotated
+    into agreement with its graph neighbour's (orthogonal Procrustes, a sign
+    flip when d == 1) in breadth-first order, then ``t`` solves the least
+    squares ``t_j - t_i = 1/2 (F_i + F_j)^T (q_j - q_i)`` over the edges with
+    the first pose pinned at the origin.  Returns ``(t, rms_residual)``, or
+    ``(None, nan)`` when the edge graph does not connect every pose.  No
+    coordinate, dimension, or topology is declared: everything here is
+    simulator evidence.
+    """
+    from collections import deque
+
+    q = np.asarray(q, float); frames = np.array(frames, float, copy=True)
+    edges = np.asarray(edges, int).reshape(-1, 2)
+    n, d = len(q), frames.shape[-1]
+    if n < 2 or not len(edges):
+        return None, float("nan")
+    neighbours = [[] for _ in range(n)]
+    for a, b in edges:
+        if a != b:
+            neighbours[a].append(b); neighbours[b].append(a)
+    seen = np.zeros(n, bool); seen[0] = True
+    queue = deque([0])
+    while queue:
+        i = queue.popleft()
+        for j in neighbours[i]:
+            if not seen[j]:
+                u, _, vt = np.linalg.svd(frames[j].T @ frames[i])
+                frames[j] = frames[j] @ (u @ vt)
+                seen[j] = True; queue.append(j)
+    if not seen.all():
+        return None, float("nan")
+    m = len(edges)
+    A = np.zeros((m + 1, n)); rhs = np.zeros((m + 1, d))
+    for k, (a, b) in enumerate(edges):
+        A[k, b], A[k, a] = 1.0, -1.0
+        rhs[k] = 0.5 * (frames[a] + frames[b]).T @ (q[b] - q[a])
+    A[m, 0] = 1.0
+    t = np.linalg.lstsq(A, rhs, rcond=None)[0]
+    residual = A[:m] @ t - rhs[:m]
+    scale = float(np.sqrt(np.square(rhs[:m]).sum(1).mean())) or 1.0
+    return t, float(np.sqrt(np.square(residual).sum(1).mean()) / scale)
+
+
 def _restrict_to_components(competent, edges, n):
     """Apply :func:`_largest_component` to every chart column of a bool matrix."""
     competent = np.asarray(competent, bool).copy()
@@ -592,6 +646,7 @@ class CompetitiveCAEFitter:
              distortion_weight=None, compactness_weight=None, competence_tolerance=None,
              competence_baseline_fraction=.03,
              tangent_weight=None, alias_weight=None, selector_weight=1.0,
+             encoder_offtangent_weight=0.0,
              projector_weight=None,
              threshold_topo_angle_deg=15.0, fold_ratio_floor=.02,
              pretrain_steps=500,
@@ -605,6 +660,7 @@ class CompetitiveCAEFitter:
              latent_gauge=None, paper_baseline=False, warm_start_gauge_timing="before",
              warm_start_full_evaluator_diagnostic=False,
              warm_start_pca_scaffold=False, warm_start_pca_weight=.25,
+             warm_start_frame_scaffold=False,
              warm_start_tangent_weight=0.0, warm_start_tangent_every=4,
              off_anchor_cycle_weight=None, freeze_estep_probes=False, compression_weight=None,
              selector_calibration_min=.8, device="cpu", e_step_interval=20,
@@ -721,6 +777,7 @@ class CompetitiveCAEFitter:
             phase2_epochs=(None if phase2_epochs is None else int(phase2_epochs)),
             distortion_weight=distortion_weight,
             tangent_weight=tangent_weight, alias_weight=alias_weight,
+            encoder_offtangent_weight=float(encoder_offtangent_weight),
             selector_weight=selector_weight, projector_weight=projector_weight,
             compactness_weight=compactness_weight, competence_tolerance=competence_tolerance,
             competence_baseline_fraction=competence_baseline_fraction,
@@ -740,6 +797,7 @@ class CompetitiveCAEFitter:
             warm_start_full_evaluator_diagnostic=bool(warm_start_full_evaluator_diagnostic),
             warm_start_pca_scaffold=bool(warm_start_pca_scaffold),
             warm_start_pca_weight=float(warm_start_pca_weight),
+            warm_start_frame_scaffold=bool(warm_start_frame_scaffold),
             warm_start_tangent_weight=warm_start_tangent_weight,
             warm_start_tangent_every=int(warm_start_tangent_every),
             resolved_config=resolved_config,
@@ -786,6 +844,7 @@ class CompetitiveCAEFitter:
     def _fit_inner(self, evidence, config, *, work, case, validity, log,
                    encoder_kind, n_charts, field_epochs, phase1_max_epochs, phase2_epochs,
                    distortion_weight, tangent_weight, alias_weight, selector_weight,
+                   encoder_offtangent_weight,
                    projector_weight, compactness_weight, competence_tolerance, pretrain_steps, max_distortion_spread,
                    competence_baseline_fraction,
                    threshold_topo_angle_deg, fold_ratio_floor,
@@ -796,6 +855,7 @@ class CompetitiveCAEFitter:
                    distortion_tail_fraction,
                    latent_gauge, warm_start_gauge_timing, warm_start_full_evaluator_diagnostic,
                    warm_start_pca_scaffold, warm_start_pca_weight, resolved_config,
+                   warm_start_frame_scaffold,
                    warm_start_tangent_weight, warm_start_tangent_every,
                    off_anchor_cycle_weight, freeze_estep_probes, compression_weight,
                    selector_calibration_min, compute_device, e_step_interval, tangent_every,
@@ -882,8 +942,12 @@ class CompetitiveCAEFitter:
         _all_var = np.concatenate([_rot_var, _trans_var])
         _nonzero = _all_var[_all_var > 1e-12]
         _scale_floor = float(np.median(_nonzero)) if _nonzero.size else 1.0
-        _rot_var = np.where(_rot_var > 1e-12, _rot_var, _scale_floor)
-        _trans_var = np.where(_trans_var > 1e-12, _trans_var, _scale_floor)
+        # Near-constant blocks (see ``DEGENERATE_BLOCK_REL_VAR``) are floored too.
+        _degenerate = max(1e-12, DEGENERATE_BLOCK_REL_VAR * _scale_floor)
+        degenerate_blocks = ([f"rot{i}" for i in np.flatnonzero(_rot_var <= _degenerate)]
+                             + [f"trans{i}" for i in np.flatnonzero(_trans_var <= _degenerate)])
+        _rot_var = np.where(_rot_var > _degenerate, _rot_var, _scale_floor)
+        _trans_var = np.where(_trans_var > _degenerate, _trans_var, _scale_floor)
         recon_scale = np.empty((n_bodies, 3, 4), dtype=float)
         recon_scale[..., :3] = _rot_var[:, None, None]
         recon_scale[..., 3] = _trans_var[:, None]
@@ -1497,13 +1561,35 @@ class CompetitiveCAEFitter:
                         target_np = np.zeros((len(local), d), dtype=np.float32)
                         target_np[:, :pca_rank] = .25 * score
                         pca_target = torch.as_tensor(target_np, dtype=Q.dtype, device=Q.device)
+            # Frame scaffold: the same temporary, faded pull, toward a
+            # coordinate integrated from the simulator frames over the birth
+            # neighbourhood's own witness graph.  Unlike a random start it is
+            # continuous along the data wherever fast features recur, so the
+            # encoder does not begin from a torn coordinate.
+            frame_scaffold = False
+            frame_residual = None
+            if warm_start_frame_scaffold and len(local) >= 2:
+                local_feature = feature[local]
+                k_local = min(5, len(local))
+                _, local_nearest = cKDTree(local_feature).query(local_feature, k=k_local)
+                local_edges = np.asarray([(a, b) for a in range(len(local))
+                                          for b in np.atleast_1d(local_nearest[a])[1:]], dtype=int)
+                coordinate, frame_residual = _frame_integrated_coordinate(
+                    q[local], frames[local], local_edges)
+                if coordinate is not None:
+                    coordinate = coordinate - coordinate.mean(0, keepdims=True)
+                    coordinate /= coordinate.std(0, keepdims=True).clip(1e-6)
+                    pca_target = torch.as_tensor(.25 * coordinate, dtype=Q.dtype, device=Q.device)
+                    frame_scaffold = True
             warm_start_rows.append({"chart": int(i), "seed_index": int(seed_index),
                                     "seed_separation": (None if not np.isfinite(seed_separation)
                                                         else float(seed_separation)),
                                     "radius": (None if not np.isfinite(seed_separation)
                                                else float(0.5 * seed_separation)),
                                     "n_local": int(len(local)), "used_minimum_sample_fallback": bool(used_fallback),
-                                    "pca_scaffold": bool(pca_target is not None),
+                                    "pca_scaffold": bool(pca_target is not None and not frame_scaffold),
+                                    "frame_scaffold": bool(frame_scaffold),
+                                    "frame_integration_residual": frame_residual,
                                     "pca_rank": int(pca_rank),
                                     "pca_explained_fraction": float(pca_explained),
                                     "tangent_weight": float(warm_tangent_weight),
@@ -2342,6 +2428,48 @@ class CompetitiveCAEFitter:
                 tangent = gram_term
             return tangent, [int(len(o)) for o in local_idx]
 
+        def batched_offtangent(selected_batches):
+            """Encoder sensitivity off the observed tangent, per chart ([K]).
+
+            An encoder that is a projection onto the chart's patch responds only
+            to motion along the simulator frame.  Without this, a chart trained
+            on a thin clearance tube memorizes nuisance channels (lash, compliant
+            jitter) as coordinates, and any pose a little off the samples --
+            including another chart's decoded handoff pose -- maps somewhere
+            else.  Per owned pose: sin^2 of the angle between the encoder
+            gradient and the frame span, ||(I - P_F) J_E^T||^2 / ||J_E^T||^2
+            with P_F the projector onto the frame span -- bounded in [0, 1], so
+            a pose where the encoder is still nearly flat along the tangent
+            cannot blow it up; scale free, any latent d.
+            """
+            k = len(models)
+            local_idx, local_w, global_idx = _tangent_owned(selected_batches)
+            P = max(1, max(len(o) for o in local_idx))
+            f_dim = frames_t.shape[1]
+            q_pad = Q[:1].expand(k, P, -1).clone()
+            w_pad = torch.zeros((k, P), dtype=Q.dtype, device=Q.device)
+            obs_pad = torch.zeros((k, P, f_dim, d), dtype=Q.dtype, device=Q.device)
+            for chart in range(k):
+                m = len(local_idx[chart])
+                if not m:
+                    continue
+                grows = torch.as_tensor(global_idx[chart], dtype=torch.long, device=Q.device)
+                q_pad[chart, :m] = Q[grows]
+                w_pad[chart, :m] = torch.as_tensor(local_w[chart], dtype=Q.dtype, device=Q.device)
+                obs_pad[chart, :m] = frames_t[grows].reshape(m, -1, d)
+            q_pad.requires_grad_(True)
+            codes = ensemble_encode(q_pad)                                   # [k, P, d]
+            columns = [torch.autograd.grad(codes[..., axis].sum(), q_pad, create_graph=True)[0]
+                       for axis in range(d)]
+            grad = torch.stack(columns, -1)                                  # [k, P, f_dim, d]
+            basis, _ = torch.linalg.qr(obs_pad)                              # orthonormal frame span
+            along = basis.transpose(-1, -2) @ grad                           # [k, P, d, d]
+            off = grad - basis @ along
+            off_sq = off.square().sum((-2, -1))
+            ratio = off_sq / (off_sq + along.square().sum((-2, -1))).clamp_min(1e-12)
+            ratio = torch.where(w_pad > 0, ratio, torch.zeros_like(ratio))
+            return (w_pad * ratio).sum(1)
+
         # Off-node seam neighbourhood (Step 1).  Displace a chart's owned codes
         # by a fraction of the data-derived local support radius and keep only
         # those still inside the union-of-balls support.  Probing at a fixed
@@ -2800,9 +2928,10 @@ class CompetitiveCAEFitter:
             #
             # ``cover`` is THE cover mask: cover_competent[p,i] = (recon+valid) <=
             # threshold_topo -- exactly the argument of the ownership-weight
-            # sigmoid.  Coverage, multiplicity, exclusive support, greedy cover
-            # and zero-exclusive retirement all key on this one mask so they
-            # cannot disagree.
+            # sigmoid -- restricted to the chart's largest connected piece of
+            # the witness graph.  Coverage, multiplicity, exclusive support,
+            # greedy cover and zero-exclusive retirement all key on this one
+            # mask so they cannot disagree.
             # Validity is dropped here by design: it is affine in the pose
             # entries (w = R.p + t), so any blend of valid poses -- a mean, a
             # kNN average, a decoder smearing across a fold -- scores ~0 and
@@ -2814,7 +2943,12 @@ class CompetitiveCAEFitter:
             del val_
             own = _ownership_weight(rec_, threshold_topo)
             own = _soft_connectivity(own, pairs, n, edge_bar=soft_edge_bar, decay=component_decay)
-            cover = np.asarray(rec_, float) <= threshold_topo
+            # A chart covers only its largest connected piece of the witness
+            # graph -- the same single-patch rule the terminal certificate
+            # applies.  Without it, poses held only by a chart's minor arc count
+            # as covered during training and retirement, then are dropped at
+            # certification with no other chart trained to own them.
+            cover = _restrict_to_components(np.asarray(rec_, float) <= threshold_topo, pairs, n)
             hard = cover & gate_
             return own, hard, cover
 
@@ -2941,6 +3075,35 @@ class CompetitiveCAEFitter:
             other = np.where(depth >= best[:, None] - 1e-12, second[:, None], best[:, None])
             return 1.0 - other
 
+        _main_locality_cache = {"key": None, "value": None}
+
+        def _main_piece_locality():
+            """Attachment locality computed from each chart's MAIN connected piece of ownership only.
+
+            A chart's ownership outside its heaviest connected piece is decayed, not zeroed, so locality built
+            from raw ownership still makes a chart eligible around its minor arcs, and the coverage losses then
+            reward it for bridging to them.  Restricting to the largest piece of ``ownership >= soft_edge_bar``
+            on the witness graph (the same graph and bar ``_soft_connectivity`` uses) keeps a chart eligible on
+            and around its own patch -- where it can still grow -- but not on detached arcs.
+            """
+            own = np.asarray(ownership, float)
+            key = (id(ownership), own.shape, float(own.sum()))
+            if _main_locality_cache["key"] != key:
+                main = np.zeros_like(own)
+                for i in range(own.shape[1]):
+                    piece = _largest_component(own[:, i] >= float(soft_edge_bar), pairs, n)
+                    main[piece, i] = own[piece, i]
+                _main_locality_cache["key"] = key
+                _main_locality_cache["value"] = np.asarray(_attach_kernel @ main) / _attach_rowsum[:, None]
+            return _main_locality_cache["value"]
+
+        def _eligible_charts(ids):
+            """(len(ids), K) bool: charts allowed to answer each pose (main-piece locality, best kept)."""
+            local = _main_piece_locality()[ids]
+            eligible = local >= 0.02
+            eligible[np.arange(len(ids)), local.argmax(1)] = True
+            return eligible
+
         def _keep_covered_loss(*, sample=True):
             """Hinge holding the monotone covered set: for each pose in it, the best chart's reconstruction must stay
             under (1 - protect_margin_frac) x threshold_topo.  Softmin over charts (temperature thr/5, the competence
@@ -2954,6 +3117,9 @@ class CompetitiveCAEFitter:
             poses = Q[torch.as_tensor(ids, dtype=torch.long, device=Q.device)]
             tiled = poses.unsqueeze(0).expand(len(models), -1, -1)
             err = _recon(ensemble_decode(ensemble_encode(tiled)), tiled)              # (K, m)
+            # Only a chart whose main patch is local may be pulled to hold the pose (no minor-arc bridging).
+            eligible_t = torch.as_tensor(_eligible_charts(ids).T, dtype=torch.bool, device=Q.device)
+            err = err.masked_fill(~eligible_t, float("inf"))
             thr = float(threshold_topo)
             tau = max(thr / 5.0, 1e-12)
             soft = -tau * torch.logsumexp(-err / tau, dim=0)
@@ -3395,12 +3561,10 @@ class CompetitiveCAEFitter:
             competence = torch.sigmoid((float(target_threshold) - reconstruction) /
                                        max(float(target_threshold) / 5.0, 1e-12))
             # A chart can answer a pose only from its physically attached
-            # domain.  Always retain the most attached chart to avoid a cold
-            # start with an empty mask.
-            locality = (_attach_kernel @ ownership) / _attach_rowsum[:, None]
-            local = locality[ids]
-            eligible = local >= 0.02
-            eligible[np.arange(len(ids)), local.argmax(1)] = True
+            # domain -- the neighbourhood of its MAIN connected patch, never a
+            # detached minor arc.  Always retain the most attached chart to
+            # avoid a cold start with an empty mask.
+            eligible = _eligible_charts(ids)
             eligible_t = torch.as_tensor(eligible.T, dtype=torch.bool, device=Q.device)
             masked = competence.masked_fill(~eligible_t, -1.0)
             top = torch.topk(masked, k=min(3, len(models)), dim=0).values
@@ -3536,6 +3700,8 @@ class CompetitiveCAEFitter:
                 joint_timing["batched_tangent_seconds"] += elapsed_since(tangent_tick)
             else:
                 dense_tangent, tangent_owned_counts = None, [0 for _ in models]
+            dense_offtangent = (batched_offtangent(selected_batches)
+                                if tangent_on and float(encoder_offtangent_weight) != 0.0 else None)
             for chart, m in enumerate(models):
                 ids, local_pairs = selected_batches[chart]
                 count = len(ids)
@@ -3740,6 +3906,11 @@ class CompetitiveCAEFitter:
                 objective = objective + _tan_term
                 if epoch_trace:
                     _obj_terms["tangent"] = _tan_term
+            if dense_offtangent is not None:
+                _off_term = float(encoder_offtangent_weight) * dense_offtangent.mean()
+                objective = objective + _off_term
+                if epoch_trace:
+                    _obj_terms["offtangent"] = _off_term
             joint_timing["objective_assembly_seconds"] += elapsed_since(objective_tick)
             spectral_tick = sync_tick()
             if float(lip_weight) != 0.0:
@@ -4187,6 +4358,7 @@ class CompetitiveCAEFitter:
             reconstruction, validity_component, threshold=threshold_topo, atlas_dimension=d)
         predictions = np.stack([item[2][5].reshape(n, -1).cpu().numpy() for item in evaluations])
         reconstruction_diagnostics = _reconstruction_diagnostics(q, predictions, recon_scale)
+        reconstruction_diagnostics["degenerate_blocks"] = degenerate_blocks
         absolute_reconstruction_ok = bool(
             reconstruction_diagnostics["best_chart_recon_over_mean_pose_baseline"] <= .05)
         # Recompute the uniqueness mass against the pruned, re-evaluated state;
@@ -4694,6 +4866,7 @@ class CompetitiveCAEFitter:
                               if phase2_exploration_snapshot_every is not None else None),
                       "index": phase2_exploration_snapshot_index},
                   "tangent_weight": float(tangent_weight),
+                  "encoder_offtangent_weight": float(encoder_offtangent_weight),
                   "projector_weight": float(projector_weight),
                   "alias_weight": float(alias_weight),
                   "selector_weight": float(selector_weight),

@@ -52,7 +52,7 @@ SPEC_FORMAT = "atlas_case_v1"
 MESH_KINDS = ("box", "sphere", "cylinder", "link", "file", "compound", "bevel_gear",
               "torus", "spur_gear")
 JOINT_KINDS = ("revolute", "prismatic", "cylindrical", "spherical", "universal",
-               "constant_velocity", "fixed", "phase_lock", "gear_ratio", "bevel_gear",
+               "constant_velocity", "fixed", "phase_lock", "gear_ratio", "bevel_gear", "rack_pinion",
                "planar")
 # Kinds with exactly ONE freedom, so "the joint's travel" is a single number a
 # `limit_lo`/`limit_hi` pair can bound.
@@ -268,7 +268,7 @@ class JointDef:
                 raise ValueError(f"{self.name}: joint axis is zero")
             self.axis = self.axis / n
         if self.kind in ("revolute", "prismatic", "cylindrical", "phase_lock", "gear_ratio",
-                         "bevel_gear", "universal", "constant_velocity") and self.axis is None:
+                         "bevel_gear", "universal", "constant_velocity", "rack_pinion") and self.axis is None:
             raise ValueError(f"{self.name}: {self.kind} joint needs an axis")
         if self.kind == "phase_lock" and self.body_b is None:
             raise ValueError(f"{self.name}: phase_lock needs two driven bodies")
@@ -289,6 +289,20 @@ class JointDef:
                 raise ValueError(f"{self.name}: bevel_gear needs axis2 (the mating gear spin axis)")
             if self.ratio is None or not np.isfinite(float(self.ratio)) or float(self.ratio) == 0.0:
                 raise ValueError(f"{self.name}: bevel_gear needs a finite nonzero ratio")
+            self.ratio = float(self.ratio)
+        if self.kind == "rack_pinion":
+            # body_a = pinion, turning about `axis`; body_b = rack, sliding
+            # along `axis2`; `pivot` a point on the rack.  Both are mounted in
+            # the stand (body_c ground).  Rack travel from rest = `ratio` (the
+            # pinion pitch radius, signed for handedness) x pinion angle from
+            # rest.  The angle is read in (-pi, pi], so the rack's own stops
+            # must keep |travel / ratio| below pi.
+            if self.body_b is None:
+                raise ValueError(f"{self.name}: rack_pinion needs a pinion and a rack")
+            if self.axis2 is None or self.pivot is None:
+                raise ValueError(f"{self.name}: rack_pinion needs axis2 (the rack direction) and a pivot")
+            if self.ratio is None or not np.isfinite(float(self.ratio)) or float(self.ratio) == 0.0:
+                raise ValueError(f"{self.name}: rack_pinion needs a finite nonzero ratio (pitch radius)")
             self.ratio = float(self.ratio)
         if self.kind in ("spherical", "universal", "constant_velocity") and self.pivot is None:
             raise ValueError(f"{self.name}: {self.kind} joint needs a pivot")

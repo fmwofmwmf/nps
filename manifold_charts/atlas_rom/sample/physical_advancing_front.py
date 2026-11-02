@@ -300,6 +300,9 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
     # it never suppresses a real re-check.  Not persisted -- a resume rebuilds
     # its frontier from the saved queue, and retired nodes are simply absent.
     retired: set[int] = set()
+    # Per node, how many full-step frontier commands answered "physical
+    # boundary".  Evidence of where the manifold ends, kept for the audit.
+    boundary_steps: dict[int, int] = {}
     state_counts: Counter[str] = Counter()
     started = time.perf_counter()
     last_checkpoint = started
@@ -352,20 +355,73 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
         odd_halves: list[np.ndarray] = []
         stable = 0
         valid = 0
-        for direction in prior:
-            unit = _unit(direction)
-            if unit is None:
-                continue
-            plus, minus = system.command_many(session, (unit, -unit), h, parent=index)
-            half_plus, half_minus = system.command_many(session, (unit, -unit), h / 2., parent=index)
+        one_sided = 0
+        boundary_hits: list[tuple[np.ndarray, str]] = []
+        base = np.asarray(observation.pose, float).reshape(-1)
+
+        def usable(item) -> bool:
+            return bool(item.valid and item.converged and np.isfinite(item.observation.pose).all())
+
+        def at_boundary(item) -> bool:
+            return (not item.valid) and bool((item.diagnostics or {}).get("physical_boundary"))
+
+        # Every probe restores the same baseline first, so the whole set is one
+        # batch per scale: a backend that answers batches in parallel gets all
+        # of them at once, and a serial one gives exactly the same responses.
+        units = [unit for unit in map(_unit, prior) if unit is not None]
+        signed = [s * unit for unit in units for s in (1., -1.)]
+        at_h = system.command_many(session, signed, h, parent=index) if units else []
+        at_half = system.command_many(session, signed, h / 2., parent=index) if units else []
+        for k, unit in enumerate(units):
+            plus, minus = at_h[2 * k], at_h[2 * k + 1]
+            half_plus, half_minus = at_half[2 * k], at_half[2 * k + 1]
             responses = (plus, minus, half_plus, half_minus)
-            if not all(item.valid and item.converged and np.isfinite(item.observation.pose).all() for item in responses):
-                continue
-            odd_h = (np.asarray(plus.observation.pose, float).reshape(-1) -
-                     np.asarray(minus.observation.pose, float).reshape(-1)) / (2. * h)
-            odd_half = (np.asarray(half_plus.observation.pose, float).reshape(-1) -
-                        np.asarray(half_minus.observation.pose, float).reshape(-1)) / h
-            richardson = (4. * odd_half - odd_h) / 3.
+            if all(usable(item) for item in responses):
+                odd_h = (np.asarray(plus.observation.pose, float).reshape(-1) -
+                         np.asarray(minus.observation.pose, float).reshape(-1)) / (2. * h)
+                odd_half = (np.asarray(half_plus.observation.pose, float).reshape(-1) -
+                            np.asarray(half_minus.observation.pose, float).reshape(-1)) / h
+                richardson = (4. * odd_half - odd_h) / 3.
+            else:
+                # A side that answered "physical boundary" is evidence, not a
+                # failed experiment: the boundary lies within h (or h/2) along
+                # it.  Record it.  The tangent space at a boundary point is a
+                # half-space, still full rank, so the other side's one-sided
+                # differences still measure it:  s(t) = (x(t) - x)/t = D + c t,
+                # and 2 s(h/2) - s(h) = D.  Both sides blocked, or a side that
+                # failed for any other reason, leaves the pair unusable as
+                # before.
+                sides, blocked_cleanly = [], True
+                for sign, full, half in ((1., plus, half_plus), (-1., minus, half_minus)):
+                    if usable(full) and usable(half):
+                        sides.append((sign, full, half))
+                    elif at_boundary(half) or at_boundary(full):
+                        boundary_hits.append((sign * unit, "h/2" if at_boundary(half) else "h"))
+                        # every response on this side is either fine or a boundary
+                        blocked_cleanly &= all(usable(r) or at_boundary(r) for r in (full, half))
+                    else:
+                        blocked_cleanly = False
+                if len(sides) != 1 or not blocked_cleanly:
+                    continue
+                sign, full, half = sides[0]
+                odd_h = sign * (np.asarray(full.observation.pose, float).reshape(-1) - base) / h
+                odd_half = sign * (np.asarray(half.observation.pose, float).reshape(-1) - base) / (h / 2.)
+                # One-sided differences carry every power of t, so two scales
+                # only reach O(h^2) where the central pair reaches O(h^4).  Two
+                # more scales on the open side and a Richardson table restore
+                # O(h^4), so frames at a boundary are as precise as inside.
+                levels = [odd_h, odd_half]
+                for k in (2, 3):
+                    t = h / 2. ** k
+                    extra = system.command(session, sign * unit, t, parent=index)
+                    if not usable(extra):
+                        break
+                    levels.append(sign * (np.asarray(extra.observation.pose, float).reshape(-1) - base) / t)
+                table = list(levels)
+                for j in range(1, len(levels)):
+                    table = [(2. ** j * table[k + 1] - table[k]) / (2. ** j - 1.) for k in range(len(table) - 1)]
+                richardson = table[0]
+                one_sided += 1
             if not np.isfinite(richardson).all() or np.linalg.norm(richardson) <= 1e-12:
                 continue
             valid += 1
@@ -394,11 +450,18 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             else:
                 frame = np.empty((ambient, 0))
             diagnostics = {"probe_count": len(prior), "valid_pairs": valid, "stable_pairs": stable,
+                           "one_sided_pairs": one_sided,
                            "singular_values": singular.tolist(), "spectral_gap_ratio": gap_ratio,
                            "gap_rank": rank,
                            "scale_ratios": None if scale_ratios is None else scale_ratios.tolist(),
                            "outcome": ("certified_regular" if frame.shape[1] and stable
                                        else "uncertain")}
+        if boundary_hits:
+            # Kept in the node's own frame coordinates (rank-sized, not
+            # ambient-sized), with the probe scale it failed at.
+            diagnostics["boundary_probes"] = [
+                {"tangent": (frame.T @ direction).tolist() if frame.shape[1] else [],
+                 "failed_at": scale} for direction, scale in boundary_hits]
         record = {"index": index, "frame": frame, "rank": int(frame.shape[1]),
                   "outcome": diagnostics["outcome"], "diagnostics": diagnostics}
         records[index] = record
@@ -538,7 +601,10 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
             continue
         response = system.command(session, direction, options.step, parent=parent)
         if not response.valid or not response.converged:
-            state_counts["boundary" if response.diagnostics.get("physical_boundary") else "solver_failure"] += 1
+            hit = bool(response.diagnostics.get("physical_boundary"))
+            state_counts["boundary" if hit else "solver_failure"] += 1
+            if hit:
+                boundary_steps[parent] = boundary_steps.get(parent, 0) + 1
             enqueue(parent, frame)
             continue
         candidate = np.asarray(response.observation.pose, float).reshape(-1)
@@ -613,6 +679,9 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
                                            options.max_seconds is not None and time.perf_counter() - started >= options.max_seconds)
     complete = (not frontier and not counts["unknown"] and not counts["solver_failure"]
                 and not counts["uncertain_poses"] and not budget_exhausted)
+    for index, count in boundary_steps.items():
+        if index in records:
+            records[index]["diagnostics"]["boundary_steps"] = count
     audit = [records[index] for index in regular]
     audit.extend({**record, "excluded_from_regular_training": True}
                  for index, record in records.items() if index not in remap)

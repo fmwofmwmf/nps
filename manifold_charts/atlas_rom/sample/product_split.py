@@ -59,7 +59,10 @@ class ProductSplitOptions:
     n_eigen_extra: int = 2                # eigenvalues computed beyond d
     max_loops: int = 20000                # triangles used for holonomy
     boundary_score: float = 0.25          # max -cos of any neighbour against the inward mean
-    boundary_alignment: float = 0.9       # fraction of normal variance on one axis
+    # Coarse normals must agree this well (fraction of their variance on one
+    # axis) just to be sorted into two faces; the decision is the faces'
+    # planarity gap in developed coordinates, against `gap_ratio`.
+    boundary_alignment_coarse: float = 0.6
     seed: int = 0
 
 
@@ -270,24 +273,70 @@ def boundary_normals(q, frames, edges, score_cut):
     return nodes, normals[nodes], against
 
 
-def boundary_split(q, frames, edges, T, options: ProductSplitOptions):
-    """Flat-case split chosen by the boundary, with its width spread."""
+def developed_coordinates(q, frames, edges, T, root):
+    """Flat coordinates of each node in the root's frame: secants integrated
+    along a BFS tree, each in the edge's mean transported frame.  Exact up to
+    discretisation on a flat manifold, meaningless on a curved one."""
+    n = len(q)
+    adjacency = [[] for _ in range(n)]
+    for a, b in edges:
+        adjacency[a].append(b)
+        adjacency[b].append(a)
+    x = np.full((n, frames.shape[2]), np.nan)
+    x[root] = 0.0
+    queue = deque([root])
+    while queue:
+        a = queue.popleft()
+        for b in adjacency[a]:
+            if np.isnan(x[b, 0]) and T[b] is not None:
+                chord = q[b] - q[a]
+                x[b] = x[a] + 0.5 * (T[a] @ (frames[a].T @ chord) + T[b] @ (frames[b].T @ chord))
+                queue.append(b)
+    return x
+
+
+def boundary_split(q, frames, edges, T, options: ProductSplitOptions, confirm=None, root=0):
+    """Flat-case split chosen by the boundary, with its width spread.
+
+    `confirm(node_indices, outward_ambient) -> bool mask`, when given, keeps
+    only one-sided nodes that are PHYSICAL boundary.  A partial sample set is
+    one-sided along its own exploration edge too; only a response can tell the
+    two apart (one step outward is invalid at a physical boundary)."""
     nodes, normals, _ = boundary_normals(q, frames, edges, options.boundary_score)
+    if confirm is not None and len(nodes):
+        outward = np.stack([-frames[i] @ n for i, n in zip(nodes, normals)])
+        mask = np.asarray(confirm(nodes, outward), bool)
+        nodes, normals = nodes[mask], normals[mask]
+    d = frames.shape[2]
     reached = [k for k, i in enumerate(nodes) if T[i] is not None]
     if len(reached) < 2:
         return {"n_boundary_nodes": int(len(nodes)), "split": None}
+    # Coarse normals (mean secants) only sort boundary nodes into two faces;
+    # irregularly spaced samples make them too noisy to BE the normal.
     root_normals = np.stack([T[nodes[k]] @ normals[k] for k in reached])
     w, V = np.linalg.eigh(root_normals.T @ root_normals)
     alignment = float(w[-1] / max(w.sum(), 1e-300))
-    axis = V[:, -1]
+    coarse = V[:, -1]
     report = {"n_boundary_nodes": int(len(nodes)), "normal_alignment": alignment, "split": None}
-    if alignment < options.boundary_alignment:
+    if alignment < options.boundary_alignment_coarse:
         return report
-    side = np.sign(root_normals @ axis)
+    side = np.sign(root_normals @ coarse)
     faces = [nodes[[k for k, s in zip(reached, side) if s == sign]] for sign in (1.0, -1.0)]
-    if min(len(f) for f in faces) == 0:
-        report["faces"] = [int(len(f)) for f in faces]
+    report["faces"] = [int(len(f)) for f in faces]
+    if min(len(f) for f in faces) < d:
         return report
+    # The manifold is flat here, so its nodes develop isometrically into R^d.
+    # A product's boundary faces are totally geodesic: hyperplanes there, all
+    # with one normal.  Fit it as the least-variance direction of the faces'
+    # points (each centred on its own face) and require a spectral gap.
+    x = developed_coordinates(q, frames, edges, T, root)
+    pooled = np.vstack([x[f] - x[f].mean(0) for f in faces])
+    w, V = np.linalg.eigh(pooled.T @ pooled)
+    planarity_gap = float(w[1] / max(w[0], 1e-300))
+    report["planarity_gap"] = planarity_gap
+    if planarity_gap < options.gap_ratio:
+        return report
+    axis = V[:, 0]
     lengths = np.linalg.norm(q[edges[:, 0]] - q[edges[:, 1]], axis=1)
     graph = csr_matrix((np.concatenate((lengths, lengths)),
                         (np.concatenate((edges[:, 0], edges[:, 1])),
@@ -296,7 +345,6 @@ def boundary_split(q, frames, edges, T, options: ProductSplitOptions):
     interior = np.setdiff1d(np.arange(len(q)), nodes)
     width = dist[0][interior] + dist[1][interior]
     width = width[np.isfinite(width)]
-    d = frames.shape[2]
     complement = np.linalg.svd(np.eye(d) - np.outer(axis, axis))[0][:, :d - 1]
     # Graph geodesics zigzag along k-NN edges, so this spread has a
     # discretisation floor of several percent even on an exact product (0.04
@@ -310,15 +358,27 @@ def boundary_split(q, frames, edges, T, options: ProductSplitOptions):
 
 
 def detect_product_split(q, frames, edges=None, *, options: ProductSplitOptions | None = None,
-                         root: int = 0):
+                         root: int = 0, confirm_boundary=None, graph_q=None):
     """Stages 1 and 2 on a sample set.  Returns a JSON-ready report plus the
-    split bases (root frame coordinates) under the key "_bases"."""
+    split bases (root frame coordinates) under the key "_bases", and the same
+    split carried to every reached node, as AMBIENT bases, under
+    "_node_bases" (indexed like `q`; None where the tree did not reach).
+
+    `graph_q` (same rows as `q`, any coordinates) chooses the neighbour graph
+    -- which nearby pairs are compared -- when the samples were spaced in a
+    different metric from the one `q` and `frames` measure in.  Parallel
+    fields are the zero-energy fields of the connection Laplacian, v_i =
+    O_ij v_j on every edge, for ANY connected graph, so this choice cannot
+    change which fields are parallel; it keeps edges short where the samples
+    are evenly spaced.  Everything metric (transports, areas, developed
+    coordinates, normals, widths) still comes from `q` and `frames`."""
     options = options or ProductSplitOptions()
     q = np.asarray(q, float)
     frames = np.asarray(frames, float)
     n, _, d = frames.shape
     rng = np.random.default_rng(options.seed)
-    graph = neighbour_graph(q, edges, options.k_neighbours or 2 * d + 2)
+    graph = neighbour_graph(q if graph_q is None else np.asarray(graph_q, float), edges,
+                            options.k_neighbours or 2 * d + 2)
     # A disconnected graph has a zero scalar eigenvalue per component, which
     # would make every connection eigenvalue look large against it.  Work on
     # the root's component and say how much was left out.
@@ -331,6 +391,14 @@ def detect_product_split(q, frames, edges=None, *, options: ProductSplitOptions 
         graph = remap[graph[(label[graph[:, 0]] == label[root])]]
         q, frames, root = q[keep], frames[keep], int(remap[root])
     n_all, n = n, len(keep)
+
+    def finish(report, bases):
+        node_bases = [None] * n_all
+        for local, original in enumerate(keep):
+            if T[local] is not None:
+                node_bases[original] = [frames[local] @ (T[local].T @ b) for b in bases]
+        return {**report, "_bases": bases, "_node_bases": node_bases}
+
     mu, fields, O = parallel_fields(frames, graph, d + options.n_eigen_extra)
     p = parallel_count(mu, d, options.gap_ratio)
     T = tree_transports(n, graph, O, root)
@@ -340,14 +408,17 @@ def detect_product_split(q, frames, edges=None, *, options: ProductSplitOptions 
               "parallel": {"mu": mu.tolist(), "count": int(p)}}
     if p == d:
         report["kind"] = "flat"
-        boundary = boundary_split(q, frames, graph, T, options)
+        confirm = None
+        if confirm_boundary is not None:
+            confirm = lambda nodes, outward: confirm_boundary(keep[nodes], outward)
+        boundary = boundary_split(q, frames, graph, T, options, confirm, root)
         bases = boundary.pop("split")
         report["boundary"] = boundary
         if bases is None:
             report["split"] = {"kind": "flat_ambiguous", "factors": [d]}
-            return {**report, "_bases": [np.eye(d)]}
+            return finish(report, [np.eye(d)])
         report["split"] = {"kind": "flat_boundary", "factors": [b.shape[1] for b in bases]}
-        return {**report, "_bases": bases}
+        return finish(report, bases)
     G, areas = holonomy_generators(q, graph, O, T, options.max_loops, rng)
     dim, blocks = invariant_split(G / areas[:, None, None] if len(G) else np.zeros((1, d, d)),
                                   d, options.gap_ratio)
@@ -359,7 +430,7 @@ def detect_product_split(q, frames, edges=None, *, options: ProductSplitOptions 
         report["split"] = {"kind": "irreducible", "factors": [d]}
     else:
         report["split"] = {"kind": "holonomy", "factors": [b.shape[1] for b in blocks]}
-    return {**report, "_bases": blocks}
+    return finish(report, blocks)
 
 
 # ── stage 3: physical certificate ────────────────────────────────────────────
@@ -387,28 +458,60 @@ def infer_frame(system, observation, d, h, guide=None, n_random=None, rng=None):
     return u[:, :d]
 
 
-def _march(system, observation, frame, basis, column, length, substeps, h, rng):
-    """Follow basis[:, column] (frame coordinates) for `length`, re-measuring
-    the frame and transporting `basis` at every substep.  None at a boundary."""
+def metric_frame(metric, frame):
+    """`frame` (pose-orthonormal tangent basis) orthonormalised in the metric
+    `metric.weigh` maps into; None = the frame itself.  Deterministic, so
+    coordinates in it stay consistent from call to call."""
+    if metric is None:
+        return frame
+    return np.linalg.qr(metric.weigh(frame))[0]
+
+
+def _tangent_move(metric, frame, coords, length):
+    """Pose command (unit direction, pose length) for a move of `length` in
+    the metric along `frame`-coordinates `coords`.  Tangent directions only:
+    the system projects in pose units, which along the tangent only rescales."""
+    if metric is None:
+        direction = frame @ coords
+        return direction / np.linalg.norm(direction), length
+    kinetic = metric_frame(metric, frame) @ coords
+    kinetic /= np.linalg.norm(kinetic)
+    pose = metric.unweigh(kinetic)
+    norm = float(np.linalg.norm(pose))
+    return pose / norm, length * norm
+
+
+def _distance(metric, a, b):
+    d = np.asarray(a, float) - np.asarray(b, float)
+    return float(np.linalg.norm(d if metric is None else metric.weigh(d)))
+
+
+def _march(system, observation, frame, basis, column, length, substeps, h, rng, metric=None):
+    """Follow basis[:, column] for `length`, re-measuring the frame and
+    transporting `basis` at every substep.  None at a boundary.  `frame` is
+    always the measured pose frame; `basis` and lengths are in coordinates
+    of `metric_frame(metric, frame)`."""
     step = length / substeps
     for _ in range(substeps):
-        direction = frame @ basis[:, column]
-        direction /= np.linalg.norm(direction)
-        response = system.command(system.restore(observation), np.sign(step) * direction, abs(step))
+        direction, move = _tangent_move(metric, frame, basis[:, column], abs(step))
+        response = system.command(system.restore(observation), np.sign(step) * direction, move)
         if not (response.valid and response.converged):
             return None
         new_frame = infer_frame(system, response.observation, frame.shape[1], h,
                                 guide=frame, rng=rng)
         if new_frame is None:
-            return None
-        basis = transport(new_frame, frame) @ basis
+            # Within a probe length of a boundary the probes themselves land
+            # outside; that is not the boundary of the walk.  Carry the frame.
+            new_frame = frame
+        basis = transport(metric_frame(metric, new_frame), metric_frame(metric, frame)) @ basis
         observation, frame = response.observation, new_frame
     return observation, frame, basis
 
 
-def commuting_gap(system, observation, frame, basis_a, basis_b, length, substeps, *, h=None, rng=None):
+def commuting_gap(system, observation, frame, basis_a, basis_b, length, substeps, *, h=None, rng=None,
+                  metric=None):
     """|pose(A then B) - pose(B then A)| / length for the first column of each
-    factor, at each substep count."""
+    factor, at each substep count (distances in `metric`)."""
     rng = rng or np.random.default_rng(0)
     basis = np.column_stack((basis_a[:, :1], basis_b[:, :1]))
     gaps = []
@@ -416,16 +519,16 @@ def commuting_gap(system, observation, frame, basis_a, basis_b, length, substeps
         hh = h if h is not None else 0.25 * length / m
         ends = []
         for first, second in ((0, 1), (1, 0)):
-            mid = _march(system, observation, frame, basis, first, length, m, hh, rng)
-            end = None if mid is None else _march(system, *mid, second, length, m, hh, rng)
+            mid = _march(system, observation, frame, basis, first, length, m, hh, rng, metric)
+            end = None if mid is None else _march(system, *mid, second, length, m, hh, rng, metric)
             ends.append(None if end is None else np.asarray(end[0].pose, float).reshape(-1))
         gaps.append(None if any(e is None for e in ends)
-                    else float(np.linalg.norm(ends[0] - ends[1]) / length))
+                    else _distance(metric, ends[0], ends[1]) / length)
     return gaps
 
 
 def width_along(system, observation, frame, axis, *, substep, h=None, bisect=12, max_steps=10000,
-                rng=None):
+                rng=None, metric=None):
     """Walked length from one boundary to the other along a transported axis
     (frame coordinates), each end located by bisection on the last substep."""
     rng = rng or np.random.default_rng(0)
@@ -434,13 +537,13 @@ def width_along(system, observation, frame, axis, *, substep, h=None, bisect=12,
     for sign in (1.0, -1.0):
         obs, fr, basis = observation, frame, sign * np.asarray(axis, float).reshape(-1, 1)
         for _ in range(max_steps):
-            nxt = _march(system, obs, fr, basis, 0, substep, 1, hh, rng)
+            nxt = _march(system, obs, fr, basis, 0, substep, 1, hh, rng, metric)
             if nxt is None:
                 lo, hi = 0.0, substep
                 for _ in range(bisect):
                     mid = 0.5 * (lo + hi)
-                    direction = fr @ basis[:, 0]
-                    response = system.command(system.restore(obs), direction / np.linalg.norm(direction), mid)
+                    direction, move = _tangent_move(metric, fr, basis[:, 0], mid)
+                    response = system.command(system.restore(obs), direction, move)
                     lo, hi = (mid, hi) if (response.valid and response.converged) else (lo, mid)
                 total += lo
                 break
@@ -452,18 +555,35 @@ def width_along(system, observation, frame, axis, *, substep, h=None, bisect=12,
 
 
 def certify_split(system, observation, frame, bases, *, length, substeps=(4, 8, 16),
-                  width_bases=None, width_substep=None, rng=None):
-    """Stage 3 report.  `bases` are the two factors in `frame` coordinates;
-    `width_bases` optional (observation, frame, axis) triples, one per base
-    pose, to measure an interval factor's width at."""
+                  width_bases=None, width_substep=None, width_max_steps=10000, rng=None, metric=None):
+    """Stage 3 report.  `bases` are the two factors in coordinates of
+    `metric_frame(metric, frame)`; `width_bases` optional (observation, frame,
+    axis) triples, one per base pose, to measure an interval factor's width at.
+    With a `metric` (weigh/unweigh), walks are still commanded along measured
+    pose tangents, while lengths, transport and gaps are in that metric."""
     rng = rng or np.random.default_rng(0)
-    gaps = commuting_gap(system, observation, frame, bases[0], bases[1], length, substeps, rng=rng)
+    gaps = commuting_gap(system, observation, frame, bases[0], bases[1], length, substeps, rng=rng,
+                         metric=metric)
     report = {"length": float(length), "substeps": list(substeps), "commuting_gap": gaps}
     valid = [g for g in gaps if g is not None]
     if len(valid) >= 2 and valid[-2] > 0:
         report["gap_refinement_ratio"] = float(valid[-1] / valid[-2])
+    # The measurement floor: the same A-then-B walk at the finest substep,
+    # repeated with different probe directions.  A refined gap at this floor
+    # has converged as far as the responses can show.
+    basis = np.column_stack((bases[0][:, :1], bases[1][:, :1]))
+    m = substeps[-1]
+    repeats = []
+    for seed in (101, 202):
+        r = np.random.default_rng(seed)
+        mid = _march(system, observation, frame, basis, 0, length, m, .25 * length / m, r, metric)
+        end = None if mid is None else _march(system, *mid, 1, length, m, .25 * length / m, r, metric)
+        repeats.append(None if end is None else np.asarray(end[0].pose, float).reshape(-1))
+    if all(e is not None for e in repeats):
+        report["gap_noise_floor"] = _distance(metric, repeats[0], repeats[1]) / length
     if width_bases:
-        widths = [width_along(system, obs, fr, axis, substep=width_substep, rng=rng)
+        widths = [width_along(system, obs, fr, axis, substep=width_substep,
+                              max_steps=width_max_steps, rng=rng, metric=metric)
                   for obs, fr, axis in width_bases]
         report["widths"] = widths
         finite = np.asarray([w for w in widths if w is not None], float)
@@ -486,8 +606,8 @@ def main(argv=None):
         edges = np.asarray(data["edges"], int) if "edges" in data.files else None
     t_load = time.perf_counter()
     report = detect_product_split(q, frames, edges, options=ProductSplitOptions(gap_ratio=args.gap_ratio))
-    report["_bases"] = [b.tolist() for b in report["_bases"]]
-    report["bases_root"] = report.pop("_bases")
+    report.pop("_node_bases")
+    report["bases_root"] = [b.tolist() for b in report.pop("_bases")]
     t_done = time.perf_counter()
     report["timing"] = {"load_seconds": t_load - t0, "detect_seconds": t_done - t_load,
                         "started_at": started,

@@ -58,6 +58,18 @@ def _second_moment(V, F, density):
     return m, c, Mbar
 
 
+def body_second_moments(case, order):
+    """(len(order), 4, 4) second moments Mbar of the named bodies, from their
+    functional meshes and densities -- the kinetic metric's per-body weights."""
+    mech = case.mechanism
+    out = np.empty((len(order), 4, 4))
+    for i, name in enumerate(order):
+        body = mech.body(name)
+        V, F = geometry.build_mesh(body.mesh)
+        out[i] = _second_moment(V, F, body.density)[2]
+    return out
+
+
 def _perpendicular(n):
     trial = np.array([1.0, 0.0, 0.0]) if abs(n[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
     e = np.cross(n, trial)

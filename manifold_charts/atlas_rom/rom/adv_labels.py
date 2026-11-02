@@ -246,12 +246,15 @@ def _init_oracle_worker(case):
 
 
 def _project_rows(X, oracle):
-    """q* = oracle.project(q) per row, NaN where it fails or does not converge onto the constraint set."""
+    """q* = oracle.project(q) per row, NaN where it fails or does not converge onto the constraint set.
+    The convergence tolerance is the oracle's own ``residual_tol`` (default 1e-6, exact-joint oracles): a
+    penalty-joint backend declares the closure gap its joints actually hold."""
     out = np.full_like(X, np.nan)
+    tol = float(getattr(oracle, "residual_tol", 1e-6))
     for r_, q in enumerate(X):
         try:
             p = np.asarray(oracle.project(q), float)
-            if np.linalg.norm(oracle.residual(p), np.inf) < 1e-6:
+            if np.linalg.norm(oracle.residual(p), np.inf) < tol:
                 out[r_] = p
         except Exception:
             pass

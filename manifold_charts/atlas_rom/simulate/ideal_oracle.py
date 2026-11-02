@@ -65,7 +65,7 @@ _ORTHONORMALITY_PAIRS = ((0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (2, 2))
 # residual + Jacobian block before a case using it can take the analytic path.
 SUPPORTED_JOINTS = ("revolute", "prismatic", "cylindrical", "spherical",
                     "universal", "constant_velocity", "fixed", "phase_lock",
-                    "gear_ratio", "bevel_gear")
+                    "gear_ratio", "bevel_gear", "rack_pinion")
 
 # Kinds whose anchor is confined to a LINE rather than to a point: the two
 # transverse components of the anchor separation are constrained and the axial
@@ -190,6 +190,29 @@ class IdealJointOracle(ManifoldOracle):
                     "phase_b": to_local(j.body_b, phase, True),
                     "phase_c": to_local(j.body_c, phase, True),
                     "p": float(ratio.denominator), "q": float(ratio.numerator),
+                })
+                self.n_rows += 1
+                continue
+            if j.kind == "rack_pinion":
+                # Rack travel = ratio x pinion angle, both from rest.  The rack
+                # point's travel along the slide is affine in the rack's pose;
+                # the pinion angle is an atan2 of its carried phase direction,
+                # read in (-pi, pi] -- the rack's stops keep it inside.
+                if j.body_c is not None and j.body_c in index:
+                    raise ValueError(f"{j.name}: rack_pinion needs both bearings in the stand")
+                axis = np.asarray(j.axis, float)
+                trial = (np.array([0.0, 1.0, 0.0])
+                         if abs(float(axis[0])) > 0.9 else np.array([1.0, 0.0, 0.0]))
+                phase = np.cross(axis, trial)
+                phase /= np.linalg.norm(phase)
+                slide = np.asarray(j.axis2, float)
+                self.joints.append({
+                    "name": j.name, "kind": j.kind,
+                    "ia": index.get(j.body_a), "ib": index.get(j.body_b),
+                    "axis": axis, "phase": phase, "phase_a": to_local(j.body_a, phase, True),
+                    "slide": slide / np.linalg.norm(slide),
+                    "pb": to_local(j.body_b, np.asarray(j.pivot, float)),
+                    "world_pivot": np.asarray(j.pivot, float), "ratio": float(j.ratio),
                 })
                 self.n_rows += 1
                 continue
@@ -544,6 +567,10 @@ class IdealJointOracle(ManifoldOracle):
                 out[row] = self._bevel_row(e, T)
                 row += 1
                 continue
+            if e["kind"] == "rack_pinion":
+                out[row] = self._rack_pinion_row(e, T)[0]
+                row += 1
+                continue
             if e["kind"] == "phase_lock":
                 out[row:row + 3] = (T[e["ia"], :, :3] @ e["phase_a"]
                                      - T[e["ib"], :, :3] @ e["phase_b"])
@@ -582,6 +609,20 @@ class IdealJointOracle(ManifoldOracle):
                 out[row] = float(np.sum((Fa @ e["cv_skew"]) * Fb))
                 row += 1
         return out
+
+    @staticmethod
+    def _rack_pinion_row(e, T):
+        """(residual, x, y): rack travel minus ratio x pinion angle atan2(y, x)."""
+        if e["ia"] is None:
+            x, y = 1.0, 0.0
+        else:
+            direction = T[e["ia"], :, :3] @ e["phase_a"]
+            x = float(e["phase"] @ direction)
+            y = float(np.cross(e["axis"], e["phase"]) @ direction)
+        anchor = (e["world_pivot"] if e["ib"] is None
+                  else T[e["ib"], :, :3] @ e["pb"] + T[e["ib"], :, 3])
+        travel = float(e["slide"] @ (anchor - e["world_pivot"]))
+        return travel - e["ratio"] * float(np.arctan2(y, x)), x, y
 
     @staticmethod
     def _cv_motion(e, T):
@@ -638,6 +679,23 @@ class IdealJointOracle(ManifoldOracle):
                 configs = (q_flat + perturb).reshape(-1, self.n_bodies, 3, 4)
                 vals = self._bevel_row_batched(e, configs)
                 add_many(row, cols, (vals[0::2] - vals[1::2]) / (2.0 * h))
+                row += 1
+                continue
+            if e["kind"] == "rack_pinion":
+                # res = slide . (R_b pb + t_b - p0) - ratio * atan2(y, x)
+                _, x, y = self._rack_pinion_row(e, T)
+                ia, ib = e["ia"], e["ib"]
+                if ia is not None:
+                    dy = np.cross(e["axis"], e["phase"])
+                    grad = (x * dy - y * e["phase"]) / max(x * x + y * y, 1e-15)
+                    for r in range(3):
+                        for c in range(3):
+                            add(row, column(ia, r, c), -e["ratio"] * grad[r] * e["phase_a"][c])
+                if ib is not None:
+                    for r in range(3):
+                        for c in range(3):
+                            add(row, column(ib, r, c), e["slide"][r] * e["pb"][c])
+                        add(row, column(ib, r, 3), e["slide"][r])
                 row += 1
                 continue
             if e["kind"] == "gear_ratio":
@@ -809,6 +867,12 @@ class IdealJointOracle(ManifoldOracle):
         # +-h probe responses then differ by that jitter / h, which on
         # `drivetrain` buried the rank gap of the advancing front's secants.
         last_step = np.inf
+        # A point already on the manifold is its own closest point.  Restoring
+        # a settled response hands back exactly such a point, and otherwise
+        # paid a full Gauss-Newton step (an SVD least squares) to move it by
+        # round-off -- a quarter of a leaf front's time on `drivetrain_steer`.
+        if np.linalg.norm(self.residual(q), np.inf) <= tol:
+            return q
         sparse = self.dim_ambient >= SPARSE_MIN_AMBIENT
         for _ in range(max_iterations):
             res = self.residual(q)
