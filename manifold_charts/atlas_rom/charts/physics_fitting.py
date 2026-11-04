@@ -15,15 +15,19 @@ class PhysicsFitter:
 
     def fit_chart(self, model, anchor, *, bodies, validity, seed, transition_positive=(),
                   transition_negative=(), local_map_negative=(), support_reference_q=(),
-                  support_interior_q=(), epochs=800, validity_tol=0.1):
+                  support_interior_q=(), epochs=800, validity_tol=0.1, fit_support=False, device=None):
+        """``fit_support``: the support classifier is off by default -- the trained router is the routing
+        authority, so ``support`` is ``None``.  ``device``: where the M / V teachers and fields are fitted
+        (None: CUDA when available)."""
         mass, potential, mv_metrics = self._fit_dynamics(
             model, anchor, bodies["masses"], bodies["inertia"], bodies["com"],
-            bodies["up"], bodies["gravity"], epochs=epochs)
+            bodies["up"], bodies["gravity"], epochs=epochs, device=device)
         support, boundary, domain_metrics = self._fit_support_and_boundary(
             model, anchor, validity, epochs=epochs, seed=seed,
             validity_tol=validity_tol, transition_positive=transition_positive,
             transition_negative=transition_negative, local_map_negative=local_map_negative,
-            support_reference_q=support_reference_q, support_interior_q=support_interior_q)
+            support_reference_q=support_reference_q, support_interior_q=support_interior_q,
+            fit_support=fit_support)
         return {
             "mass": mass, "potential": potential, "support": support,
             "boundary": boundary, "metrics": {**mv_metrics, **domain_metrics},

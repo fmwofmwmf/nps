@@ -528,6 +528,22 @@ def _restrict_to_components(competent, edges, n):
     return competent
 
 
+def _stretch_spread(log_r, weights):
+    """Weighted mean of (log r - median log r)^2 over a chart's neighbour pairs.
+
+    ``log_r`` is each pair's log latent/physical stretch.  Measured against the
+    chart's own (detached) median, so it is invariant to the latent scale -- a
+    free gauge -- and is zero exactly when the chart is a uniformly scaled
+    isometry on those pairs.  Pairs with zero weight are ignored.
+    """
+    import torch
+    keep = weights > 0
+    if not bool(keep.any()):
+        return torch.zeros((), dtype=log_r.dtype, device=log_r.device)
+    med = torch.quantile(log_r[keep].detach(), 0.5)
+    return (weights * (log_r - med).square()).sum() / weights.sum().clamp_min(1e-8)
+
+
 def _soft_connectivity(weight, edges, n, *, edge_bar, decay):
     """Continuous analogue of :func:`_restrict_to_components`.
 
@@ -666,7 +682,7 @@ class CompetitiveCAEFitter:
              off_anchor_cycle_weight=None, freeze_estep_probes=False, compression_weight=None,
              selector_calibration_min=.8, device="cpu", e_step_interval=20,
              tangent_every=1, tangent_on_cover=True, overlap_tangent_cover=True, resume_phase2=False,
-             probe_validity_weight=0.0,
+             probe_validity_weight=0.0, stretch_weight=0.0,
              m_step_batch_size=256,
              prune_warmup_epochs=100, retire_hysteresis_steps=2, retire_max_per_step=None,
              soft_edge_bar=0.1, component_decay=0.25, cover_level=0.5, core_level=0.5,
@@ -745,6 +761,7 @@ class CompetitiveCAEFitter:
                            "overlap_tangent_cover": bool(overlap_tangent_cover),
                            "resume_phase2": bool(resume_phase2),
                            "probe_validity_weight": float(probe_validity_weight),
+                           "stretch_weight": float(stretch_weight),
                            "projector_weight": projector_weight,
                            "off_anchor_cycle_weight": off_anchor_cycle_weight,
                            "prune_warmup_epochs": int(prune_warmup_epochs),
@@ -818,6 +835,7 @@ class CompetitiveCAEFitter:
             e_step_interval=e_step_interval, tangent_every=tangent_every,
             tangent_on_cover=bool(tangent_on_cover), overlap_tangent_cover=bool(overlap_tangent_cover),
             resume_phase2=bool(resume_phase2), probe_validity_weight=float(probe_validity_weight),
+            stretch_weight=float(stretch_weight),
             m_step_batch_size=m_step_batch_size,
             prune_warmup_epochs=int(prune_warmup_epochs),
             retire_hysteresis_steps=int(retire_hysteresis_steps),
@@ -874,6 +892,7 @@ class CompetitiveCAEFitter:
                    off_anchor_cycle_weight, freeze_estep_probes, compression_weight,
                    selector_calibration_min, compute_device, e_step_interval, tangent_every,
                    tangent_on_cover, overlap_tangent_cover, resume_phase2, probe_validity_weight,
+                   stretch_weight,
                    m_step_batch_size,
                    prune_warmup_epochs, retire_hysteresis_steps, retire_max_per_step,
                    soft_edge_bar, component_decay, cover_level, core_level,
@@ -1181,9 +1200,10 @@ class CompetitiveCAEFitter:
             dp = raw_dp.clamp_min(1e-8)
             dz = torch.linalg.vector_norm(u[a] - u[b], dim=-1)
             ratio = dz / dp
-            # Log stretch makes reciprocal compression/expansion symmetric.
-            # Its mean and upper tail continuously pull every local pair
-            # toward uniform chart stretch, rather than only penalising walls.
+            # Log stretch makes reciprocal compression/expansion symmetric.  The
+            # pinch and tear hinges below only penalise walls; the spread term
+            # (``stretch_weight``, see ``_stretch_spread``) is what pulls local
+            # pairs toward the chart's own median stretch.
             log_r = torch.log(ratio.clamp_min(1e-12))
             weights = (torch.ones_like(log_r) if pair_weights is None else
                        pair_weights.to(dtype=Q.dtype).clamp_min(0))
@@ -1237,6 +1257,8 @@ class CompetitiveCAEFitter:
                         dz_far = torch.linalg.vector_norm(u[gi[far]] - u[gj[far]], dim=-1)
                         l_separation = torch.relu(d_latent_min - dz_far).square().mean()
                 distortion = float(compression_weight) * l_compression + l_separation
+                if float(stretch_weight) != 0.0:
+                    distortion = distortion + float(stretch_weight) * _stretch_spread(log_r, distortion_weights)
             # Observed simulator tangent frames supervise the decoder at every
             # pose this chart owns (per-pose responsibility weight), not just a
             # handful of top pairs; the oracle tangent is the dominant lever on
@@ -5083,7 +5105,8 @@ class CompetitiveCAEFitter:
             model = model.to("cpu").double()
             fitted = physics.fit_chart(model, anchor, bodies=bodies, validity=validity, seed=config.seed + i,
                                        transition_positive=transition_u, local_map_negative=negative_u, support_reference_q=reference,
-                                       support_interior_q=reference, epochs=int(field_epochs), validity_tol=CONSTRAINT_TOL)
+                                       support_interior_q=reference, epochs=int(field_epochs), validity_tol=CONSTRAINT_TOL,
+                                       device=compute_device)
             mass_fields.append(fitted["mass"]); potential_fields.append(fitted["potential"])
             support_fields.append(fitted["support"]); boundary_fields.append(fitted["boundary"])
             field_metrics.append(fitted["metrics"])
@@ -5100,8 +5123,11 @@ class CompetitiveCAEFitter:
                                  "n_bodies": n_bodies, "encoder_kind": encoder_kind, "selector": selector.payload()},
                  "physics_fields": {"mass_fields": [learned_fields.state(x) for x in mass_fields],
                                     "potential_fields": [learned_fields.state(x) for x in potential_fields],
-                                    "support_fields": [learned_fields.state(x) for x in support_fields],
                                     "boundary_fields": [learned_fields.sdf_state(x) for x in boundary_fields]}}
+        # No support classifier is fitted (the trained router routes); a legacy fitter that does fit one still
+        # ships it, and the loader then keeps its learned-support topology.
+        if all(x is not None for x in support_fields):
+            state["physics_fields"]["support_fields"] = [learned_fields.state(x) for x in support_fields]
         import torch as _torch
         _torch.save(state, os.path.join(work, config.out_artifact or ARTIFACT))
         return report, models, patches, anchors

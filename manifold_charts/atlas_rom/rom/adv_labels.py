@@ -205,7 +205,10 @@ def claim_errors(M, Qc, Qs):
     return e, U
 
 
-def dynamics_mismatch(models, mass_fields, potential_fields, bodies, latents):
+_DYN_CHUNK = 8192
+
+
+def dynamics_mismatch(models, mass_fields, potential_fields, bodies, latents, *, device=None):
     """Per chart k at latent u (each row of ``latents[k]``): how far chart k's LEARNED dynamics fields are from the
     teacher they were distilled from (``learned.fit_dynamics``), evaluated where the runtime would actually be.
 
@@ -213,26 +216,38 @@ def dynamics_mismatch(models, mass_fields, potential_fields, bodies, latents):
       f_err, f_ref = || grad V_learned - grad V_teacher ||_{M^-1},  || grad V_teacher ||_{M^-1}   (accelerations)
 
     The fields are only fit at anchors; off them they extrapolate, and a chart whose poses still look right can
-    carry badly wrong dynamics there.  Build-time only: the teacher is never part of the runtime."""
+    carry badly wrong dynamics there.  Build-time only: the teacher is never part of the runtime.
+
+    Batched over each chart's rows (``ops.mass_matrix_batch`` / ``ops.potential_and_grad_batch``, chunks of
+    ``_DYN_CHUNK``) on ``device`` (default CPU; ``nn.Module`` models / fields are copied there, plain callables are
+    used as given); same quantities as the per-row loop it replaces."""
     from atlas_rom.rom import ops
     masses, inertia, com = bodies["masses"], bodies["inertia"], bodies["com"]
     up, gravity = bodies["up"], bodies["gravity"]
+    dev = torch.device("cpu" if device is None else device)
+    _on = lambda f: copy.deepcopy(f).double().to(dev).eval() if isinstance(f, torch.nn.Module) else f
     out = []
     for k, U in enumerate(latents):
+        U = np.asarray(U, float)
+        if len(U) == 0:
+            out.append(np.zeros((0, 3))); continue
+        model, mass, pot = _on(models[k]), _on(mass_fields[k]), _on(potential_fields[k])
         rows = []
-        for u in np.asarray(U, float):
-            Mt = ops.mass_matrix(models[k], u, masses, inertia, com)
+        for lo in range(0, len(U), _DYN_CHUNK):
+            Ut = torch.as_tensor(U[lo:lo + _DYN_CHUNK], dtype=torch.float64, device=dev)
+            Mt = ops.mass_matrix_batch(model, Ut, masses, inertia, com)                   # (n, d, d)
             with torch.no_grad():
-                Ml = mass_fields[k](torch.as_tensor(u).unsqueeze(0)).squeeze(0).numpy()
-            lam = np.real(np.linalg.eigvals(np.linalg.solve(Mt, Ml)))
-            d_m = float(np.max(np.abs(np.log(np.clip(lam, 1e-12, None)))))
-            _v, gt = ops.potential_and_grad(models[k], u, masses, com, up, gravity)
-            x = torch.as_tensor(u).requires_grad_(True)
-            (gl,) = torch.autograd.grad(potential_fields[k](x).squeeze(), x)
-            gl = gl.detach().numpy()
-            norm = lambda f: float(np.sqrt(max(float(f @ np.linalg.solve(Mt, f)), 0.0)))
-            rows.append((d_m, norm(gl - gt), norm(gt)))
-        out.append(np.asarray(rows, float).reshape(-1, 3))
+                Ml = mass(Ut)
+            lam = torch.linalg.eigvals(torch.linalg.solve(Mt, Ml)).real
+            d_m = lam.clamp_min(1e-12).log().abs().amax(-1)
+            _v, gt = ops.potential_and_grad_batch(model, Ut, masses, com, up, gravity)    # (n, d)
+            x = Ut.detach().clone().requires_grad_(True)
+            (gl,) = torch.autograd.grad(pot(x).sum(), x)
+            gl = gl.detach()
+            norm = lambda f: torch.sqrt((f * torch.linalg.solve(Mt, f.unsqueeze(-1)).squeeze(-1)).sum(-1).clamp_min(0.0))
+            rows.append(torch.stack([d_m, norm(gl - gt), norm(gt)], -1).cpu().numpy())
+        del model, mass, pot
+        out.append(np.concatenate(rows, 0).reshape(-1, 3))
     return out
 
 
@@ -520,10 +535,10 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
     elif use_dyn:
         t0 = time.time()
         cpu = [copy.deepcopy(m).cpu().double().eval() for m in models]
-        ref = dynamics_mismatch(cpu, mass_fields, potential_fields, bodies, A_anchor)
+        ref = dynamics_mismatch(cpu, mass_fields, potential_fields, bodies, A_anchor, device=dev)
         g_ref = float(np.median(np.concatenate([r[:, 2] for r in ref])))     # typical gravity acceleration
         per = dynamics_mismatch(cpu, mass_fields, potential_fields, bodies,
-                                [np.stack([U_map[n][k] for n in range(S)]) for k in range(K)])
+                                [np.stack([U_map[n][k] for n in range(S)]) for k in range(K)], device=dev)
         for k in range(K):
             dM[:, k] = per[k][:, 0]
             # A RELATIVE force error needs a nonzero teacher force.  With no

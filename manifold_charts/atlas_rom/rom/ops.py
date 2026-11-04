@@ -113,6 +113,59 @@ def potential_and_grad(model, u, masses, com, up, gravity) -> tuple[float, np.nd
     return float(V.detach()), grad.detach().numpy()
 
 
+_TEACHER_CHUNK = 4096
+
+
+def mass_matrix_batch(model, U, masses, inertia, com) -> torch.Tensor:
+    """(N, d, d) ``mass_matrix`` at every row of ``U`` (a float64 tensor on the model's device).
+
+    Same formula as :func:`mass_matrix`; each forward JVP carries the basis direction for the whole batch, which is
+    exact because the decoder acts row-wise.  Processed in chunks of ``_TEACHER_CHUNK`` rows."""
+    d = U.shape[-1]
+    com_t = torch.as_tensor(np.asarray(com, float), dtype=U.dtype, device=U.device)
+    m_t = torch.as_tensor(np.asarray(masses, float), dtype=U.dtype, device=U.device)
+    I_t = torch.as_tensor(np.asarray(inertia, float), dtype=U.dtype, device=U.device)
+    out = []
+    with torch.no_grad():
+        for lo in range(0, len(U), _TEACHER_CHUNK):
+            Uc = U[lo:lo + _TEACHER_CHUNK]
+            T = model.transforms(Uc)                                   # (N,n,3,4)
+            cols = []
+            for k in range(d):
+                basis = torch.zeros_like(Uc)
+                basis[:, k] = 1.0
+                _, col = jvp(model.transforms, (Uc,), (basis,))
+                cols.append(col)
+            dT = torch.stack(cols, dim=-1)                             # (N,n,3,4,d)
+            R, dR, dt = T[..., :3], dT[..., :3, :], dT[..., 3, :]
+            Jp = torch.einsum("Nnrck,nc->Nnrk", dR, com_t) + dt        # (N,n,3,d)
+            M = torch.einsum("n,Nnrk,Nnrl->Nkl", m_t, Jp, Jp)
+            Omega = torch.einsum("Nnrck,Nnsc->Nnrsk", dR, R)           # (N,n,3,3,d)
+            Jw = torch.stack([Omega[:, :, 2, 1, :], Omega[:, :, 0, 2, :],
+                              Omega[:, :, 1, 0, :]], dim=2)            # (N,n,3,d)
+            I_world = torch.einsum("Nnij,njk,Nnlk->Nnil", R, I_t, R)
+            M = M + torch.einsum("Nnik,Nnij,Nnjl->Nkl", Jw, I_world, Jw)
+            out.append(0.5 * (M + M.transpose(-1, -2)))
+    return torch.cat(out, 0)
+
+
+def potential_and_grad_batch(model, U, masses, com, up, gravity) -> tuple[torch.Tensor, torch.Tensor]:
+    """(N,) V and (N, d) dV/du of :func:`potential_and_grad` at every row of ``U``.  One backward pass per chunk is
+    exact: each row's V depends only on its own u."""
+    com_t = torch.as_tensor(np.asarray(com, float), dtype=U.dtype, device=U.device)
+    m_t = torch.as_tensor(np.asarray(masses, float), dtype=U.dtype, device=U.device)
+    up_t = torch.as_tensor(np.asarray(up, float), dtype=U.dtype, device=U.device)
+    Vs, Gs = [], []
+    for lo in range(0, len(U), _TEACHER_CHUNK):
+        x = U[lo:lo + _TEACHER_CHUNK].detach().clone().requires_grad_(True)
+        T = model.transforms(x)
+        world_com = torch.einsum("Nnij,nj->Nni", T[..., :3], com_t) + T[..., 3]
+        V = float(gravity) * (m_t * (world_com @ up_t)).sum(-1)
+        (grad,) = torch.autograd.grad(V.sum(), x)
+        Vs.append(V.detach()); Gs.append(grad.detach())
+    return torch.cat(Vs, 0), torch.cat(Gs, 0)
+
+
 def actuator_jacobian(model, u, joint, body_order) -> np.ndarray:
     """d(theta_joint)/du, for the generalized force F = J^T tau of a joint-torque
     actuator -- one scalar-output backward pass, VJP in spirit."""

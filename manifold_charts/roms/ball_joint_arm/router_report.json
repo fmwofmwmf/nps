@@ -1,0 +1,238 @@
+{
+  "kind": "score",
+  "eps": 8.281049893047378e-07,
+  "n_charts": 6,
+  "n_states": {
+    "territory": 1800,
+    "overlap": 12000,
+    "wide": 12000,
+    "exit": 34515,
+    "labelled": 60315
+  },
+  "n_per": 300,
+  "epochs": 4000,
+  "held_out": {
+    "territory": {
+      "rows": 1760,
+      "rmse_A": 5.051399613675688,
+      "corr": 0.4491688148678831,
+      "median_abs_A": 0.0
+    },
+    "overlap": {
+      "rows": 12420,
+      "rmse_A": 5.082799811158691,
+      "corr": 0.41561230089887125,
+      "median_abs_A": 0.0
+    },
+    "wide": {
+      "rows": 11880,
+      "rmse_A": 5.532665681474867,
+      "corr": 0.3676291489696688,
+      "median_abs_A": 0.0
+    },
+    "exit": {
+      "rows": 34255,
+      "rmse_A": 7513.358582441153,
+      "corr": 0.002835496182456641,
+      "median_abs_A": 0.0
+    }
+  },
+  "scores": {
+    "chart_0": {
+      "rmse_in_territory": 141.42939091197266,
+      "rmse_out_of_territory": 19529.601468769204
+    },
+    "chart_1": {
+      "rmse_in_territory": 273.1332760514036,
+      "rmse_out_of_territory": 3873.780169523374
+    },
+    "chart_2": {
+      "rmse_in_territory": 4.147274837934735,
+      "rmse_out_of_territory": 661.3309097762525
+    },
+    "chart_3": {
+      "rmse_in_territory": 304.1609936037083,
+      "rmse_out_of_territory": 111828.3006585008
+    },
+    "chart_4": {
+      "rmse_in_territory": 42.69259442560538,
+      "rmse_out_of_territory": 26384.40239006213
+    },
+    "chart_5": {
+      "rmse_in_territory": 86.19823242582642,
+      "rmse_out_of_territory": 20257.153591532508
+    }
+  },
+  "false_best_rate": 0.2926303572908895,
+  "dynamics": {
+    "g_ref": 24.372759858504494,
+    "chart_0": {
+      "delta_M_in_territory": {
+        "p50": 0.8196572824387807,
+        "p95": 6.381601124710789,
+        "max": 25.55712139894166
+      },
+      "delta_M_out_of_territory": {
+        "p50": 24.349301230470836,
+        "p95": 27.631021115928547,
+        "max": 77.17984424979394
+      },
+      "delta_V_in_territory": {
+        "p50": 0.2111744455440558,
+        "p95": 3.422715043303006,
+        "max": 1155.0339357107853
+      },
+      "delta_V_out_of_territory": {
+        "p50": 31924.55261679417,
+        "p95": 260445.55984763394,
+        "max": 1188853.608978477
+      }
+    },
+    "chart_1": {
+      "delta_M_in_territory": {
+        "p50": 1.3035809242677412,
+        "p95": 5.60576494066423,
+        "max": 21.87732145146254
+      },
+      "delta_M_out_of_territory": {
+        "p50": 23.54555704540864,
+        "p95": 27.56554961577274,
+        "max": 72.64332020140877
+      },
+      "delta_V_in_territory": {
+        "p50": 0.3128899111814424,
+        "p95": 3.262229682015897,
+        "max": 37108.617793170866
+      },
+      "delta_V_out_of_territory": {
+        "p50": 19216.951193873007,
+        "p95": 72638.95784628316,
+        "max": 563287.2566892782
+      }
+    },
+    "chart_2": {
+      "delta_M_in_territory": {
+        "p50": 1.2388557903285706,
+        "p95": 4.843871563551584,
+        "max": 27.631021115928547
+      },
+      "delta_M_out_of_territory": {
+        "p50": 25.31182066246824,
+        "p95": 28.412998773758588,
+        "max": 34.45968705434445
+      },
+      "delta_V_in_territory": {
+        "p50": 0.2997484778461841,
+        "p95": 2.332867116630907,
+        "max": 179820.51968946523
+      },
+      "delta_V_out_of_territory": {
+        "p50": 65312.633524130215,
+        "p95": 515648.12099396205,
+        "max": 4183586.0377870114
+      }
+    },
+    "chart_3": {
+      "delta_M_in_territory": {
+        "p50": 0.3221674861359821,
+        "p95": 3.621225989252737,
+        "max": 27.631021115928547
+      },
+      "delta_M_out_of_territory": {
+        "p50": 23.03533667010071,
+        "p95": 27.631021115928547,
+        "max": 33.65608546737169
+      },
+      "delta_V_in_territory": {
+        "p50": 0.07868908624330716,
+        "p95": 0.884825416550419,
+        "max": 189.58399544646784
+      },
+      "delta_V_out_of_territory": {
+        "p50": 25.351687824871757,
+        "p95": 530.3530434427449,
+        "max": 2417719.420898759
+      }
+    },
+    "chart_4": {
+      "delta_M_in_territory": {
+        "p50": 0.16767694144202416,
+        "p95": 4.6147149069177145,
+        "max": 27.631021115928547
+      },
+      "delta_M_out_of_territory": {
+        "p50": 27.170111882062447,
+        "p95": 31.637926758713114,
+        "max": 39.07877022265095
+      },
+      "delta_V_in_territory": {
+        "p50": 0.0643549979911858,
+        "p95": 0.9227350102898928,
+        "max": 120.62456113574986
+      },
+      "delta_V_out_of_territory": {
+        "p50": 52982.181362280826,
+        "p95": 360288.113580439,
+        "max": 1214695.002161858
+      }
+    },
+    "chart_5": {
+      "delta_M_in_territory": {
+        "p50": 1.4722158752316683,
+        "p95": 5.239276439456162,
+        "max": 18.984470851918502
+      },
+      "delta_M_out_of_territory": {
+        "p50": 24.170915480483373,
+        "p95": 26.89036605643922,
+        "max": 71.29295786276563
+      },
+      "delta_V_in_territory": {
+        "p50": 0.42883081758948555,
+        "p95": 3.825711188093401,
+        "max": 1621.099998127085
+      },
+      "delta_V_out_of_territory": {
+        "p50": 35610.04852763843,
+        "p95": 184339.28808341603,
+        "max": 692420.8438403694
+      }
+    }
+  },
+  "two_way_abs_sum": {
+    "all": {
+      "n": 12063,
+      "p50": 0.8415329794845148,
+      "p95": 3.3068667661056543,
+      "max": 923208.320888338
+    },
+    "receiver_representable": {
+      "n": 12032,
+      "p50": 0.8388103782962935,
+      "p95": 3.304227166677338,
+      "max": 41488.66522941097
+    }
+  },
+  "held_out_decisions": {
+    "states": 12063,
+    "margin": 1.0986122886681098,
+    "exact_switch_fraction": 0.11862720716239741,
+    "net_switch_fraction": 0.4877725275636243,
+    "switches_when_it_should": 0.8120195667365478,
+    "false_switch_when_exact_best_A_below_0": null,
+    "pick_true_A_above_0": 0.27838205302515295,
+    "pick_true_A_above_half_margin": 0.2306254248810333
+  },
+  "timing": {
+    "noise_floor_seconds": 9.23631238937378,
+    "labels_seconds": 1.06754469871521,
+    "dynamics_labels_seconds": 266.19328904151917,
+    "train_seconds": 1118.613980770111,
+    "started_at": "2026-11-04T15:40:41",
+    "finished_at": "2026-11-04T16:03:58",
+    "wall_seconds": 1396.9885656833649
+  },
+  "case": "ball_joint_arm",
+  "artifact": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\manifold_charts\\work\\ball_joint_arm_rom\\patch_atlas.pt",
+  "dataset": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\manifold_charts\\work\\ball_joint_arm"
+}

@@ -20,6 +20,14 @@ dev = [
 ]
 pypi = ["pyuipc"]
 
+[tool.pytest.ini_options]
+# Default run excludes slow tests; the 120 s total budget is enforced in
+# manifold_charts/atlas_rom/tests/conftest.py (see AGENTS.md, Run hygiene).
+addopts = "-m 'not slow'"
+markers = [
+    "slow: exceeds the default test-suite budget; run explicitly with -m slow",
+]
+
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"

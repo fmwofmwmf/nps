@@ -172,6 +172,14 @@ pipeline changes to shared code that now apply to every case.
   (see `patch_atlas.py` `build()` / `main()` for the pattern).
 - `competitive_cae` device choice: `device="cuda"` by default; use
   `device="cpu"` only if it is faster for that run.
+- Test-suite budget: the test suite (`pytest atlas_rom/tests`, the run
+  "fix X" requires) gets a hard total of 120 s wall time.  Run it under
+  `timeout --kill-after=10 150`.  A test that cannot fit is marked
+  `@pytest.mark.slow`, which the default run excludes; slow tests run only
+  when explicitly requested (`-m slow`) or when the change touches what they
+  cover.  A default run over budget is a failure to fix -- speed up or
+  re-mark the offending test; never raise the budget.  Enforced by
+  `atlas_rom/tests/conftest.py`.
 - IPC pre-flight check (mandatory).  Anything that touches an IPC system --
   libuipc scenes, `contact_model != "none"` cases, IPC meshes/geometry
   (SDFs, distance grids, contact preprocessing), oracles, samplers,

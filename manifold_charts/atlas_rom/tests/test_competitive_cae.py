@@ -131,6 +131,30 @@ def test_ownership_weight_is_unnormalised_and_k_independent():
     np.testing.assert_allclose(w2, w3[:, :2])   # a chart's weight does not depend on K
 
 
+def test_stretch_spread_penalises_uneven_stretch_not_latent_scale():
+    import torch
+    from atlas_rom.charts.competitive_cae import _stretch_spread
+    w = torch.ones(4, dtype=torch.float64)
+    even = torch.log(torch.full((4,), 0.3, dtype=torch.float64))
+    uneven = torch.log(torch.tensor([0.1, 0.3, 0.3, 3.0], dtype=torch.float64))
+    assert float(_stretch_spread(even, w)) == pytest.approx(0.0, abs=1e-12)
+    assert float(_stretch_spread(uneven, w)) > 0.5
+    # a uniform latent rescale is a gauge, not stretch
+    assert float(_stretch_spread(uneven + np.log(7.0), w)) == pytest.approx(float(_stretch_spread(uneven, w)))
+    # zero-weight pairs (degenerate witnesses) do not count
+    assert float(_stretch_spread(uneven, torch.tensor([0.0, 1.0, 1.0, 0.0], dtype=torch.float64))) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_stretch_weight_defaults_off_and_is_echoed(tmp_path):
+    q = _poses(6)
+    evidence = ChartFitInput(q, np.ones((len(q), 12, 1)),
+                             np.asarray([[i, i + 1] for i in range(len(q) - 1)]))
+    for options, expected in (({"n_charts": 2}, 0.0), ({"n_charts": 2, "stretch_weight": 0.1}, 0.1)):
+        config = ChartFitConfig(fitter_id="competitive_cae", width=4, epochs=2, construction_only=True, options=options)
+        report = CompetitiveCAEFitter().fit(evidence, config, work=str(tmp_path), log=lambda *_: None)[0]
+        assert report["resolved_config"]["stretch_weight"] == expected
+
+
 def test_local_latent_support_does_not_fill_an_annular_hole():
     angle = np.linspace(0.0, 2.0 * np.pi, 64, endpoint=False)
     cloud = np.concatenate([np.c_[r * np.cos(angle), r * np.sin(angle)] for r in (1.0, 1.2)])

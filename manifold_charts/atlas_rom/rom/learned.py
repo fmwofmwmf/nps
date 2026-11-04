@@ -105,7 +105,7 @@ def _lbfgs(params, loss_fn, iters):
 
 
 def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=800, grad_weight=1.0,
-                 mass_grad_weight=1.0, lbfgs_iters=300, mass_epochs=4000, mass_lbfgs_iters=1500):
+                 mass_grad_weight=1.0, lbfgs_iters=300, mass_epochs=4000, mass_lbfgs_iters=1500, device=None):
     """Distill Jacobian-derived M and gravitational V into learned fields.
 
     Targets are normalized (the fields carry their physical scale as buffers) so the nets learn O(1)
@@ -123,34 +123,45 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
     off-diagonal term counts by its dynamical effect rather than vanishing next to the large diagonal; the
     learned-metric half keeps the loss unbounded as M_l collapses (teacher whitening alone saturates there
     and lets the fit trade a few near-singular anchors for the rest).
+
+    ``device``: where the teachers are evaluated and the fields trained (None: CUDA when available).  The teachers
+    are batched over all anchors (``ops.mass_matrix_batch`` / ``ops.potential_and_grad_batch``); the returned
+    fields are on the CPU, as before.
     """
+    import copy
     from atlas_rom.rom import ops
+    dev = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
     U = np.asarray(anchors, float); d = U.shape[1]
-    M = np.asarray([ops.mass_matrix(model, u, masses, inertia, com) for u in U])
+    teacher = copy.deepcopy(model).double().to(dev).eval()
+    U_dev = torch.as_tensor(U, dtype=torch.float64, device=dev)
+    M = ops.mass_matrix_batch(teacher, U_dev, masses, inertia, com).cpu().numpy()
     # dM/du_k at every anchor, central difference; h_k scales with the anchors' spread on axis k
     h = 1e-4 * np.maximum(U.std(0), 1e-3)
-    dM = np.stack([(np.asarray([ops.mass_matrix(model, u + h[k] * np.eye(d)[k], masses, inertia, com) for u in U])
-                    - np.asarray([ops.mass_matrix(model, u - h[k] * np.eye(d)[k], masses, inertia, com) for u in U]))
-                   / (2.0 * h[k]) for k in range(d)], axis=1)                                  # (N, d, d, d)
-    VG = [ops.potential_and_grad(model, u, masses, com, up, gravity) for u in U]
-    V = np.asarray([v for v, _ in VG]); G = np.asarray([g for _, g in VG])
-    ut = torch.as_tensor(U, dtype=torch.float64)
+    e = torch.eye(d, dtype=torch.float64, device=dev)
+    dM = np.stack([((ops.mass_matrix_batch(teacher, U_dev + float(h[k]) * e[k], masses, inertia, com)
+                     - ops.mass_matrix_batch(teacher, U_dev - float(h[k]) * e[k], masses, inertia, com))
+                    / (2.0 * h[k])).cpu().numpy() for k in range(d)], axis=1)                  # (N, d, d, d)
+    V_t, G_t = ops.potential_and_grad_batch(teacher, U_dev, masses, com, up, gravity)
+    V, G = V_t.cpu().numpy(), G_t.cpu().numpy()
+    del teacher
+    ut = torch.as_tensor(U, dtype=torch.float64, device=dev)
     mass, potential = MassField(d), ScalarField(d)
     set_input_scale(mass, U); set_input_scale(potential, U)
+    mass.to(dev); potential.to(dev)
     m_scale = float(np.mean(np.trace(M, axis1=1, axis2=2)) / d)
     v_shift, v_scale = float(V.mean()), float(V.std())
     if not (np.isfinite(m_scale) and m_scale > 0): m_scale = 1.0
     if not (np.isfinite(v_scale) and v_scale > 1e-12): v_scale = 1.0
     with torch.no_grad():
         mass.scale.fill_(m_scale); potential.shift.fill_(v_shift); potential.scale.fill_(v_scale)
-    mt = torch.as_tensor(M / m_scale, dtype=torch.float64)
-    vt = torch.as_tensor((V - v_shift) / v_scale, dtype=torch.float64)
-    gt = torch.as_tensor(G / v_scale, dtype=torch.float64)
+    mt = torch.as_tensor(M / m_scale, dtype=torch.float64, device=dev)
+    vt = torch.as_tensor((V - v_shift) / v_scale, dtype=torch.float64, device=dev)
+    gt = torch.as_tensor(G / v_scale, dtype=torch.float64, device=dev)
     g_rms2 = float(gt.square().sum(-1).mean().clamp_min(1e-12))
     m_den = mt.square().sum((-2, -1)).clamp_min(1e-12)
-    dmt = torch.as_tensor(dM / m_scale, dtype=torch.float64)
+    dmt = torch.as_tensor(dM / m_scale, dtype=torch.float64, device=dev)
     dm_rms2 = float(dmt.square().sum((-3, -2, -1)).mean().clamp_min(1e-12))
-    shifts = [torch.as_tensor(h[k] * np.eye(d)[k], dtype=torch.float64) for k in range(d)]
+    shifts = [torch.as_tensor(h[k] * np.eye(d)[k], dtype=torch.float64, device=dev) for k in range(d)]
     mt_inv = torch.linalg.inv(mt)
     tr2 = lambda Y: (Y @ Y).diagonal(dim1=-2, dim2=-1).sum(-1)                 # tr(Y^2) per anchor
     def m_inv(L, E):
@@ -196,7 +207,7 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
         m_val = float(((mass.normalized(ut) - mt).square().sum((-2, -1)) / m_den).mean())
         m_grad = float((mass_slopes() - dmt).square().sum((-3, -2, -1)).mean() / dm_rms2)
         m_loss = float(mass_loss())
-    return mass.eval(), potential.eval(), {"mass_mse": m_val, "mass_grad_rel_mse": m_grad, "mass_fit_loss": m_loss,
+    return mass.cpu().eval(), potential.cpu().eval(), {"mass_mse": m_val, "mass_grad_rel_mse": m_grad, "mass_fit_loss": m_loss,
                                            "potential_mse": float(v_err.detach()),
                                            "potential_grad_rel_mse": float(g_err.detach())}
 
@@ -552,8 +563,11 @@ def fit_support_and_boundary(model, anchors, validity, *, epochs=800, seed=0,
                              inverse_tol=0.05, validity_tol=0.1,
                              transition_positive=None, transition_negative=None,
                              local_map_negative=None,
-                             support_reference_q=None, support_interior_q=None):
+                             support_reference_q=None, support_interior_q=None, fit_support=True):
     """Fit chart-local support and a physical-boundary SDF.
+
+    ``fit_support=False`` skips the support classifier (returned as ``None``): the trained router is the routing
+    authority (``validity.build_topology`` without support fields), so only the boundary SDF is fitted.
 
     The support classifier learns a calibrated inverse of decoded full-space
     reconstruction error over the sampler's generic configuration set, plus
@@ -598,6 +612,30 @@ def fit_support_and_boundary(model, anchors, validity, *, epochs=800, seed=0,
     map_negative = (np.empty((0, d)) if local_map_negative is None else
                     np.asarray(local_map_negative, float).reshape(-1, d))
     outside = np.r_[probe_outside, replay_negative, map_negative]
+    support, support_loss, reconstruction_tol = None, None, None
+    if fit_support:
+        support, support_loss, reconstruction_tol = _fit_support_classifier(
+            model, U, outside, probe_outside, replay_positive, replay_negative, map_negative,
+            support_reference_q, support_interior_q, epochs)
+    margin = 0.05 * float(np.median(np.linalg.norm(U[:, None] - U[None, :], axis=-1)[np.triu_indices(len(U), 1)]))
+    sdf = _fit_boundary_sdf(model, U, _inside, candidates, limit_witnesses, validity, support_interior_q,
+                            margin, epochs, seed)
+    return (None if support is None else support.eval()), sdf, {
+        "support_bce": support_loss, "support_skipped": not fit_support,
+        "boundary_margin": float(margin),
+        "transition_support_positive": int(len(replay_positive)),
+        "transition_support_negative": int(len(replay_negative)),
+        "local_map_support_negative": int(len(map_negative)),
+        "support_reconstruction_tol": reconstruction_tol,
+        "boundary_witnesses": int(len(outside)),
+        "joint_limit_witnesses": limit_witnesses,
+        "boundary_mode": ("joint_limit_witnesses" if limit_witnesses else "neutral_no_physical_witness")}
+
+
+def _fit_support_classifier(model, U, outside, probe_outside, replay_positive, replay_negative, map_negative,
+                            support_reference_q, support_interior_q, epochs):
+    """The support classifier of :func:`fit_support_and_boundary`.  Returns (field, final BCE, reconstruction tol)."""
+    d = U.shape[1]
     if len(outside) < max(8, U.shape[1] * 4):
         raise RuntimeError("cannot train a learned domain/boundary field: probe set contains "
                            "too few reconstruction/validity failures")
@@ -638,7 +676,13 @@ def fit_support_and_boundary(model, anchors, validity, *, epochs=800, seed=0,
         per_example = torch.nn.functional.binary_cross_entropy_with_logits(support(x), y, reduction="none")
         loss = (weight * per_example).sum() / weight.sum()
         loss.backward(); opt.step(); support_loss = float(loss.detach())
-    margin = 0.05 * float(np.median(np.linalg.norm(U[:, None] - U[None, :], axis=-1)[np.triu_indices(len(U), 1)]))
+    return support, support_loss, reconstruction_tol
+
+
+def _fit_boundary_sdf(model, U, _inside, candidates, limit_witnesses, validity, support_interior_q,
+                      margin, epochs, seed):
+    """The boundary SDF of :func:`fit_support_and_boundary` (joint-limit regression, or a neutral field)."""
+    d = U.shape[1]
     if limit_witnesses:
         # The physical boundary is a declared joint stop / workspace bound.  Its SDF is distilled by
         # REGRESSION onto the decoded poses' normalized signed physical margin (a build-time label from the
@@ -662,17 +706,7 @@ def fit_support_and_boundary(model, anchors, validity, *, epochs=800, seed=0,
         sdf._witness_kind = (sdf_margin < 0).astype(int)
     else:
         sdf = _neutral_boundary_sdf(d, U, margin)
-    return support.eval(), sdf, {"support_bce": support_loss,
-                                 "boundary_margin": float(margin),
-                                  "transition_support_positive": int(len(replay_positive)),
-                                  "transition_support_negative": int(len(replay_negative)),
-                                  "local_map_support_negative": int(len(map_negative)),
-                                 "support_reconstruction_tol": reconstruction_tol,
-                                 "boundary_witnesses": int(len(outside)),
-                                 "joint_limit_witnesses": limit_witnesses,
-                                 "boundary_mode": ("joint_limit_witnesses"
-                                                   if limit_witnesses else
-                                                   "neutral_no_physical_witness")}
+    return sdf
 
 
 def enforce_support_coverage(models, supports, anchors, reference_q, *, epochs=800,
