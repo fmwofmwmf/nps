@@ -1,0 +1,239 @@
+{
+  "kind": "score",
+  "eps": 0.9193055100863028,
+  "n_charts": 6,
+  "n_states": {
+    "territory": 1800,
+    "overlap": 1827,
+    "wide": 12000,
+    "exit": 10348,
+    "labelled": 16190
+  },
+  "n_per": 300,
+  "epochs": 4000,
+  "held_out": {
+    "territory": {
+      "rows": 1430,
+      "rmse_A": 0.6187653539384845,
+      "corr": 0.9679608542901122,
+      "median_abs_A": 2.54956855725285
+    },
+    "overlap": {
+      "rows": 1350,
+      "rmse_A": 0.679005967637848,
+      "corr": 0.9641325065298613,
+      "median_abs_A": 2.236156895833706
+    },
+    "wide": {
+      "rows": 7655,
+      "rmse_A": 0.7124781996619923,
+      "corr": 0.9599974087913965,
+      "median_abs_A": 2.2754188472717427
+    },
+    "exit": {
+      "rows": 5755,
+      "rmse_A": 0.6725870519646803,
+      "corr": 0.9642745300161245,
+      "median_abs_A": 1.5556618173438799
+    }
+  },
+  "scores": {
+    "chart_0": {
+      "rmse_in_territory": 0.7096603565796978,
+      "rmse_out_of_territory": 0.5385044107036593
+    },
+    "chart_1": {
+      "rmse_in_territory": 0.44969923102739046,
+      "rmse_out_of_territory": 0.642293056545335
+    },
+    "chart_2": {
+      "rmse_in_territory": 0.5021006199428165,
+      "rmse_out_of_territory": 0.6734330174800714
+    },
+    "chart_3": {
+      "rmse_in_territory": 0.494239642272183,
+      "rmse_out_of_territory": 0.5831621248286
+    },
+    "chart_4": {
+      "rmse_in_territory": 0.48807408993496354,
+      "rmse_out_of_territory": 0.7769022105921064
+    },
+    "chart_5": {
+      "rmse_in_territory": 0.4819209296300763,
+      "rmse_out_of_territory": 0.6073795499342979
+    }
+  },
+  "false_best_rate": 0.004941321803582459,
+  "dynamics": {
+    "g_ref": 0.0,
+    "chart_0": {
+      "delta_M_in_territory": {
+        "p50": 0.9744302096255911,
+        "p95": 6.68728622391928,
+        "max": 27.631021115928547
+      },
+      "delta_M_out_of_territory": {
+        "p50": 5.451542300060346,
+        "p95": 27.631021115928547,
+        "max": 27.631021115928547
+      },
+      "delta_V_in_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "delta_V_out_of_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      }
+    },
+    "chart_1": {
+      "delta_M_in_territory": {
+        "p50": 0.43708637509922843,
+        "p95": 4.754086651260211,
+        "max": 8.92765936613826
+      },
+      "delta_M_out_of_territory": {
+        "p50": 3.7781373717173143,
+        "p95": 9.019589671491444,
+        "max": 27.45395350691417
+      },
+      "delta_V_in_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "delta_V_out_of_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      }
+    },
+    "chart_2": {
+      "delta_M_in_territory": {
+        "p50": 0.49146373578419605,
+        "p95": 3.6166441297309944,
+        "max": 7.606805232481045
+      },
+      "delta_M_out_of_territory": {
+        "p50": 3.5999664820117108,
+        "p95": 7.03446487849759,
+        "max": 9.817744813898452
+      },
+      "delta_V_in_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "delta_V_out_of_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      }
+    },
+    "chart_3": {
+      "delta_M_in_territory": {
+        "p50": 0.8407972055527126,
+        "p95": 6.048914743000374,
+        "max": 8.217029116007613
+      },
+      "delta_M_out_of_territory": {
+        "p50": 3.1210000520060053,
+        "p95": 7.961200536384275,
+        "max": 12.132977140801541
+      },
+      "delta_V_in_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "delta_V_out_of_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      }
+    },
+    "chart_4": {
+      "delta_M_in_territory": {
+        "p50": 0.624108165453066,
+        "p95": 4.432267346151114,
+        "max": 8.012781899988868
+      },
+      "delta_M_out_of_territory": {
+        "p50": 3.7879153735341546,
+        "p95": 12.918312540765191,
+        "max": 15.544113853250622
+      },
+      "delta_V_in_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "delta_V_out_of_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      }
+    },
+    "chart_5": {
+      "delta_M_in_territory": {
+        "p50": 0.5464186023651476,
+        "p95": 3.8539842959524373,
+        "max": 7.643723986268067
+      },
+      "delta_M_out_of_territory": {
+        "p50": 4.087486592552603,
+        "p95": 6.241067527708401,
+        "max": 9.382897295880095
+      },
+      "delta_V_in_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "delta_V_out_of_territory": {
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      }
+    }
+  },
+  "two_way_abs_sum": {
+    "all": {
+      "n": 3238,
+      "p50": 0.29227514400588894,
+      "p95": 1.0354261425706524,
+      "max": 3.571069397921997
+    },
+    "receiver_representable": {
+      "n": 3126,
+      "p50": 0.28874642704442033,
+      "p95": 0.9528378865447531,
+      "max": 3.451006863391881
+    }
+  },
+  "held_out_decisions": {
+    "states": 3238,
+    "margin": 1.0986122886681098,
+    "exact_switch_fraction": 0.11148857319332922,
+    "net_switch_fraction": 0.11395923409512045,
+    "switches_when_it_should": 0.8033240997229917,
+    "false_switch_when_exact_best_A_below_0": 0.003566333808844508,
+    "pick_true_A_above_0": 0.964769647696477,
+    "pick_true_A_above_half_margin": 0.8726287262872628
+  },
+  "timing": {
+    "noise_floor_seconds": 8.99359130859375,
+    "exit_states_seconds": 33.708470821380615,
+    "labels_seconds": 7803.9062922000885,
+    "dynamics_labels_seconds": 624.3277716636658,
+    "train_seconds": 359.88529777526855,
+    "started_at": "2026-11-04T11:35:12",
+    "finished_at": "2026-11-04T14:02:33",
+    "wall_seconds": 8840.257014751434
+  },
+  "case": "circle_arm_contact",
+  "artifact": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\manifold_charts\\work\\circle_arm_contact_rom\\patch_atlas.pt",
+  "dataset": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\manifold_charts\\work\\circle_arm_contact"
+}

@@ -647,6 +647,7 @@ class CompetitiveCAEFitter:
              competence_baseline_fraction=.03,
              tangent_weight=None, alias_weight=None, selector_weight=1.0,
              encoder_offtangent_weight=0.0,
+             phase2_cover_spacing_fraction=None,
              projector_weight=None,
              threshold_topo_angle_deg=15.0, fold_ratio_floor=.02,
              pretrain_steps=500,
@@ -664,7 +665,8 @@ class CompetitiveCAEFitter:
              warm_start_tangent_weight=0.0, warm_start_tangent_every=4,
              off_anchor_cycle_weight=None, freeze_estep_probes=False, compression_weight=None,
              selector_calibration_min=.8, device="cpu", e_step_interval=20,
-             tangent_every=1,
+             tangent_every=1, tangent_on_cover=True, overlap_tangent_cover=True, resume_phase2=False,
+             probe_validity_weight=0.0,
              m_step_batch_size=256,
              prune_warmup_epochs=100, retire_hysteresis_steps=2, retire_max_per_step=None,
              soft_edge_bar=0.1, component_decay=0.25, cover_level=0.5, core_level=0.5,
@@ -678,6 +680,7 @@ class CompetitiveCAEFitter:
              ema_ownership=False, ema_ownership_alpha=0.2, ema_ownership_alpha_loss=0.05,
              snapshot_prune_steps=False,
              epoch_trace=False,
+             second_cover_grad_ratio=None,
              exploration_snapshot_every=None,
              phase2_exploration_snapshot_every=None,
              lr_step_epochs=None, lr_step_gamma=0.5, lr_step_min=1e-5,
@@ -738,10 +741,16 @@ class CompetitiveCAEFitter:
                            "distortion_weight": distortion_weight,
                            "compactness_weight": compactness_weight,
                            "tangent_weight": tangent_weight, "alias_weight": alias_weight,
+                           "tangent_on_cover": bool(tangent_on_cover),
+                           "overlap_tangent_cover": bool(overlap_tangent_cover),
+                           "resume_phase2": bool(resume_phase2),
+                           "probe_validity_weight": float(probe_validity_weight),
                            "projector_weight": projector_weight,
                            "off_anchor_cycle_weight": off_anchor_cycle_weight,
                            "prune_warmup_epochs": int(prune_warmup_epochs),
                            "retire_hysteresis_steps": int(retire_hysteresis_steps),
+                           "second_cover_grad_ratio": (None if second_cover_grad_ratio is None
+                                                       else float(second_cover_grad_ratio)),
                            "retire_max_per_step": (None if retire_max_per_step is None
                                                    else int(retire_max_per_step)),
                            "soft_edge_bar": float(soft_edge_bar),
@@ -778,6 +787,8 @@ class CompetitiveCAEFitter:
             distortion_weight=distortion_weight,
             tangent_weight=tangent_weight, alias_weight=alias_weight,
             encoder_offtangent_weight=float(encoder_offtangent_weight),
+            phase2_cover_spacing_fraction=(None if phase2_cover_spacing_fraction is None
+                                           else float(phase2_cover_spacing_fraction)),
             selector_weight=selector_weight, projector_weight=projector_weight,
             compactness_weight=compactness_weight, competence_tolerance=competence_tolerance,
             competence_baseline_fraction=competence_baseline_fraction,
@@ -805,6 +816,8 @@ class CompetitiveCAEFitter:
             freeze_estep_probes=freeze_estep_probes, compression_weight=compression_weight,
             selector_calibration_min=selector_calibration_min, compute_device=compute_device,
             e_step_interval=e_step_interval, tangent_every=tangent_every,
+            tangent_on_cover=bool(tangent_on_cover), overlap_tangent_cover=bool(overlap_tangent_cover),
+            resume_phase2=bool(resume_phase2), probe_validity_weight=float(probe_validity_weight),
             m_step_batch_size=m_step_batch_size,
             prune_warmup_epochs=int(prune_warmup_epochs),
             retire_hysteresis_steps=int(retire_hysteresis_steps),
@@ -828,6 +841,7 @@ class CompetitiveCAEFitter:
             ema_ownership_alpha_loss=float(ema_ownership_alpha_loss),
             snapshot_prune_steps=bool(snapshot_prune_steps),
             epoch_trace=bool(epoch_trace),
+            second_cover_grad_ratio=(None if second_cover_grad_ratio is None else float(second_cover_grad_ratio)),
             exploration_snapshot_every=(None if exploration_snapshot_every is None
                                         else int(exploration_snapshot_every)),
             phase2_exploration_snapshot_every=(None if phase2_exploration_snapshot_every is None
@@ -844,7 +858,7 @@ class CompetitiveCAEFitter:
     def _fit_inner(self, evidence, config, *, work, case, validity, log,
                    encoder_kind, n_charts, field_epochs, phase1_max_epochs, phase2_epochs,
                    distortion_weight, tangent_weight, alias_weight, selector_weight,
-                   encoder_offtangent_weight,
+                   encoder_offtangent_weight, phase2_cover_spacing_fraction,
                    projector_weight, compactness_weight, competence_tolerance, pretrain_steps, max_distortion_spread,
                    competence_baseline_fraction,
                    threshold_topo_angle_deg, fold_ratio_floor,
@@ -859,6 +873,7 @@ class CompetitiveCAEFitter:
                    warm_start_tangent_weight, warm_start_tangent_every,
                    off_anchor_cycle_weight, freeze_estep_probes, compression_weight,
                    selector_calibration_min, compute_device, e_step_interval, tangent_every,
+                   tangent_on_cover, overlap_tangent_cover, resume_phase2, probe_validity_weight,
                    m_step_batch_size,
                    prune_warmup_epochs, retire_hysteresis_steps, retire_max_per_step,
                    soft_edge_bar, component_decay, cover_level, core_level,
@@ -871,6 +886,7 @@ class CompetitiveCAEFitter:
                    ema_ownership, ema_ownership_alpha, ema_ownership_alpha_loss,
                    snapshot_prune_steps,
                    epoch_trace,
+                   second_cover_grad_ratio,
                    exploration_snapshot_every,
                    phase2_exploration_snapshot_every,
                    lr_step_epochs, lr_step_gamma, lr_step_min,
@@ -969,6 +985,10 @@ class CompetitiveCAEFitter:
         # (``threshold_topo_angle_deg``) and the Jacobian fold ratio
         # (``fold_ratio_floor``), applied on top as hard predicates.
         threshold_topo = float(threshold)
+        # What "covered" means (cover mask, coverage losses, certificate).  Equal to threshold_topo in phase 1;
+        # set from the data's own spacing at the phase-2 boundary when phase2_cover_spacing_fraction is given.
+        # Ownership weights and every other soft data weighting stay on threshold_topo.
+        cover_threshold = threshold_topo
         frontier_trace = []
 
         def _recon(pred, target):
@@ -1370,6 +1390,10 @@ class CompetitiveCAEFitter:
         models = [new_model(i) for i in fps]
         # Opt-in per-epoch diagnostic trace (``epoch_trace``): records, never steers.
         _trace_margin = {}
+        # The two-cover term of the coverage margin, kept separately so its gradient can be capped per chart
+        # (``second_cover_grad_ratio``): two-cover is an incentive on top of reconstruction, never a reason
+        # for a chart to give up its own fit.
+        _second_cover_term = {}
         _last_gauge_change = {}
         epoch_trace_rows = []
 
@@ -2365,6 +2389,14 @@ class CompetitiveCAEFitter:
                 if len(owned) > 256:
                     owned = owned[np.argsort(pose_w[owned])[::-1][:256]]
                 weight = pose_w[owned]
+                # Reconstruction reaches every pose in the chart's cover, so
+                # its tangent is trained on all of them; responsibility alone
+                # leaves the overlap a chart shares with a neighbour (exactly
+                # what a retirement hands over) as untrained fringe.
+                if tangent_on_cover and cover_competent.shape[1] == len(selected_batches):
+                    covered = np.flatnonzero(cover_competent[ids, chart])
+                    if len(covered):
+                        owned, weight = covered, np.ones(len(covered))
                 weight = weight / max(weight.sum(), 1e-8)
                 local_idx.append(np.asarray(owned, dtype=int))
                 local_w.append(weight)
@@ -2767,8 +2799,12 @@ class CompetitiveCAEFitter:
         p1_max = max(1, p1_max); p2_max = max(1, p2_max)
         if resume is not None:
             # The loops are skipped; the boundary E-step after phase 1 and the
-            # final certifying E-step still run on the resumed charts.
-            p1_max = p2_max = 0
+            # final certifying E-step still run on the resumed charts.  With
+            # ``resume_phase2`` only phase 1 is skipped: phase 2 trains from the
+            # resumed charts with fresh optimizer and ownership-history state.
+            p1_max = 0
+            if not resume_phase2:
+                p2_max = 0
         C = None
         frozen_owned = None
         # d_nn / threshold_fit must live in the SAME standardized units as
@@ -2948,7 +2984,7 @@ class CompetitiveCAEFitter:
             # applies.  Without it, poses held only by a chart's minor arc count
             # as covered during training and retirement, then are dropped at
             # certification with no other chart trained to own them.
-            cover = _restrict_to_components(np.asarray(rec_, float) <= threshold_topo, pairs, n)
+            cover = _restrict_to_components(np.asarray(rec_, float) <= cover_threshold, pairs, n)
             hard = cover & gate_
             return own, hard, cover
 
@@ -2978,7 +3014,12 @@ class CompetitiveCAEFitter:
             """
             from torch.func import jvp
             chart = int(chart)
-            affected = np.flatnonzero(cover_competent[:, chart])
+            affected_mask = cover_competent[:, chart]
+            if overlap_tangent_cover and hard_competent.shape == cover_competent.shape:
+                # Retiring a chart only loses the poses it certifies itself; a
+                # pose it reconstructs with a failed tangent needs no receiver.
+                affected_mask = affected_mask & hard_competent[:, chart]
+            affected = np.flatnonzero(affected_mask)
             if not len(affected):
                 return True, {"affected": 0, "uncertified": 0}
             want = torch.as_tensor(frames, dtype=torch.float64, device=Q.device).reshape(n, -1, d)[
@@ -3120,10 +3161,12 @@ class CompetitiveCAEFitter:
             # Only a chart whose main patch is local may be pulled to hold the pose (no minor-arc bridging).
             eligible_t = torch.as_tensor(_eligible_charts(ids).T, dtype=torch.bool, device=Q.device)
             err = err.masked_fill(~eligible_t, float("inf"))
-            thr = float(threshold_topo)
-            tau = max(thr / 5.0, 1e-12)
+            # Target: the cover bar.  Scale (softmin temperature and hinge slope): threshold_topo, the loss scale
+            # the ownership weights live on -- a tight cover bar must not multiply the gradient.
+            scale = float(threshold_topo)
+            tau = max(scale / 5.0, 1e-12)
             soft = -tau * torch.logsumexp(-err / tau, dim=0)
-            return torch.relu(soft / thr - (1.0 - float(protect_margin_frac))).mean()
+            return torch.relu((soft - (1.0 - float(protect_margin_frac)) * float(cover_threshold)) / scale).mean()
 
         def _protection_need(reconstruction):
             """(rv_competence, core_protection_need) for the current chart set.
@@ -3511,7 +3554,7 @@ class CompetitiveCAEFitter:
                             np.asarray(e_step_reconstruction, float)[:, i][
                                 np.fromiter(persistent_territory[i], dtype=int,
                                             count=len(persistent_territory[i]))]
-                            <= float(threshold_topo)) if persistent_territory[i] else 0),
+                            <= float(cover_threshold)) if persistent_territory[i] else 0),
                         "maintenance_violation": bool(maintenance_violation[i]),
                         "maintenance_violations_total": int(maintenance_violation_total[i]),
                         "frontier_size": int(monotone_frontier_last[i]),
@@ -3544,8 +3587,18 @@ class CompetitiveCAEFitter:
 
         def _coverage_margin_loss(target_threshold, phase):
             """Shared one-cover and two-cover competence margins (two-cover global in phase 1, collar in phase 2)."""
+            _second_cover_term.clear()
             count = min(n, max(32, int(m_step_batch_size)))
-            ids = rng.choice(n, size=count, replace=False)
+            if overlap_tangent_cover and hard_competent.shape[1] == len(models):
+                # Half the sample goes where a second tangent-good chart is
+                # missing: those poses are what blocks every retirement.
+                thin = np.flatnonzero(hard_competent.sum(1) <= 1)
+                take = min(len(thin), count // 2)
+                focus = rng.choice(thin, size=take, replace=False) if take else np.empty(0, dtype=int)
+                rest = np.setdiff1d(np.arange(n), focus)
+                ids = np.concatenate((focus, rng.choice(rest, size=count - take, replace=False)))
+            else:
+                ids = rng.choice(n, size=count, replace=False)
             if not len(ids):
                 return torch.zeros((), dtype=Q.dtype, device=Q.device)
             k = len(models)
@@ -3558,8 +3611,27 @@ class CompetitiveCAEFitter:
             # covers on.  Including validity held competence ~0 everywhere
             # (one_cover pinned at 0.7^2) so the margin was dead except for
             # rare 1/tau-steep pulses carrying validity's oversized gradient.
+            # Centred on the cover bar, slope from threshold_topo: with a tight bar and a bar-relative slope every
+            # far pose saturates and the margin carries no gradient.
             competence = torch.sigmoid((float(target_threshold) - reconstruction) /
-                                       max(float(target_threshold) / 5.0, 1e-12))
+                                       max(float(threshold_topo) / 5.0, 1e-12))
+            if overlap_tangent_cover:
+                # Competence also needs the decoder tangent within the same
+                # angle the certificate uses (projector distance 2 sin^2 theta
+                # for one principal angle), so a second cover is trained to be
+                # tangent-good, not just to reconstruct.
+                from torch.func import jvp
+                columns = []
+                for axis in range(d):
+                    direction_ = torch.zeros_like(codes); direction_[..., axis] = 1.0
+                    _, column = jvp(ensemble_decode, (codes,), (direction_,))
+                    columns.append(column)
+                got = torch.stack(columns, -1)
+                ids_t = torch.as_tensor(ids, dtype=torch.long, device=Q.device)
+                observed = frames_t[ids_t].reshape(len(ids), -1, d).unsqueeze(0).expand(k, -1, -1, -1)
+                misfit = _projector_distance_sq(got, observed, ridge_rel=1e-6)
+                bar = 2.0 * float(np.sin(np.radians(float(threshold_topo_angle_deg)))) ** 2
+                competence = competence * torch.sigmoid((bar - misfit) / (bar / 5.0))
             # A chart can answer a pose only from its physically attached
             # domain -- the neighbourhood of its MAIN connected patch, never a
             # detached minor arc.  Always retain the most attached chart to
@@ -3584,6 +3656,7 @@ class CompetitiveCAEFitter:
             if epoch_trace:
                 _trace_margin.update(one_cover=float(one_cover), second_cover=float(second_cover),
                                      triple_overlap=float(triple_overlap))
+            _second_cover_term["t"] = 0.75 * second_cover
             return one_cover + 0.75 * second_cover + 0.20 * triple_overlap
 
         def _m_step(epoch, phase, *, freeze):
@@ -3591,6 +3664,7 @@ class CompetitiveCAEFitter:
             nonlocal _last_shell_absorbed_per_chart
             nonlocal _cached_probe_direction, _cached_probe_radius_fraction
             losses = []
+            dense_probe_valid = None
             tick = sync_tick()
             tangent_on = (float(tangent_weight) != 0.0 and epoch % max(1, int(tangent_every)) == 0)
             batch_tick = sync_tick()
@@ -3689,8 +3763,17 @@ class CompetitiveCAEFitter:
             probe_u = dense_u[:, :, None, :] + (radius_fraction * local_radius.detach()[:, :, None, :]
                                            .clamp_min(1e-8) * direction)
             probe_flat = probe_u.reshape(k_live, max_batch * probe_count, d)
-            probe_cycle = (ensemble_encode(ensemble_decode(probe_flat)) - probe_flat).square().mean(-1)
+            probe_decoded = ensemble_decode(probe_flat)
+            probe_cycle = (ensemble_encode(probe_decoded) - probe_flat).square().mean(-1)
             probe_cycle = probe_cycle.reshape(k_live, max_batch, probe_count).amax(-1)
+            if phase == 2 and float(probe_validity_weight) != 0.0 and validity is not None:
+                # Off-anchor decoded poses are held to the same physical
+                # validity as reconstructions, so the decoder stays on the
+                # physical manifold between samples, not only at them.
+                probe_valid = validity_loss(None, probe_decoded.reshape(-1, n_bodies, 3, 4))
+                probe_valid = probe_valid.reshape(k_live, max_batch, probe_count).mean(-1)
+                mask_f = dense_mask.to(probe_valid.dtype)
+                dense_probe_valid = (probe_valid * mask_f).sum() / mask_f.sum().clamp_min(1.0)
             joint_timing.setdefault("batched_cycle_seconds", 0.0)
             joint_timing["batched_cycle_seconds"] += elapsed_since(dense_cycle_tick)
             if tangent_on:
@@ -3880,10 +3963,11 @@ class CompetitiveCAEFitter:
                     with torch.no_grad():
                         absorbed.append(float((rv[probe_t] < float(threshold_topo)).double().mean()))
             objective = torch.stack(chart_L).mean()
+            _chart_objective = objective
             _obj_terms = {"chart": objective} if epoch_trace else None   # trace-only references
             # Cover threshold in both phases: against threshold_fit (the phase-2 accuracy target) every pose
             # reads uncovered, the sigmoid saturates and the term carries no gradient.
-            cover_target = float(threshold_topo)
+            cover_target = float(cover_threshold)
             _cov_term = 0.5 * _coverage_margin_loss(cover_target, phase)
             if phase == 2:
                 _keep_term = _keep_covered_loss()
@@ -3901,6 +3985,10 @@ class CompetitiveCAEFitter:
                 objective = objective + _dist_term
                 if epoch_trace:
                     _obj_terms["distortion"] = _dist_term
+            if dense_probe_valid is not None:
+                objective = objective + float(probe_validity_weight) * dense_probe_valid
+                if epoch_trace:
+                    _obj_terms["probe_validity"] = float(probe_validity_weight) * dense_probe_valid
             if tangent_on:
                 _tan_term = float(tangent_weight) * dense_tangent.mean()
                 objective = objective + _tan_term
@@ -3944,7 +4032,33 @@ class CompetitiveCAEFitter:
                         if _g is not None:
                             _sq += _g.detach().double().reshape(len(models), -1).square().sum(1)
                     _term_grad_norms[_tname] = _sq.sqrt().cpu().tolist()
+            _sec = _second_cover_term.get("t")
+            _sec_scale = None
+            if (second_cover_grad_ratio is not None and _sec is not None and torch.is_tensor(_sec)
+                    and _sec.requires_grad and _chart_objective.requires_grad):
+                # Per chart, the two-cover gradient may be at most ``ratio`` x that chart's own reconstruction
+                # gradient: g = g_objective - (1 - lam_i) g_second_i, lam_i = min(1, ratio |g_chart_i| / |g_second_i|).
+                _plist = list(ensemble_params.values())
+                _g_sec = torch.autograd.grad(0.5 * _sec, _plist, retain_graph=True, allow_unused=True)
+                _g_ch = torch.autograd.grad(_chart_objective, _plist, retain_graph=True, allow_unused=True)
+                _n_sec = torch.zeros(len(models), dtype=torch.float64, device=Q.device)
+                _n_ch = torch.zeros(len(models), dtype=torch.float64, device=Q.device)
+                for _a, _b in zip(_g_sec, _g_ch):
+                    if _a is not None:
+                        _n_sec += _a.detach().double().reshape(len(models), -1).square().sum(1)
+                    if _b is not None:
+                        _n_ch += _b.detach().double().reshape(len(models), -1).square().sum(1)
+                _sec_scale = torch.clamp(float(second_cover_grad_ratio) * _n_ch.sqrt() /
+                                         _n_sec.sqrt().clamp_min(1e-30), max=1.0)
             objective.backward()
+            if _sec_scale is not None:
+                with torch.no_grad():
+                    for _p, _a in zip(_plist, _g_sec):
+                        if _a is not None and _p.grad is not None:
+                            _p.grad -= ((1.0 - _sec_scale).to(_p.grad.dtype)
+                                        .reshape((-1,) + (1,) * (_p.grad.ndim - 1)) * _a)
+                if epoch_trace:
+                    _term_grad_norms["second_cover_scale"] = _sec_scale.cpu().tolist()
             if epoch_trace:
                 # Adam amplification: total grad norm vs the RMS its second
                 # moment expects (state from the previous step, pre-update).
@@ -4001,6 +4115,7 @@ class CompetitiveCAEFitter:
                 "pair_counts": [int(len(item[1])) for item in selected_batches],
                 "tangent_samples": (list(tangent_owned_counts) if tangent_on else [0 for _ in batch_ids]),
                 "lr": float(lr_now),
+                "second_cover_scale_min": (None if _sec_scale is None else float(_sec_scale.min())),
                 "batch_selection_seconds": float(batch_selection_seconds)})
             if C is not None and epoch % 10 == 0:
                 trace.append({"epoch": int(epoch), "phase": int(phase), "n_charts": len(models),
@@ -4097,6 +4212,15 @@ class CompetitiveCAEFitter:
                         "resolved_config": resolved_config,
                         "phase1_epochs_run": int(p1_run), "phase1_exit": phase1_exit,
                         "threshold_topo": float(threshold_topo)}, phase1_checkpoint)
+
+        # Phase-1 competence is a loose sanity bar (seeding, retirement); from phase 2 on, "covered" means
+        # represented to the data's own resolution.  With ``phase2_cover_spacing_fraction`` = c the cover bar
+        # becomes (c * d_nn)^2 / D -- the global standardized sample spacing, the same units and form as
+        # ``threshold_fit`` -- for the cover mask, the coverage / keep-covered targets and the final
+        # certificate.  Ownership and every soft data weighting stay on ``threshold_topo``.  Phase 2 still
+        # starts each chart on its phase-1 territory (``frozen_owned`` above).
+        if phase2_cover_spacing_fraction is not None:
+            cover_threshold = (float(phase2_cover_spacing_fraction) * d_nn) ** 2 / max(n_components_pose, 1)
 
         # ---- PHASE 2: strict competitive specialization ------------------
         # Freeze chart count, not ownership or coverage pressure.  The same
@@ -4273,7 +4397,7 @@ class CompetitiveCAEFitter:
         # THE cover mask: (recon + valid) <= threshold_topo -- the same quantity
         # the E-step coverage / multiplicity / exclusive-support / retirement all
         # key on, and the argument of the ownership-weight sigmoid.
-        competent = (reconstruction + validity_component) <= threshold_topo
+        competent = (reconstruction + validity_component) <= cover_threshold
         winners = responsibilities.argmax(1)
         decoder_norm = np.asarray([float(ensemble_decoder_spectral(i).detach()) for i in range(len(models))])
         initial_exclusive = _exclusive_support(competent)
@@ -4349,9 +4473,9 @@ class CompetitiveCAEFitter:
         terminal_tangent_ok = ((terminal_angles <= float(threshold_topo_angle_deg)) &
                                (terminal_folds >= float(fold_ratio_floor)))
         competent_reconstruction_only = _restrict_to_components(
-            (reconstruction + validity_component) <= threshold_topo, pairs, n)
+            (reconstruction + validity_component) <= cover_threshold, pairs, n)
         competent = _restrict_to_components(
-            ((reconstruction + validity_component) <= threshold_topo) & terminal_tangent_ok, pairs, n)
+            ((reconstruction + validity_component) <= cover_threshold) & terminal_tangent_ok, pairs, n)
         responsibilities = _owner_responsibilities(
             _ownership_weight(reconstruction + validity_component, threshold_topo))
         _, multiplicity, deficit_weights, rim_temperature = _soft_multiplicity_weights(
@@ -4659,7 +4783,7 @@ class CompetitiveCAEFitter:
         # ---- commit-3 validation summary ------------------------------------
         # Greedy / exclusive / uncovered on THE cover mask, unrestricted (a
         # chart's full redundancy, not split by component cleanup).
-        _cov = (reconstruction + validity_component) <= threshold_topo
+        _cov = (reconstruction + validity_component) <= cover_threshold
         _greedy, _remaining = [], set(np.flatnonzero(_cov.any(1)).tolist())
         _cols = [set(np.flatnonzero(_cov[:, i]).tolist()) for i in range(_cov.shape[1])]
         while _remaining:
@@ -4867,6 +4991,9 @@ class CompetitiveCAEFitter:
                       "index": phase2_exploration_snapshot_index},
                   "tangent_weight": float(tangent_weight),
                   "encoder_offtangent_weight": float(encoder_offtangent_weight),
+                  "phase2_cover_spacing_fraction": (None if phase2_cover_spacing_fraction is None
+                                                    else float(phase2_cover_spacing_fraction)),
+                  "phase2_cover_threshold": float(cover_threshold),
                   "projector_weight": float(projector_weight),
                   "alias_weight": float(alias_weight),
                   "selector_weight": float(selector_weight),
@@ -4934,6 +5061,7 @@ class CompetitiveCAEFitter:
         bodies = {**bodies, "up": case_spec.mechanism.up_vector, "gravity": case_spec.mechanism.gravity}
         physics = make_physics_fitter(learned_fields)
         mass_fields, potential_fields, support_fields, boundary_fields = [], [], [], []
+        field_metrics, t_fields = [], time.time()
         for i, (model, patch, anchor) in enumerate(zip(models, patches, anchors)):
             carries_edge = (competent[physical_edges[:, 0], i] &
                             competent[physical_edges[:, 1], i])
@@ -4958,6 +5086,13 @@ class CompetitiveCAEFitter:
                                        support_interior_q=reference, epochs=int(field_epochs), validity_tol=CONSTRAINT_TOL)
             mass_fields.append(fitted["mass"]); potential_fields.append(fitted["potential"])
             support_fields.append(fitted["support"]); boundary_fields.append(fitted["boundary"])
+            field_metrics.append(fitted["metrics"])
+        # The field fits' own losses: an undertrained field is otherwise invisible (the report above was written
+        # before the fields existed), so record them and rewrite the report.
+        report["physics_field_metrics"] = field_metrics
+        report.setdefault("timing_seconds", {})["physics_fields"] = time.time() - t_fields
+        with open(os.path.join(work, config.out_report or "competitive_cae_report.json"), "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2, default=_json_safe)
         state = {"format": ARTIFACT_FORMAT, "case": case,
                  "chart_fitter": {"id": self.fitter_id, "config": {"encoder_kind": encoder_kind, "latent_gauge": bool(latent_gauge)}, "payload_format": 1},
                  "chart_atlas": {"patches": [x.tolist() for x in patches], "cores": [x.tolist() for x in cores],

@@ -24,6 +24,28 @@ def _mlp(d, out, width=96, layers=3):
     return nn.Sequential(*blocks).double()
 
 
+def _input_buffers(field, d):
+    """Input normalization: the net sees (u - u_center) / u_spread.  A chart's latent scale is
+    whatever its autoencoder learned (|u| ~ 100 on some charts), so without this the field's
+    conditioning depended on that gauge.  Identity until :func:`set_input_scale`."""
+    field.register_buffer("u_center", torch.zeros(int(d), dtype=torch.float64))
+    field.register_buffer("u_spread", torch.ones(int(d), dtype=torch.float64))
+
+
+def _net_input(field, u):
+    u = u if u.ndim == 2 else u.unsqueeze(0)
+    return (u - field.u_center) / field.u_spread
+
+
+def set_input_scale(field, points):
+    """Center / spread the field's input on the points it is trained on."""
+    U = torch.as_tensor(np.asarray(points, float), dtype=torch.float64)
+    with torch.no_grad():
+        field.u_center.copy_(U.mean(0))
+        field.u_spread.copy_(U.std(0).clamp_min(1e-6) if len(U) > 1 else torch.ones_like(field.u_spread))
+    return field
+
+
 class MassField(nn.Module):
     """SPD matrix field, parameterized by a Cholesky factor."""
     def __init__(self, d, width=96, layers=3, eps=1e-8):
@@ -31,18 +53,24 @@ class MassField(nn.Module):
         self.net = _mlp(d, d * (d + 1) // 2, width, layers)
         # Physical scale of M: the net learns M / scale (O(1)); runtime sees physical units.
         self.register_buffer("scale", torch.ones((), dtype=torch.float64))
+        _input_buffers(self, d)
 
-    def forward(self, u):
-        x = self.net(u if u.ndim == 2 else u.unsqueeze(0))
+    def factor(self, u):
+        """Cholesky factor L of the normalized field: M(u) / scale = L L^T."""
+        x = self.net(_net_input(self, u))
         L = torch.zeros(len(x), self.d, self.d, dtype=x.dtype, device=x.device)
         tri = torch.tril_indices(self.d, self.d, device=x.device)
         L[:, tri[0], tri[1]] = x
         diag = torch.arange(self.d, device=x.device)
         L[:, diag, diag] = torch.nn.functional.softplus(L[:, diag, diag]) + self.eps
-        return self.scale * (L @ L.transpose(-1, -2))
+        return L
+
+    def forward(self, u):
+        return self.scale * self.normalized(u)
 
     def normalized(self, u):
-        return self(u) / self.scale
+        L = self.factor(u)
+        return L @ L.transpose(-1, -2)
 
 
 class ScalarField(nn.Module):
@@ -52,8 +80,9 @@ class ScalarField(nn.Module):
         # net itself learns an O(1) target (V is ~1e6 for heavy bodies) and the force -grad V stays conservative.
         self.register_buffer("shift", torch.zeros((), dtype=torch.float64))
         self.register_buffer("scale", torch.ones((), dtype=torch.float64))
+        _input_buffers(self, d)
     def forward(self, u): return self.normalized(u) * self.scale + self.shift
-    def normalized(self, u): return self.net(u if u.ndim == 2 else u.unsqueeze(0)).squeeze(-1)
+    def normalized(self, u): return self.net(_net_input(self, u)).squeeze(-1)
 
 
 def _fit(model, u, target, *, epochs, lr=2e-3):
@@ -76,7 +105,7 @@ def _lbfgs(params, loss_fn, iters):
 
 
 def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=800, grad_weight=1.0,
-                 mass_grad_weight=1.0, lbfgs_iters=300):
+                 mass_grad_weight=1.0, lbfgs_iters=300, mass_epochs=4000, mass_lbfgs_iters=1500):
     """Distill Jacobian-derived M and gravitational V into learned fields.
 
     Targets are normalized (the fields carry their physical scale as buffers) so the nets learn O(1)
@@ -85,7 +114,15 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
     conservative -- no separate force head.  M is likewise trained on its value AND on dM/du: the runtime's
     velocity force ``1/2 v^T (dM/du) v`` differentiates the learned field, so a value-only fit leaves the
     speed-squared term unsupervised.  Both dM/du (teacher and learned) are central differences with the same
-    per-axis step.  Adam (``epochs``) is followed by a full-batch L-BFGS finish.
+    per-axis step.  Adam is followed by a full-batch L-BFGS finish (``epochs`` / ``lbfgs_iters`` for V,
+    ``mass_epochs`` / ``mass_lbfgs_iters`` for M: at the V budget the M fit stops at ~1-2% error, which
+    shows up as a spurious inertial coupling between independent subsystems).
+
+    M errors are measured in the kinetic metric, symmetrically: ``tr((M_t^-1 E)^2) + tr((M_l^-1 E)^2)`` for
+    E = M_l - M_t (and per axis for dM/du).  That scales every entry by the inertias it couples, so a small
+    off-diagonal term counts by its dynamical effect rather than vanishing next to the large diagonal; the
+    learned-metric half keeps the loss unbounded as M_l collapses (teacher whitening alone saturates there
+    and lets the fit trade a few near-singular anchors for the rest).
     """
     from atlas_rom.rom import ops
     U = np.asarray(anchors, float); d = U.shape[1]
@@ -99,6 +136,7 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
     V = np.asarray([v for v, _ in VG]); G = np.asarray([g for _, g in VG])
     ut = torch.as_tensor(U, dtype=torch.float64)
     mass, potential = MassField(d), ScalarField(d)
+    set_input_scale(mass, U); set_input_scale(potential, U)
     m_scale = float(np.mean(np.trace(M, axis1=1, axis2=2)) / d)
     v_shift, v_scale = float(V.mean()), float(V.std())
     if not (np.isfinite(m_scale) and m_scale > 0): m_scale = 1.0
@@ -113,17 +151,29 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
     dmt = torch.as_tensor(dM / m_scale, dtype=torch.float64)
     dm_rms2 = float(dmt.square().sum((-3, -2, -1)).mean().clamp_min(1e-12))
     shifts = [torch.as_tensor(h[k] * np.eye(d)[k], dtype=torch.float64) for k in range(d)]
+    mt_inv = torch.linalg.inv(mt)
+    tr2 = lambda Y: (Y @ Y).diagonal(dim1=-2, dim2=-1).sum(-1)                 # tr(Y^2) per anchor
+    def m_inv(L, E):
+        # M_l^-1 E through the learned field's own Cholesky factor (diag >= eps > 0): two triangular
+        # solves cannot fail, a near-singular M_l just makes the loss large.
+        y = torch.linalg.solve_triangular(L, E, upper=False)
+        return torch.linalg.solve_triangular(L.transpose(-1, -2), y, upper=True)
+    sym = lambda E, L: tr2(mt_inv @ E) + tr2(m_inv(L, E))                     # kinetic-metric error, both sides
+    dm_sym = float(sum(tr2(mt_inv @ dmt[:, k]) for k in range(d)).mean().clamp_min(1e-12))   # slope scale
 
-    def mass_grad_terms():
-        dml = torch.stack([(mass.normalized(ut + s) - mass.normalized(ut - s)) / (2.0 * float(h[k]))
-                           for k, s in enumerate(shifts)], dim=1)
-        return (dml - dmt).square().sum((-3, -2, -1)).mean() / dm_rms2
+    def mass_slopes():
+        return torch.stack([(mass.normalized(ut + s) - mass.normalized(ut - s)) / (2.0 * float(h[k]))
+                            for k, s in enumerate(shifts)], dim=1)
 
     def mass_loss():
-        value = ((mass.normalized(ut) - mt).square().sum((-2, -1)) / m_den).mean()
+        L = mass.factor(ut)
+        Ml = L @ L.transpose(-1, -2)
+        value = sym(Ml - mt, L).mean()
         if float(mass_grad_weight) == 0.0:
             return value
-        return value + float(mass_grad_weight) * mass_grad_terms()
+        dml = mass_slopes()
+        grad = sum(sym(dml[:, k] - dmt[:, k], L) for k in range(d)).mean() / dm_sym
+        return value + float(mass_grad_weight) * grad
 
     def pot_terms():
         x = ut.clone().requires_grad_(True)
@@ -135,17 +185,18 @@ def fit_dynamics(model, anchors, masses, inertia, com, up, gravity, *, epochs=80
         value, grad = pot_terms()
         return value + float(grad_weight) * grad
 
-    for net, fn in ((mass, mass_loss), (potential, pot_loss)):
+    for net, fn, n_ep, n_lb in ((mass, mass_loss, mass_epochs, mass_lbfgs_iters), (potential, pot_loss, epochs, lbfgs_iters)):
         opt = torch.optim.Adam(net.parameters(), lr=2e-3, weight_decay=1e-5)
-        for _ in range(int(epochs)):
+        for _ in range(int(n_ep)):
             opt.zero_grad(); loss = fn(); loss.backward(); opt.step()
-        _lbfgs(net.parameters(), fn, lbfgs_iters)
+        _lbfgs(net.parameters(), fn, n_lb)
     with torch.enable_grad():
         v_err, g_err = pot_terms()
     with torch.no_grad():
         m_val = float(((mass.normalized(ut) - mt).square().sum((-2, -1)) / m_den).mean())
-        m_grad = float(mass_grad_terms())
-    return mass.eval(), potential.eval(), {"mass_mse": m_val, "mass_grad_rel_mse": m_grad,
+        m_grad = float((mass_slopes() - dmt).square().sum((-3, -2, -1)).mean() / dm_rms2)
+        m_loss = float(mass_loss())
+    return mass.eval(), potential.eval(), {"mass_mse": m_val, "mass_grad_rel_mse": m_grad, "mass_fit_loss": m_loss,
                                            "potential_mse": float(v_err.detach()),
                                            "potential_grad_rel_mse": float(g_err.detach())}
 
@@ -580,7 +631,7 @@ def fit_support_and_boundary(model, anchors, validity, *, epochs=800, seed=0,
     x = torch.as_tensor(np.concatenate(x_parts, axis=0), dtype=torch.float64)
     y = torch.as_tensor(np.concatenate(y_parts, axis=0), dtype=torch.float64)
     weight = torch.as_tensor(np.concatenate(w_parts, axis=0), dtype=torch.float64)
-    support = ScalarField(d); opt = torch.optim.Adam(support.parameters(), lr=2e-3)
+    support = set_input_scale(ScalarField(d), U); opt = torch.optim.Adam(support.parameters(), lr=2e-3)
     support_loss = None
     for _ in range(int(epochs)):
         opt.zero_grad()
@@ -688,9 +739,14 @@ def _with_defaults(state_dict, **defaults):
         out.setdefault(k, torch.as_tensor(v, dtype=torch.float64))
     return out
 def load_mass(entry):
-    m = MassField(entry["d"]); m.load_state_dict(_with_defaults(entry["state_dict"], scale=1.0)); return m.eval()
+    d = entry["d"]
+    m = MassField(d); m.load_state_dict(_with_defaults(entry["state_dict"], scale=1.0, **_identity_input(d))); return m.eval()
 def load_scalar(entry):
-    m = ScalarField(entry["d"]); m.load_state_dict(_with_defaults(entry["state_dict"], shift=0.0, scale=1.0)); return m.eval()
+    d = entry["d"]
+    m = ScalarField(d); m.load_state_dict(_with_defaults(entry["state_dict"], shift=0.0, scale=1.0, **_identity_input(d)))
+    return m.eval()
+def _identity_input(d):
+    return {"u_center": np.zeros(int(d)), "u_spread": np.ones(int(d))}
 def load_sdf(entry):
     from atlas_rom.rom.sdf import SDFNet
     e = entry; m = SDFNet(e["d"], width=e["width"], layers=e["layers"], center=e["center"], scale=e["scale"]).double()

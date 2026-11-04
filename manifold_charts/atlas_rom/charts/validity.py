@@ -127,13 +127,156 @@ class ClosureValidity:
                            for t in T], dtype=bool)
 
 
-def validity_from_case(case_spec, include_grounded=True) -> Optional[PhysicalValidity]:
+class PenetrationValidity:
+    """Contact validity from the body meshes alone: how far bodies overlap.
+
+    Each driven body gets a signed-distance grid of its rest-baked mesh
+    (negative inside), cached on disk.  For a pose, surface points of every body
+    are carried into every other body's frame and the grid is sampled
+    trilinearly, so the residual is differentiable.  One value per ordered body
+    pair: the mean squared penetration depth over that body's surface points.
+    No joint, contact pair or tolerance is declared; a settled simulator pose
+    scores near zero and a pose that drives one body through another does not.
+    """
+
+    def __init__(self, case_spec, *, cache_dir=None, voxel=0.0625, points_per_body=256,
+                 pad=0.25, max_cells_per_body=2 ** 22, seed=0, sdf_backend="trimesh"):
+        import hashlib
+        import os
+        import trimesh
+        from atlas_rom.spec import geometry
+        if sdf_backend not in ("trimesh", "superdex"):
+            raise ValueError(f"unknown sdf_backend {sdf_backend!r}")
+        self.case_spec = case_spec
+        self.sdf_backend = sdf_backend
+        order = list(case_spec.mechanism.body_order)
+        self.n_bodies = len(order)
+        grids, lows, highs, points = [], [], [], []
+        for name in order:
+            V, F = geometry.build_mesh(case_spec.mechanism.body(name).mesh)
+            mesh = trimesh.Trimesh(V, F, process=False)
+            key = hashlib.sha256(np.ascontiguousarray(V).tobytes() + np.ascontiguousarray(F).tobytes()
+                                 + np.float64(voxel).tobytes() + np.float64(pad).tobytes()
+                                 + sdf_backend.encode()).hexdigest()[:16]
+            if sdf_backend == "superdex":
+                # The oracle's own collider grid: training sees the field the data was sampled with.
+                path = None if cache_dir is None else os.path.join(cache_dir, f"superdex_sdf_{name}_{key}.npz")
+                if path is not None and os.path.isfile(path):
+                    with np.load(path) as cached:
+                        sdf, low, high = cached["values"], cached["low"], cached["high"]
+                else:
+                    from atlas_rom.simulate.superdex_oracle import baked_sdf_grid
+                    sdf, low, high = baked_sdf_grid(V, F, voxel=voxel, max_cells=max_cells_per_body)
+                    sdf = sdf.astype(np.float32)
+                    if path is not None:
+                        os.makedirs(cache_dir, exist_ok=True)
+                        np.savez(path, values=sdf, low=low, high=high)
+                grids.append(sdf); lows.append(low); highs.append(high)
+                points.append(self._surface_points(mesh, V, F, points_per_body, seed))
+                continue
+            low, high = V.min(0) - pad, V.max(0) + pad
+            shape = np.ceil((high - low) / voxel).astype(int) + 1
+            if int(np.prod(shape)) > int(max_cells_per_body):
+                raise MemoryError(f"{name}: SDF grid {shape.tolist()} exceeds {max_cells_per_body} cells")
+            high = low + (shape - 1) * voxel
+            key = hashlib.sha256(np.ascontiguousarray(V).tobytes() + np.ascontiguousarray(F).tobytes()
+                                 + np.float64(voxel).tobytes() + np.float64(pad).tobytes()).hexdigest()[:16]
+            path = None if cache_dir is None else os.path.join(cache_dir, f"contact_sdf_{name}_{key}.npy")
+            if path is not None and os.path.isfile(path):
+                sdf = np.load(path)
+            else:
+                axes = [np.linspace(low[i], high[i], shape[i]) for i in range(3)]
+                grid = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, 3)
+                inside = np.concatenate([trimesh.proximity.signed_distance(mesh, chunk)
+                                         for chunk in np.array_split(grid, max(1, len(grid) // 50000))])
+                sdf = (-inside).reshape(shape).astype(np.float32)        # negative inside
+                if path is not None:
+                    os.makedirs(cache_dir, exist_ok=True)
+                    np.save(path, sdf)
+            grids.append(sdf); lows.append(low); highs.append(high)
+            points.append(self._surface_points(mesh, V, F, points_per_body, seed))
+        self._grids = [torch.as_tensor(g)[None, None] for g in grids]       # [1,1,X,Y,Z]
+        self._low = np.asarray(lows); self._high = np.asarray(highs)
+        self._points = np.asarray(points)                                   # [B,P,3]
+        self.pairs = [(a, b) for a in range(self.n_bodies) for b in range(self.n_bodies) if a != b]
+
+    @staticmethod
+    def _surface_points(mesh, V, F, count, seed):
+        rng = np.random.default_rng(seed)
+        area = mesh.area_faces / mesh.area_faces.sum()
+        face = rng.choice(len(F), size=int(count), p=area)
+        w = rng.random((int(count), 2)); flip = w.sum(1) > 1; w[flip] = 1 - w[flip]
+        tri = V[F[face]]
+        return tri[:, 0] + w[:, :1] * (tri[:, 1] - tri[:, 0]) + w[:, 1:] * (tri[:, 2] - tri[:, 0])
+
+    def residual(self, packed_q, transforms):
+        numpy_in = not isinstance(transforms, torch.Tensor)
+        T = torch.as_tensor(np.asarray(transforms, float)) if numpy_in else transforms
+        lead = T.shape[:-3]
+        T = T.reshape(-1, self.n_bodies, 3, 4)
+        pts = torch.as_tensor(self._points, dtype=T.dtype, device=T.device)
+        world = torch.einsum("nbij,bpj->nbpi", T[..., :3], pts) + T[..., None, :, 3]
+        out = []
+        for a, b in self.pairs:
+            local = torch.einsum("nji,npj->npi", T[:, b, :, :3], world[:, a] - T[:, b, None, :, 3])
+            low = torch.as_tensor(self._low[b], dtype=T.dtype, device=T.device)
+            high = torch.as_tensor(self._high[b], dtype=T.dtype, device=T.device)
+            unit = 2.0 * (local - low) / (high - low) - 1.0                  # [-1,1] over the grid
+            # grid_sample indexes (x,y,z) as (W,H,D): reverse to match the [X,Y,Z] array.
+            coords = unit.flip(-1).reshape(1, -1, 1, 1, 3)
+            grid = self._grids[b].to(dtype=T.dtype, device=T.device)
+            sdf = torch.nn.functional.grid_sample(grid, coords, mode="bilinear", padding_mode="border",
+                                                  align_corners=True).reshape(len(T), -1)
+            out.append(torch.relu(-sdf).square().mean(-1))
+        r = torch.stack(out, -1).reshape(*lead, len(self.pairs))
+        return r.detach().cpu().numpy() if numpy_in else r
+
+
+class CombinedValidity:
+    """Concatenated residuals of several validity checks (closure, contact, ...)."""
+
+    def __init__(self, parts, case_spec):
+        self.parts = [p for p in parts if p is not None]
+        self.case_spec = case_spec
+        closure = [p for p in self.parts if hasattr(p, "joint_limit_invalid")]
+        if closure:
+            self.joint_limit_invalid = closure[0].joint_limit_invalid
+
+    def residual(self, packed_q, transforms):
+        values = [p.residual(packed_q, transforms) for p in self.parts]
+        values = [v for v in values if v is not None]
+        if not values:
+            return None
+        if isinstance(values[0], torch.Tensor):
+            return torch.cat(values, -1)
+        return np.concatenate(values, -1)
+
+
+def validity_from_case(case_spec, include_grounded=True, include_contact=False,
+                       contact_cache_dir=None, **contact_options) -> Optional[PhysicalValidity]:
     """Closure validity for a case.  ``include_grounded`` adds the joints to the
     fixed ground (training default: an unconstrained grounded pivot drifts, and
     on rotate those two joints dominated the worst-joint gap).  The ROM runtime
-    passes ``False`` so its closure readout keeps its historical meaning."""
+    passes ``False`` so its closure readout keeps its historical meaning.
+
+    ``include_contact`` (off by default) adds :class:`PenetrationValidity` for a
+    case whose bodies interact through contact, so decoded poses are also held
+    to non-penetration rather than only to the declared joints."""
     attachment = closure_attachments(case_spec, include_grounded=include_grounded)
-    return ClosureValidity(attachment, case_spec) if attachment is not None else None
+    closure = ClosureValidity(attachment, case_spec) if attachment is not None else None
+    if not include_contact or case_spec.contact_model == "none":
+        return closure
+    sampling = getattr(getattr(case_spec, "build", None), "sampling", None)
+    if getattr(sampling, "oracle_backend", None) == "superdex":
+        # Use the oracle's collider SDF, at the oracle's resolution, unless overridden.
+        from atlas_rom.simulate.superdex_oracle import MAX_SDF_CELLS
+        oracle = dict(getattr(sampling, "oracle_options", None) or {})
+        contact_options.setdefault("sdf_backend", "superdex")
+        if contact_options["sdf_backend"] == "superdex":
+            contact_options.setdefault("voxel", float(oracle.get("sdf_voxel", 0.0625)))
+            contact_options.setdefault("max_cells_per_body", int(oracle.get("max_sdf_cells", MAX_SDF_CELLS)))
+    contact = PenetrationValidity(case_spec, cache_dir=contact_cache_dir, **contact_options)
+    return CombinedValidity([closure, contact], case_spec)
 
 
 def _validity_residual(validity, packed_q, transforms):

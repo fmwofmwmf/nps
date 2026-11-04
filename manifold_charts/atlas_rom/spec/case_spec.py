@@ -645,6 +645,12 @@ class SamplingOptions:
     # a compatibility alias for older case files during the migration.
     exploration_strategy: str = "physical_advancing_front"
     oracle_backend: str | None = None
+    oracle_workers: int = 1           # processes for batched responses, where supported
+    # Keyword arguments for the oracle backend's constructor (resolution, budgets,
+    # step caps); passed through where the backend supports it, and an unknown
+    # key fails there.  Physical-system settings only, never a chart or dimension.
+    oracle_options: dict | None = None
+    keep_disagreeing_frames: bool = False  # keep poses off the rank vote, top-k framed and flagged
     # ``None`` means explore until the physical frontier is exhausted (or the
     # wall-clock budget expires), rather than imposing a sample-count cutoff.
     n_samples: int | None = 2000
@@ -675,6 +681,18 @@ class SamplingOptions:
     # on a handful of nodes instead of the ~16 a well-conditioned 2-D cone
     # needs).
     max_probes_per_node: int | None = None
+    # The metric the explorer measures in.  "packed" is plain distance on the
+    # packed transforms, which depends on where the world origin sits; "mass" is
+    # the kinetic-energy metric from each body's mesh moments and density
+    # (sample/mass_metric.py), with step and probe sizes read as RMS material
+    # displacement over the mechanism.
+    ambient_metric: str = "packed"
+    # Frame-measurement budget (see AdvancingFrontOptions): generic experiments
+    # per frame (None: ceil(log2(ambient + 1))), and aimed re-measurement along a
+    # certified frame at its own smaller scale (None: off).
+    generic_probe_count: int | None = None
+    aimed_probe_scale: float | None = None
+    aimed_random_count: int = 3
     # Oracle settle cost, the explorer's dominant expense.  One frontier pop
     # spends `probe_count` projections measuring the tangent frame before it
     # takes a single step, and each projection runs `drive_iters` driving plus
@@ -712,6 +730,9 @@ class SamplingOptions:
         return {"sampler": self.sampler,
                 "exploration_strategy": self.exploration_strategy,
                 "oracle_backend": self.oracle_backend,
+                "oracle_workers": self.oracle_workers,
+                "oracle_options": self.oracle_options,
+                "keep_disagreeing_frames": self.keep_disagreeing_frames,
                 "n_samples": self.n_samples, "step": self.step, "seed": self.seed,
                 "max_seconds": self.max_seconds, "reuse": self.reuse,
                 "target_grid": self.target_grid,
@@ -723,6 +744,10 @@ class SamplingOptions:
                 "checkpoint_seconds": self.checkpoint_seconds,
                 "graph_k": self.graph_k,
                 "max_probes_per_node": self.max_probes_per_node,
+                "ambient_metric": self.ambient_metric,
+                "generic_probe_count": self.generic_probe_count,
+                "aimed_probe_scale": self.aimed_probe_scale,
+                "aimed_random_count": self.aimed_random_count,
                 "probe_count": self.probe_count,
                 "drive_iters": self.drive_iters,
                 "relax_iters": self.relax_iters,
@@ -1050,9 +1075,12 @@ class AtlasCaseSpec:
         if self.build.sampling.exploration_strategy != "physical_advancing_front":
             raise ValueError(f"{self.name}: unsupported exploration strategy "
                              f"{self.build.sampling.exploration_strategy!r}")
-        if self.build.sampling.oracle_backend not in ("analytic", "contact", "sdf"):
+        if self.build.sampling.oracle_backend not in ("analytic", "contact", "sdf", "superdex"):
             raise ValueError(f"{self.name}: unsupported oracle backend "
                              f"{self.build.sampling.oracle_backend!r}")
+        if self.build.sampling.ambient_metric not in ("packed", "mass"):
+            raise ValueError(f"{self.name}: sampling.ambient_metric must be 'packed' or 'mass', "
+                             f"got {self.build.sampling.ambient_metric!r}")
         if sampler not in ("analytic", "contact"):
             raise ValueError(f"{self.name}: sampling.sampler must be 'analytic' or "
                              f"'contact', got {sampler!r}")

@@ -75,7 +75,15 @@ class LegacyPhysicalOracleAdapter:
                                 response.diagnostics, parent)
 
     def command_many(self, session, directions, scale, *, parent=None):
-        return [self.command(session, direction, scale, parent=parent) for direction in directions]
+        batched = getattr(self.oracle, "directional_responses", None)
+        if batched is None:
+            return [self.command(session, direction, scale, parent=parent) for direction in directions]
+        physical = []
+        for response in batched(session, [np.asarray(d, float) for d in directions], scale):
+            observation = self._observation(response.result, response.diagnostics)
+            physical.append(PhysicalResponse(observation, response.converged, response.valid,
+                                             response.diagnostics, parent))
+        return physical
 
 
 @dataclass(frozen=True)
@@ -197,6 +205,7 @@ class ManifoldOracle:
     """
 
     dim_ambient: int = 0
+    probe_directions: int = 4           # first batch of paired tangent probes
 
     def __init__(self, *, ledger: ProjectionLedger | None = None):
         self.ledger = ledger or ProjectionLedger()
@@ -355,7 +364,9 @@ class ManifoldOracle:
             return rows
 
         def rank_basis(rows):
-            accepted = [row for row in rows if row[3] >= 4.0 and np.linalg.norm(row[1]) > 1e-12]
+            # A large even part does not disqualify a row: the paired difference
+            # already cancels it.  Asymmetry stays a reported diagnostic.
+            accepted = [row for row in rows if np.linalg.norm(row[1]) > 1e-12]
             if len(accepted) < 2:
                 return None, None, accepted
             # Rank is estimated from unit derivatives.  A large response can
@@ -363,10 +374,10 @@ class ManifoldOracle:
             normalized = np.asarray([row[1] / np.linalg.norm(row[1]) for row in accepted])
             _u, singular, vt = np.linalg.svd(normalized, full_matrices=False)
             floor = 1e-8 * max(float(singular[0]), 1.0)
-            rank = int(np.count_nonzero(singular > floor))
-            if rank > 1:
-                gaps = singular[:-1] / np.maximum(singular[1:], floor)
-                rank = min(rank, int(np.argmax(gaps)) + 1)
+            # A singular value moves by at most the norm of the matrix's error,
+            # so only values above the rows' measured h vs h/2 error are resolved.
+            noise = float(np.sqrt(sum(float(row[4]) ** 2 for row in accepted)))
+            rank = int(np.count_nonzero(singular > max(noise, floor)))
             return vt.T[:, :rank], singular, accepted
 
         def paired_rows(directions):
@@ -411,7 +422,7 @@ class ManifoldOracle:
         # Candidate discovery is one pooled set, not competing per-batch rank
         # votes.  Each accepted direction costs the paired +/- h and +/- h/2
         # responses needed to make it comparable.
-        pooled, high_rows, low_rows = paired_rows(draw(4))
+        pooled, high_rows, low_rows = paired_rows(draw(self.probe_directions))
         basis, singular, accepted = rank_basis(pooled)
         for _ in range(3):
             if basis is not None and len(accepted) >= basis.shape[1] + 2:

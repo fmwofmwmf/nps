@@ -170,8 +170,8 @@ pipeline changes to shared code that now apply to every case.
   `timing` block into its report JSON: per-stage seconds,
   `started_at` / `finished_at` ISO timestamps, and total `wall_seconds`
   (see `patch_atlas.py` `build()` / `main()` for the pattern).
-- `competitive_cae` device choice: batched / parallel sweeps use
-  `device="cuda"`; single one-off runs use `device="cpu"`.
+- `competitive_cae` device choice: `device="cuda"` by default; use
+  `device="cpu"` only if it is faster for that run.
 - IPC pre-flight check (mandatory).  Anything that touches an IPC system --
   libuipc scenes, `contact_model != "none"` cases, IPC meshes/geometry
   (SDFs, distance grids, contact preprocessing), oracles, samplers,

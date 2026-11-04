@@ -28,7 +28,7 @@ from atlas_rom.rom.runtime import PatchAtlasRuntime
 
 
 class PositionAtlasRuntime(PatchAtlasRuntime):
-    def __init__(self, rom, *, transport="none", newton_iters=20, newton_tol=1e-10, **kw):
+    def __init__(self, rom, *, transport="none", newton_iters=20, newton_tol=1e-8, **kw):
         kw.setdefault("project_boundary", False)
         super().__init__(rom, **kw)
         if transport not in ("none", "projected"):

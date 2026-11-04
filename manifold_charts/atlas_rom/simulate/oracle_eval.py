@@ -12,6 +12,12 @@ from atlas_rom.simulate import ideal_oracle
 
 
 def _build_oracle(spec):
+    sampling = getattr(getattr(spec, "build", None), "sampling", None)
+    if getattr(sampling, "oracle_backend", None) == "superdex":
+        # The case's own oracle, not libuipc.  One SuperDex thread: callers parallelize across processes.
+        from atlas_rom.simulate.superdex_oracle import build_superdex_oracle
+        options = {"num_worker_threads": 1, **(sampling.oracle_options or {})}
+        return build_superdex_oracle(spec, log=lambda *_: None, **options)
     if ideal_oracle.supports(spec):
         return ideal_oracle.build_ideal_oracle(spec, log=lambda *_: None)
     from atlas_rom.simulate.oracle import build_oracle

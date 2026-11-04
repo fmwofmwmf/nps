@@ -452,6 +452,10 @@ def _select_oracle(spec, options, seed_hint, log, *, sdf_system=None):
         # Only the analytic oracle knows how to hold specific bodies fixed
         # during a correction; see `project`'s `hold` and `stationary_bodies`.
         return ideal_oracle.build_ideal_oracle(spec, log=log), True
+    if backend == "superdex":
+        from atlas_rom.simulate.superdex_oracle import build_superdex_oracle
+        return build_superdex_oracle(spec, log=log, n_workers=options.oracle_workers,
+                                     **(options.oracle_options or {})), False
     if backend != "contact":
         raise ValueError(f"{spec.name}: unsupported oracle backend {backend!r}")
     from atlas_rom.simulate.oracle import build_oracle
@@ -993,12 +997,15 @@ def _explore_legacy(spec, log=print, ledger_path=None):
     return accepted, frames, np.asarray(edges, int).reshape(-1, 2), fields
 
 
-def _seed_resume_checkpoint(source: str, checkpoint_dir: str, *, seed: int) -> None:
+def _seed_resume_checkpoint(source: str, checkpoint_dir: str, *, seed: int, transform=None) -> None:
     """Re-open a physical front using only recorded poses and witnessed edges."""
     source_path = os.path.join(source, dataset.SAMPLES) if os.path.isdir(source) else source
     with np.load(source_path, allow_pickle=False) as saved:
         poses = np.asarray(saved["q"], float)
         edges = np.asarray(saved["edges"] if "edges" in saved.files else [], int).reshape(-1, 2)
+    if transform is not None:
+        # the explorer's own coordinates (mass-whitened, when that metric is used)
+        poses = np.asarray([transform(pose) for pose in poses], float)
     if len(poses) < 2:
         raise ValueError("resume source needs at least two physical observations")
     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -1043,6 +1050,15 @@ def _explore(spec, log=print, ledger_path=None, *, checkpoint_dir=None, resume_f
 
     solver_oracle.response_validity = response_validity
     physical_oracle = LegacyPhysicalOracleAdapter(solver_oracle)
+    # In the mass metric the explorer works in whitened coordinates y = W q, so its
+    # euclidean steps, spacing, cones and secants are mass-weighted displacements.
+    # Everything it returns is mapped back to packed transforms below.
+    whitened = None
+    if options.ambient_metric == "mass":
+        from atlas_rom.sample.mass_metric import MassWhitenedSystem, mass_metric
+        whitened = MassWhitenedSystem(physical_oracle, *mass_metric(spec))
+        physical_oracle = whitened
+        log("sampling: exploring in the mass metric (RMS material displacement)")
     if resume_from is not None:
         if checkpoint_dir is None:
             raise ValueError("resuming a physical front requires a checkpoint directory")
@@ -1055,7 +1071,8 @@ def _explore(spec, log=print, ledger_path=None, *, checkpoint_dir=None, resume_f
         if not (os.path.samefile(source_frontier, target_frontier)
                 if os.path.exists(source_frontier) and os.path.exists(target_frontier)
                 else os.path.abspath(source_frontier) == os.path.abspath(target_frontier)):
-            _seed_resume_checkpoint(resume_from, checkpoint_dir, seed=options.seed)
+            _seed_resume_checkpoint(resume_from, checkpoint_dir, seed=options.seed,
+                                    transform=None if whitened is None else whitened.to_whitened)
         log(f"sampling: resuming physical frontier from {resume_from}")
     seed_values = [np.asarray(seed, float) for seed in spec.seeds]
     if not seed_values and options.seed_reuse:
@@ -1067,6 +1084,8 @@ def _explore(spec, log=print, ledger_path=None, *, checkpoint_dir=None, resume_f
             raise ValueError(f"{spec.name}: seed_reuse {options.seed_reuse!r} is empty")
         seed_values = [seed_q[int(options.seed_index) % len(seed_q)]]
         log(f"sampling: seeded from {paths[0]} frame {options.seed_index}/{len(seed_q)}")
+    if whitened is not None:
+        seed_values = [whitened.to_whitened(value) for value in seed_values]
     seeds = ([PhysicalObservation(value) for value in seed_values]
              if seed_values else None)
     q, edges, frames, _records = explore(
@@ -1076,11 +1095,15 @@ def _explore(spec, log=print, ledger_path=None, *, checkpoint_dir=None, resume_f
                                       max_seconds=options.max_seconds,
                                       probe_scale=options.tangent_eps,
                                       rank_gap_ratio=options.rank_gap_ratio,
+                                      keep_disagreeing_frames=options.keep_disagreeing_frames,
                                       checkpoint_seconds=options.checkpoint_seconds,
                                       spacing_fraction=0.6,
                                       seed=options.seed,
                                       report_every=50,
-                                      max_probes_per_node=options.max_probes_per_node),
+                                      max_probes_per_node=options.max_probes_per_node,
+                                      generic_probe_count=options.generic_probe_count,
+                                      aimed_probe_scale=options.aimed_probe_scale,
+                                      aimed_random_count=options.aimed_random_count),
         seeds=seeds, log=log, checkpoint_dir=checkpoint_dir, resume_from=resume_from,
         repair_inference=resume_and_repair)
     cache = solver_oracle.ledger.statistics
@@ -1089,7 +1112,19 @@ def _explore(spec, log=print, ledger_path=None, *, checkpoint_dir=None, resume_f
         for key, value in cache.items()))
     if len(frames) != len(q):
         raise RuntimeError("physical advancing front did not produce one frame per pose")
+    if whitened is not None:
+        q = np.asarray([whitened.to_packed(value) for value in q], float)
+        frames = [_packed_frame(whitened, frame) for frame in frames]
     return q, np.asarray(frames), edges, {}
+
+
+def _packed_frame(whitened, frame):
+    """A whitened-coordinate frame as an orthonormal basis of the same span in packed coordinates."""
+    frame = np.asarray(frame, float)
+    if frame.ndim != 2 or not frame.shape[1]:
+        return frame
+    basis, _r = np.linalg.qr(whitened.to_packed(frame))
+    return basis
 
 
 def _chord_k(options, frames) -> int:
@@ -1235,8 +1270,18 @@ def prepare(case, work: str, root: str, *, log=print, sdf_system=None,
     # path so downstream training cannot distinguish a privileged branch.
     from atlas_rom.sample import new_dataset, sample_graph
     certificate_oracle, _unused = _select_oracle(case, options, None, log)
+    certificate_metric = None
+    if options.ambient_metric == "mass":
+        # chords are offered, measured and judged in the metric the front explored in
+        from atlas_rom.sample.mass_metric import mass_metric
+        weigh = mass_metric(case)[0].weigh
+        certificate_metric = lambda rows: weigh(np.asarray(rows, float).T).T
     certified, graph_report = sample_graph.certified_edges(q, edges, certificate_oracle,
-                                                       k=_chord_k(options, frames), log=log)
+                                                       k=_chord_k(options, frames), log=log,
+                                                       metric=certificate_metric)
+    close = getattr(certificate_oracle, "close", None)
+    if close is not None:
+        close()
     sample_graph.save(os.path.join(work, sample_graph.ARTIFACT), certified, graph_report)
     built = new_dataset.build(work, log=log)
     log(f"sampling[{options.sampler}]: {len(q)} states, {len(edges)} witnessed edges")

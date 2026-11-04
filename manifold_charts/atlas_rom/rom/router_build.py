@@ -59,11 +59,15 @@ def _refresh_manifest_hash(rom_dir: str, artifact: str) -> None:
 
 def attach(work_dir: str, case: str, *, dataset_dir: str | None = None, artifact: str = "patch_atlas.pt",
            n_per: int = 300, epochs: int = 4000, device: str | None = None, workers: int | None = None,
-           log=print) -> dict:
+           exit_rollouts: int = 200, checkpoint_dir: str | None = None, warm_start: bool = False,
+           label_max_steps: int | None = None, log=print) -> dict:
     """Train the router for ``<work_dir>/<artifact>`` and write it into ``physics_fields["router"]``.
 
     ``workers`` caps the CPU processes that project the label claims (None: one per core).  Each builds
-    its own oracle, so on a large mechanism the count is a memory budget, not just a speed knob."""
+    its own oracle, so on a large mechanism the count is a memory budget, not just a speed knob.
+    Stage checkpoints go to ``checkpoint_dir`` (default ``<work_dir>/router_ckpt``); a rerun resumes from them.
+    ``warm_start`` projects each label claim from its nearest dataset pose (in the mass metric when the case
+    samples in it), within ``label_max_steps`` solver steps."""
     from atlas_rom.cases import load_spec
     from atlas_rom.simulate import oracle_eval
     path = os.path.join(work_dir, artifact)
@@ -85,10 +89,17 @@ def attach(work_dir: str, case: str, *, dataset_dir: str | None = None, artifact
     mass_fields = [learned.load_mass(x) for x in pf["mass_fields"]] if "mass_fields" in pf else None
     potential_fields = [learned.load_scalar(x) for x in pf["potential_fields"]] if "potential_fields" in pf else None
     bodies = {**geometry.build_bodies(spec.mechanism), "up": spec.mechanism.up_vector, "gravity": spec.mechanism.gravity}
+    start_weigh = None
+    if warm_start and getattr(spec.build.sampling, "ambient_metric", "packed") == "mass":
+        from atlas_rom.sample.mass_metric import mass_metric
+        weigh = mass_metric(spec)[0].weigh
+        start_weigh = lambda rows: weigh(np.asarray(rows, float).T).T
     payload, report = train_router(models, anchors, q_all, oracle, n_per=n_per, epochs=epochs,
                                    device=device or ("cuda" if torch.cuda.is_available() else "cpu"), log=log,
                                    mass_fields=mass_fields, potential_fields=potential_fields, bodies=bodies, case=case,
-                                   workers=workers)
+                                   workers=workers, exit_rollouts=exit_rollouts,
+                                   checkpoint_dir=checkpoint_dir or os.path.join(work_dir, "router_ckpt"),
+                                   warm_start=warm_start, start_weigh=start_weigh, label_max_steps=label_max_steps)
     state["physics_fields"]["router"] = payload
     torch.save(state, path)
     _refresh_manifest_hash(work_dir, artifact)
@@ -135,12 +146,21 @@ def main():
                     help="CPU processes projecting label claims (default: one per core)")
     ap.add_argument("--embed-file", default=None,
                     help="instead of training, embed this existing router file into --work's artifact")
+    ap.add_argument("--exit-rollouts", type=int, default=200,
+                    help="learned-dynamics rollouts per chart for the exit-state labels (the bulk of the oracle cost)")
+    ap.add_argument("--warm-start", action="store_true",
+                    help="project each label claim from its nearest dataset pose instead of the previous claim's")
+    ap.add_argument("--label-max-steps", type=int, default=None,
+                    help="solver step budget per warm-started label (a claim that does not settle is dropped)")
+    ap.add_argument("--checkpoint-dir", default=None,
+                    help="stage checkpoints, resumed on rerun (default: <work>/router_ckpt)")
     a = ap.parse_args()
     if a.embed_file:
         print("embedded into", embed(a.work, a.embed_file))
         return
     attach(a.work, a.case, dataset_dir=a.dataset, n_per=a.n_per, epochs=a.epochs, device=a.device,
-           workers=a.workers)
+           workers=a.workers, exit_rollouts=a.exit_rollouts, checkpoint_dir=a.checkpoint_dir,
+           warm_start=a.warm_start, label_max_steps=a.label_max_steps)
 
 
 if __name__ == "__main__":

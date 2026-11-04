@@ -1,5 +1,5 @@
 """Rotate refit with repo-native 5-joint closure.  usage: run_phase2.py P2 LR_STEP GAMMA TAG [FT_EPOCHS]
-Stage 1: competitive_cae fit (8 charts, width 96, CUDA, closure x10, lr decay via lr_step_epochs/gamma).
+Stage 1: competitive_cae fit (8 charts, width $WIDTH (default 96), CUDA, closure x10, lr decay via lr_step_epochs/gamma).
 Stage 2: per-chart fine-tune on each chart's competent poses (recon + closure x10), then re-score.
 Scores (200 fresh oracle poses): D(E(q)) best-chart rms and worst-joint gap, plus cross-chart disagreement
 (rms between D_i(E_i q) and D_j(E_j q) over poses two charts both reconstruct acceptably)."""
@@ -37,7 +37,8 @@ rs = np.empty((nb, 3, 4)); rs[..., :3] = np.where(rv > 1e-12, rv, floor)[:, None
 
 evidence = ChartFitInput(q, np.asarray(data["frames"], float),
                          np.asarray(data.get("local_edges", data["cover_edges"]), dtype=int), physical_validity=inner)
-config = ChartFitConfig(fitter_id="competitive_cae", width=96, epochs=1, construction_only=False, seed=0,
+WIDTH = int(os.environ.get("WIDTH", "96"))                         # encoder/decoder hidden width
+config = ChartFitConfig(fitter_id="competitive_cae", width=WIDTH, epochs=1, construction_only=False, seed=0,
                         options={"n_charts": 8, "device": "cuda"})
 report, models, patches, anchors = CompetitiveCAEFitter().fit(
     evidence, config, work=str(OUT), case=case, device="cuda", n_charts=8, pretrain_steps=500,
@@ -46,6 +47,7 @@ report, models, patches, anchors = CompetitiveCAEFitter().fit(
     phase2_exploration_snapshot_every=(int(os.environ["SNAP2_EVERY"]) if os.environ.get("SNAP2_EVERY") else None),
     epoch_trace=bool(os.environ.get("EPOCH_TRACE")), snapshot_prune_steps=bool(os.environ.get("PRUNE_SNAP")),
     m_step_batch_size=int(os.environ.get("BATCH", "256")),
+    second_cover_grad_ratio=(float(os.environ['SECOND_COVER_RATIO']) if os.environ.get('SECOND_COVER_RATIO') else None),
     lr_step_epochs=STEP, lr_step_gamma=GAMMA, log=lambda *a: None)
 t_fit = time.time() - t0
 models = [m.cpu().double().eval() for m in models]
@@ -85,7 +87,7 @@ def save(ms, name):
 
 
 tp = report["two_phase"]
-summary = dict(tag=TAG, p2=P2, lr_step=STEP, gamma=GAMMA, n_patches=report["n_patches"], n_uncovered=report["n_uncovered"],
+summary = dict(tag=TAG, width=WIDTH, second_cover_ratio=os.environ.get('SECOND_COVER_RATIO'), p2=P2, lr_step=STEP, gamma=GAMMA, n_patches=report["n_patches"], n_uncovered=report["n_uncovered"],
                p2_peak_uncovered=max(x["n_uncovered"] for x in tp["phase2"]["coverage_curve"]),
                handoff=report.get("handoff_over_sqrt2_recon"), overlap_ok=report.get("overlap_ok"),
                noise=[report.get("inverse_noise_floor"), report.get("off_domain_noise_floor")], fit_seconds=t_fit)

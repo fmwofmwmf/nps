@@ -23,12 +23,25 @@ class AdvancingFrontOptions:
     cone_angle_deg: float = 22.5
     probe_scale: float | None = None
     rank_gap_ratio: float = 1e3
+    keep_disagreeing_frames: bool = False  # see _vote_frames
     # Inside the gap-certified span, keep only directions whose secant at h is
     # at least this fraction of the secant at h/2 (tangent ~1, clearance ~0.5).
     scale_invariance_ratio: float = .75
     checkpoint_seconds: float | None = None
     report_every: int | None = None  # log progress/throughput every N accepted poses
     max_probes_per_node: int | None = None  # give up on a node's cone after this many tries
+    # Generic experiments per frame; None keeps ceil(log2(ambient + 1)).  A
+    # measurement budget only: the frame's rank is still inferred from responses.
+    generic_probe_count: int | None = None
+    # Aimed re-measurement.  When set, a node whose own earlier frame, or a
+    # neighbour's, is certified is probed along that frame's directions and their
+    # pairwise diagonals, plus ``aimed_random_count`` generic experiments, at this
+    # smaller scale: aimed commands do not push against the joints, so they cost
+    # a fraction of generic ones.  The rank is still inferred from the responses;
+    # a result that is uncertain or of lower rank than the frame it was aimed by
+    # is re-measured with the generic experiments at ``probe_scale``.
+    aimed_probe_scale: float | None = None
+    aimed_random_count: int = 3
 
 
 def _unit(value: np.ndarray) -> np.ndarray | None:
@@ -45,6 +58,47 @@ def _rank_by_gap(singular: np.ndarray, gap_ratio: float) -> int | None:
     ratios = np.maximum(values, floor)[:-1] / np.maximum(values, floor)[1:]
     hits = np.flatnonzero(ratios >= gap_ratio)
     return int(hits[0]) + 1 if len(hits) else None
+
+
+def _rank_by_noise(singular: np.ndarray, errors: np.ndarray) -> int | None:
+    """Singular values of unit secants that exceed the secants' measured error.
+
+    A singular value moves by at most the norm of the matrix's error, so a value
+    below that norm cannot be told apart from the h vs h/2 disagreement.
+    """
+    values = np.asarray(singular, float)
+    if not len(values) or values[0] <= 0.:
+        return None
+    noise = float(np.sqrt(np.sum(np.square(errors))))
+    rank = int(np.count_nonzero(values > max(noise, values[0] * np.finfo(float).eps)))
+    return rank or None
+
+
+def _vote_frames(records: dict[int, dict], keep_disagreeing: bool = False) -> tuple[int, list[int]]:
+    """Select the poses that carry a frame of the dataset's modal rank.
+
+    By default a pose that disagrees with the vote is dropped: on an exact oracle
+    the disagreement is real information.  Where a single measurement's rank is
+    noisy, ``keep_disagreeing`` instead keeps its top measured directions.  Such
+    a pose is flagged, with its own rank retained, because at a real singularity
+    those directions can be noise.  Returns the modal rank and the kept poses.
+    """
+    certified = [record["rank"] for record in records.values()
+                 if record["outcome"] == "certified_regular" and record["rank"] > 0]
+    if not certified:
+        return 0, []
+    modal = Counter(certified).most_common(1)[0][0]
+    kept = []
+    for index, record in records.items():
+        agrees = record["outcome"] == "certified_regular" and record["rank"] == modal
+        directions = record.get("directions")
+        if not agrees:
+            if not keep_disagreeing or directions is None or directions.shape[1] < modal:
+                continue
+            record["frame"] = directions[:, :modal]
+            record["frame_low_confidence"] = True
+        kept.append(index)
+    return modal, kept
 
 
 def _scale_invariant_frame(span: np.ndarray, odd_h: np.ndarray, odd_half: np.ndarray,
@@ -328,141 +382,205 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
         ambient = poses[index].size
         if index in records and index not in dirty:
             return session, np.asarray(records[index]["frame"], float), records[index]
-        prior = inference_probes.setdefault(index, [])
-        for other in neighbours.get(index, ()):
-            secant = _unit(poses[other] - poses[index])
-            if secant is not None and not any(np.allclose(secant, value) for value in prior):
-                prior.append(secant)
-        # Walked secants are better-aimed than a random draw -- they connect two
-        # accepted samples, so they lie near the tangent by construction -- but
-        # they must TOP UP the generic experiments, never stand in for them.  A
-        # fresh child always has exactly one neighbour (its parent), so seeding
-        # from secants alone leaves it measuring a rank-1 span from a single
-        # direction, and a rank-1 node has only two cone directions and retires
-        # after two walks.  That read SO(3) as rank 1 at 176 of 177 nodes and
-        # stopped exploration outright.
-        count = max(1, int(np.ceil(np.log2(ambient + 1))))
-        if len(prior) < count:
-            # A compact, deterministic set of generic physical experiments.
-            # Its size grows with observation complexity but is not a declared
-            # state/tangent dimension and does not become the learned frame.
-            generator = np.random.default_rng(np.random.SeedSequence((options.seed, index, ambient)))
+        if (options.aimed_probe_scale is not None and index in records
+                and records[index]["outcome"] == "certified_regular"
+                and np.asarray(records[index]["frame"]).shape[1]):
+            # A new neighbour adds no experiment to an aimed measurement, which is
+            # aimed by this node's own certified frame: re-measuring would repeat it.
+            dirty.discard(index)
+            return session, np.asarray(records[index]["frame"], float), records[index]
+
+        def generic(count: int, salt: tuple = ()) -> np.ndarray:
+            """Deterministic generic experiments, columns of an (ambient, count) array.
+
+            A system may draw its own (``generic_directions``), for instance so
+            that every body is pushed by a comparable physical amount.
+            """
+            generator = np.random.default_rng(np.random.SeedSequence((options.seed, index, ambient) + salt))
+            make = getattr(system, "generic_directions", None)
+            if make is not None:
+                return np.asarray(make(generator, count), float).reshape(ambient, count)
             proposals, _ = np.linalg.qr(generator.standard_normal((ambient, count)), mode="reduced")
-            prior.extend(proposals[:, column] for column in range(count - len(prior)))
-        h = options.probe_scale if options.probe_scale is not None else options.step * .25
-        secants: list[np.ndarray] = []
-        odd_hs: list[np.ndarray] = []
-        odd_halves: list[np.ndarray] = []
-        stable = 0
-        valid = 0
-        one_sided = 0
-        boundary_hits: list[tuple[np.ndarray, str]] = []
-        base = np.asarray(observation.pose, float).reshape(-1)
+            return proposals
 
-        def usable(item) -> bool:
-            return bool(item.valid and item.converged and np.isfinite(item.observation.pose).all())
+        def measure(prior: list[np.ndarray], h: float):
+            secants: list[np.ndarray] = []
+            errors: list[float] = []
+            odd_hs: list[np.ndarray] = []
+            odd_halves: list[np.ndarray] = []
+            stable = 0
+            valid = 0
+            one_sided = 0
+            boundary_hits: list[tuple[np.ndarray, str]] = []
+            base = np.asarray(observation.pose, float).reshape(-1)
 
-        def at_boundary(item) -> bool:
-            return (not item.valid) and bool((item.diagnostics or {}).get("physical_boundary"))
+            def usable(item) -> bool:
+                return bool(item.valid and item.converged and np.isfinite(item.observation.pose).all())
 
-        # Every probe restores the same baseline first, so the whole set is one
-        # batch per scale: a backend that answers batches in parallel gets all
-        # of them at once, and a serial one gives exactly the same responses.
-        units = [unit for unit in map(_unit, prior) if unit is not None]
-        signed = [s * unit for unit in units for s in (1., -1.)]
-        at_h = system.command_many(session, signed, h, parent=index) if units else []
-        at_half = system.command_many(session, signed, h / 2., parent=index) if units else []
-        for k, unit in enumerate(units):
-            plus, minus = at_h[2 * k], at_h[2 * k + 1]
-            half_plus, half_minus = at_half[2 * k], at_half[2 * k + 1]
-            responses = (plus, minus, half_plus, half_minus)
-            if all(usable(item) for item in responses):
-                odd_h = (np.asarray(plus.observation.pose, float).reshape(-1) -
-                         np.asarray(minus.observation.pose, float).reshape(-1)) / (2. * h)
-                odd_half = (np.asarray(half_plus.observation.pose, float).reshape(-1) -
-                            np.asarray(half_minus.observation.pose, float).reshape(-1)) / h
-                richardson = (4. * odd_half - odd_h) / 3.
-            else:
-                # A side that answered "physical boundary" is evidence, not a
-                # failed experiment: the boundary lies within h (or h/2) along
-                # it.  Record it.  The tangent space at a boundary point is a
-                # half-space, still full rank, so the other side's one-sided
-                # differences still measure it:  s(t) = (x(t) - x)/t = D + c t,
-                # and 2 s(h/2) - s(h) = D.  Both sides blocked, or a side that
-                # failed for any other reason, leaves the pair unusable as
-                # before.
-                sides, blocked_cleanly = [], True
-                for sign, full, half in ((1., plus, half_plus), (-1., minus, half_minus)):
-                    if usable(full) and usable(half):
-                        sides.append((sign, full, half))
-                    elif at_boundary(half) or at_boundary(full):
-                        boundary_hits.append((sign * unit, "h/2" if at_boundary(half) else "h"))
-                        # every response on this side is either fine or a boundary
-                        blocked_cleanly &= all(usable(r) or at_boundary(r) for r in (full, half))
-                    else:
-                        blocked_cleanly = False
-                if len(sides) != 1 or not blocked_cleanly:
+            def at_boundary(item) -> bool:
+                return (not item.valid) and bool((item.diagnostics or {}).get("physical_boundary"))
+
+            # Every probe restores the same baseline first, so the whole set is one
+            # batch per scale: a backend that answers batches in parallel gets all
+            # of them at once, and a serial one gives exactly the same responses.
+            units = [unit for unit in map(_unit, prior) if unit is not None]
+            signed = [s * unit for unit in units for s in (1., -1.)]
+            at_h = system.command_many(session, signed, h, parent=index) if units else []
+            at_half = system.command_many(session, signed, h / 2., parent=index) if units else []
+            for k, unit in enumerate(units):
+                plus, minus = at_h[2 * k], at_h[2 * k + 1]
+                half_plus, half_minus = at_half[2 * k], at_half[2 * k + 1]
+                responses = (plus, minus, half_plus, half_minus)
+                if all(usable(item) for item in responses):
+                    odd_h = (np.asarray(plus.observation.pose, float).reshape(-1) -
+                             np.asarray(minus.observation.pose, float).reshape(-1)) / (2. * h)
+                    odd_half = (np.asarray(half_plus.observation.pose, float).reshape(-1) -
+                                np.asarray(half_minus.observation.pose, float).reshape(-1)) / h
+                    richardson = (4. * odd_half - odd_h) / 3.
+                else:
+                    # A side that answered "physical boundary" is evidence, not a
+                    # failed experiment: the boundary lies within h (or h/2) along
+                    # it.  Record it.  The tangent space at a boundary point is a
+                    # half-space, still full rank, so the other side's one-sided
+                    # differences still measure it:  s(t) = (x(t) - x)/t = D + c t,
+                    # and 2 s(h/2) - s(h) = D.  Both sides blocked, or a side that
+                    # failed for any other reason, leaves the pair unusable as
+                    # before.
+                    sides, blocked_cleanly = [], True
+                    for sign, full, half in ((1., plus, half_plus), (-1., minus, half_minus)):
+                        if usable(full) and usable(half):
+                            sides.append((sign, full, half))
+                        elif at_boundary(half) or at_boundary(full):
+                            boundary_hits.append((sign * unit, "h/2" if at_boundary(half) else "h"))
+                            # every response on this side is either fine or a boundary
+                            blocked_cleanly &= all(usable(r) or at_boundary(r) for r in (full, half))
+                        else:
+                            blocked_cleanly = False
+                    if len(sides) != 1 or not blocked_cleanly:
+                        continue
+                    sign, full, half = sides[0]
+                    odd_h = sign * (np.asarray(full.observation.pose, float).reshape(-1) - base) / h
+                    odd_half = sign * (np.asarray(half.observation.pose, float).reshape(-1) - base) / (h / 2.)
+                    # One-sided differences carry every power of t, so two scales
+                    # only reach O(h^2) where the central pair reaches O(h^4).  Two
+                    # more scales on the open side and a Richardson table restore
+                    # O(h^4), so frames at a boundary are as precise as inside.
+                    levels = [odd_h, odd_half]
+                    for k in (2, 3):
+                        t = h / 2. ** k
+                        extra = system.command(session, sign * unit, t, parent=index)
+                        if not usable(extra):
+                            break
+                        levels.append(sign * (np.asarray(extra.observation.pose, float).reshape(-1) - base) / t)
+                    table = list(levels)
+                    for j in range(1, len(levels)):
+                        table = [(2. ** j * table[k + 1] - table[k]) / (2. ** j - 1.) for k in range(len(table) - 1)]
+                    richardson = table[0]
+                    one_sided += 1
+                if not np.isfinite(richardson).all() or np.linalg.norm(richardson) <= 1e-12:
                     continue
-                sign, full, half = sides[0]
-                odd_h = sign * (np.asarray(full.observation.pose, float).reshape(-1) - base) / h
-                odd_half = sign * (np.asarray(half.observation.pose, float).reshape(-1) - base) / (h / 2.)
-                # One-sided differences carry every power of t, so two scales
-                # only reach O(h^2) where the central pair reaches O(h^4).  Two
-                # more scales on the open side and a Richardson table restore
-                # O(h^4), so frames at a boundary are as precise as inside.
-                levels = [odd_h, odd_half]
-                for k in (2, 3):
-                    t = h / 2. ** k
-                    extra = system.command(session, sign * unit, t, parent=index)
-                    if not usable(extra):
-                        break
-                    levels.append(sign * (np.asarray(extra.observation.pose, float).reshape(-1) - base) / t)
-                table = list(levels)
-                for j in range(1, len(levels)):
-                    table = [(2. ** j * table[k + 1] - table[k]) / (2. ** j - 1.) for k in range(len(table) - 1)]
-                richardson = table[0]
-                one_sided += 1
-            if not np.isfinite(richardson).all() or np.linalg.norm(richardson) <= 1e-12:
-                continue
-            valid += 1
-            relative = float(np.linalg.norm(odd_half - odd_h) / max(np.linalg.norm(richardson), 1e-12))
-            if relative <= .2:
-                stable += 1
-            secants.append(richardson)
-            odd_hs.append(odd_h)
-            odd_halves.append(odd_half)
-        if not secants:
-            frame = np.empty((ambient, 0))
-            diagnostics = {"probe_count": len(prior), "valid_pairs": 0, "stable_pairs": 0,
-                           "outcome": "uncertain"}
-        else:
-            left, singular, _right = np.linalg.svd(np.column_stack(secants), full_matrices=False)
-            rank = _rank_by_gap(singular, options.rank_gap_ratio)
-            gap_ratio = (float(singular[rank - 1] / max(singular[rank], np.finfo(float).tiny))
-                         if rank is not None and 0 < rank < len(singular) else None)
-            scale_ratios = None
-            if rank is not None:
-                # The gap certifies the span the joints leave free; clearance
-                # play inside it is removed by its scale response.
-                frame, scale_ratios = _scale_invariant_frame(
-                    left[:, :rank], np.column_stack(odd_hs), np.column_stack(odd_halves),
-                    options.scale_invariance_ratio)
-            else:
+                valid += 1
+                relative = float(np.linalg.norm(odd_half - odd_h) / max(np.linalg.norm(richardson), 1e-12))
+                if relative <= .2:
+                    stable += 1
+                secants.append(richardson)
+                errors.append(relative)
+                odd_hs.append(odd_h)
+                odd_halves.append(odd_half)
+            directions = np.empty((ambient, 0))
+            if not secants:
                 frame = np.empty((ambient, 0))
-            diagnostics = {"probe_count": len(prior), "valid_pairs": valid, "stable_pairs": stable,
-                           "one_sided_pairs": one_sided,
-                           "singular_values": singular.tolist(), "spectral_gap_ratio": gap_ratio,
-                           "gap_rank": rank,
-                           "scale_ratios": None if scale_ratios is None else scale_ratios.tolist(),
-                           "outcome": ("certified_regular" if frame.shape[1] and stable
-                                       else "uncertain")}
-        if boundary_hits:
-            # Kept in the node's own frame coordinates (rank-sized, not
-            # ambient-sized), with the probe scale it failed at.
-            diagnostics["boundary_probes"] = [
-                {"tangent": (frame.T @ direction).tolist() if frame.shape[1] else [],
-                 "failed_at": scale} for direction, scale in boundary_hits]
+                diagnostics = {"probe_count": len(prior), "valid_pairs": 0, "stable_pairs": 0,
+                               "outcome": "uncertain"}
+            else:
+                left, singular, _right = np.linalg.svd(np.column_stack(secants), full_matrices=False)
+                directions = left
+                # `errors` are relative, so rank compares them against unit secants;
+                # the frame keeps the magnitude-weighted span.
+                stacked = np.column_stack(secants)
+                unit_singular = np.linalg.svd(stacked / np.linalg.norm(stacked, axis=0), compute_uv=False)
+                rank = _rank_by_noise(unit_singular, np.asarray(errors))
+                gap_ratio = (float(singular[rank - 1] / max(singular[rank], np.finfo(float).tiny))
+                             if rank is not None and 0 < rank < len(singular) else None)
+                scale_ratios = None
+                if rank is not None:
+                    # The gap certifies the span the joints leave free; clearance
+                    # play inside it is removed by its scale response.
+                    frame, scale_ratios = _scale_invariant_frame(
+                        left[:, :rank], np.column_stack(odd_hs), np.column_stack(odd_halves),
+                        options.scale_invariance_ratio)
+                else:
+                    frame = np.empty((ambient, 0))
+                diagnostics = {"probe_count": len(prior), "valid_pairs": valid, "stable_pairs": stable,
+                               "one_sided_pairs": one_sided,
+                               "singular_values": singular.tolist(), "spectral_gap_ratio": gap_ratio,
+                               "unit_singular_values": unit_singular.tolist(),
+                               "secant_noise": float(np.sqrt(np.sum(np.square(errors)))),
+                               "gap_rank": rank,
+                               "scale_ratios": None if scale_ratios is None else scale_ratios.tolist(),
+                               "outcome": ("certified_regular" if frame.shape[1] and stable
+                                           else "uncertain")}
+            if boundary_hits:
+                # Kept in the node's own frame coordinates (rank-sized, not
+                # ambient-sized), with the probe scale it failed at.
+                diagnostics["boundary_probes"] = [
+                    {"tangent": (frame.T @ direction).tolist() if frame.shape[1] else [],
+                     "failed_at": scale} for direction, scale in boundary_hits]
+            return frame, directions, diagnostics
+
+        reference = None
+        if options.aimed_probe_scale is not None:
+            # The node's own earlier certified frame, else a certified neighbour's.
+            for other in [index] + sorted(neighbours.get(index, ())):
+                held = records.get(other)
+                if (held is not None and held["outcome"] == "certified_regular"
+                        and np.asarray(held["frame"]).shape[1]):
+                    reference = np.asarray(held["frame"], float)
+                    break
+        mode = "generic"
+        if reference is not None:
+            aimed = [reference[:, k] for k in range(reference.shape[1])]
+            for a in range(reference.shape[1]):
+                for b in range(a + 1, reference.shape[1]):
+                    for sign in (1., -1.):
+                        diagonal = _unit(reference[:, a] + sign * reference[:, b])
+                        if diagonal is not None:
+                            aimed.append(diagonal)
+            if options.aimed_random_count > 0:
+                extra = generic(int(options.aimed_random_count), (1,))
+                aimed.extend(extra[:, column] for column in range(extra.shape[1]))
+            frame, directions, diagnostics = measure(aimed, float(options.aimed_probe_scale))
+            if diagnostics["outcome"] == "certified_regular" and frame.shape[1] >= reference.shape[1]:
+                mode = "aimed"
+            else:
+                mode = "aimed_fallback"
+        if mode != "aimed":
+            prior = inference_probes.setdefault(index, [])
+            for other in neighbours.get(index, ()):
+                secant = _unit(poses[other] - poses[index])
+                if secant is not None and not any(np.allclose(secant, value) for value in prior):
+                    prior.append(secant)
+            # Walked secants are better-aimed than a random draw -- they connect two
+            # accepted samples, so they lie near the tangent by construction -- but
+            # they must TOP UP the generic experiments, never stand in for them.  A
+            # fresh child always has exactly one neighbour (its parent), so seeding
+            # from secants alone leaves it measuring a rank-1 span from a single
+            # direction, and a rank-1 node has only two cone directions and retires
+            # after two walks.  That read SO(3) as rank 1 at 176 of 177 nodes and
+            # stopped exploration outright.
+            count = (options.generic_probe_count if options.generic_probe_count is not None
+                     else max(1, int(np.ceil(np.log2(ambient + 1)))))
+            if len(prior) < count:
+                # A compact, deterministic set of generic physical experiments.
+                # Its size grows with observation complexity but is not a declared
+                # state/tangent dimension and does not become the learned frame.
+                proposals = generic(count)
+                prior.extend(proposals[:, column] for column in range(count - len(prior)))
+            h = options.probe_scale if options.probe_scale is not None else options.step * .25
+            frame, directions, diagnostics = measure(prior, h)
+        diagnostics["probe_mode"] = mode
         record = {"index": index, "frame": frame, "rank": int(frame.shape[1]),
+                  "directions": directions,
                   "outcome": diagnostics["outcome"], "diagnostics": diagnostics}
         records[index] = record
         dirty.discard(index)
@@ -656,11 +774,7 @@ def explore(system: PhysicalSystem, *, options: AdvancingFrontOptions | None = N
     for index in range(len(poses)):
         if index not in records:
             infer(index)
-    regular = [index for index, record in records.items()
-               if record["outcome"] == "certified_regular" and record["rank"] > 0]
-    ranks = {records[index]["rank"] for index in regular}
-    modal_rank = max(ranks, key=lambda rank: sum(records[index]["rank"] == rank for index in regular)) if ranks else 0
-    regular = [index for index in regular if records[index]["rank"] == modal_rank]
+    modal_rank, regular = _vote_frames(records, options.keep_disagreeing_frames)
     # Keep a physically observed seed even when every paired experiment ends
     # at a boundary.  It remains explicitly uncertain (rank zero), rather than
     # being silently fabricated into a chart frame or erased from the evidence.

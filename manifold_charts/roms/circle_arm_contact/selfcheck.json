@@ -1,0 +1,204 @@
+{
+  "case": "circle_arm_contact",
+  "n_patches": 6,
+  "pass": false,
+  "checks": {
+    "integrity": {
+      "pass": true,
+      "artifact_sha256_match": true,
+      "build_report_sha256_match": true
+    },
+    "domain": {
+      "pass": true,
+      "tol": 0.05,
+      "patches": [
+        {
+          "patch": 0,
+          "n_checked": 32,
+          "max_relative_roundtrip_error": 0.022516182102297853,
+          "pass": true
+        },
+        {
+          "patch": 1,
+          "n_checked": 32,
+          "max_relative_roundtrip_error": 0.02663466678338979,
+          "pass": true
+        },
+        {
+          "patch": 2,
+          "n_checked": 32,
+          "max_relative_roundtrip_error": 0.021602627935142536,
+          "pass": true
+        },
+        {
+          "patch": 3,
+          "n_checked": 32,
+          "max_relative_roundtrip_error": 0.02058584681344586,
+          "pass": true
+        },
+        {
+          "patch": 4,
+          "n_checked": 32,
+          "max_relative_roundtrip_error": 0.022425002724380506,
+          "pass": true
+        },
+        {
+          "patch": 5,
+          "n_checked": 32,
+          "max_relative_roundtrip_error": 0.03705555282023008,
+          "pass": true
+        }
+      ]
+    },
+    "transitions": {
+      "pass": false,
+      "n_pairs_checked": 13,
+      "pairs": [
+        {
+          "from": 0,
+          "to": 1,
+          "margin": 0.8580558371983128,
+          "pass": true
+        },
+        {
+          "from": 0,
+          "to": 2,
+          "margin": -0.49597176767327533,
+          "pass": false
+        },
+        {
+          "from": 0,
+          "to": 3,
+          "margin": -62.91503995684161,
+          "pass": false
+        },
+        {
+          "from": 0,
+          "to": 4,
+          "margin": -4.8876611231941425,
+          "pass": false
+        },
+        {
+          "from": 0,
+          "to": 5,
+          "margin": -168.5430799918003,
+          "pass": false
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "margin": 2.4724729419743765,
+          "pass": true
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "margin": 3.0212879884317005,
+          "pass": true
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "margin": 0.7359812908429595,
+          "pass": true
+        },
+        {
+          "from": 1,
+          "to": 5,
+          "margin": -2.310717189351133,
+          "pass": false
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "margin": -10.24974311090738,
+          "pass": false
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "margin": -33.05241937320533,
+          "pass": false
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "margin": 2.8160970044544644,
+          "pass": true
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "margin": 3.6966556233906784,
+          "pass": true
+        }
+      ]
+    },
+    "rollout": {
+      "pass": true,
+      "deterministic": true,
+      "n_steps_completed": 200,
+      "max_relative_energy_drift": 1.1827705943928459e-13,
+      "energy_drift_tol": 0.1,
+      "handoffs": 0,
+      "stalls": 0,
+      "blocked_at_end": false
+    },
+    "schema": {
+      "pass": true,
+      "n_channels": 2,
+      "live": [
+        {
+          "name": "arm crank torque",
+          "kind": "joint_torque",
+          "target": "arm_hinge",
+          "lo": -40.0,
+          "hi": 40.0,
+          "gain": 1.0,
+          "unit": "N\u00b7m"
+        },
+        {
+          "name": "circle motor torque",
+          "kind": "joint_torque",
+          "target": "circle_hinge",
+          "lo": -40.0,
+          "hi": 40.0,
+          "gain": 1.0,
+          "unit": "N\u00b7m"
+        }
+      ],
+      "staged": [
+        {
+          "name": "arm crank torque",
+          "kind": "joint_torque",
+          "target": "arm_hinge",
+          "lo": -40.0,
+          "hi": 40.0,
+          "gain": 1.0,
+          "unit": "N\u00b7m"
+        },
+        {
+          "name": "circle motor torque",
+          "kind": "joint_torque",
+          "target": "circle_hinge",
+          "lo": -40.0,
+          "hi": 40.0,
+          "gain": 1.0,
+          "unit": "N\u00b7m"
+        }
+      ]
+    },
+    "zero_control": {
+      "pass": true,
+      "note": "ROM not mode-ready; skipped"
+    },
+    "control_response": {
+      "pass": true,
+      "note": "ROM not mode-ready; skipped"
+    },
+    "production_isolation": {
+      "pass": true,
+      "offenders": []
+    }
+  }
+}

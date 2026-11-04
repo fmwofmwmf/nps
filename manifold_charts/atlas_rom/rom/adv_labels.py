@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import copy
 import datetime
+import hashlib
 import json
+import os
 import time
 
 import numpy as np
@@ -245,15 +247,20 @@ def _init_oracle_worker(case):
     _WORKER_ORACLE = oracle_eval._build_oracle(load_spec(case))
 
 
-def _project_rows(X, oracle):
+def _project_rows(X, oracle, starts=None, max_steps=None):
     """q* = oracle.project(q) per row, NaN where it fails or does not converge onto the constraint set.
     The convergence tolerance is the oracle's own ``residual_tol`` (default 1e-6, exact-joint oracles): a
-    penalty-joint backend declares the closure gap its joints actually hold."""
+    penalty-joint backend declares the closure gap its joints actually hold.
+
+    With ``starts`` (one feasible pose per row) an oracle that has ``project_from`` walks each claim from
+    its own start, within ``max_steps``, instead of from wherever the previous row left the scene."""
     out = np.full_like(X, np.nan)
     tol = float(getattr(oracle, "residual_tol", 1e-6))
+    warm = starts is not None and hasattr(oracle, "project_from")
     for r_, q in enumerate(X):
         try:
-            p = np.asarray(oracle.project(q), float)
+            p = np.asarray(oracle.project_from(starts[r_], q, max_steps=max_steps) if warm
+                           else oracle.project(q), float)
             if np.linalg.norm(oracle.residual(p), np.inf) < tol:
                 out[r_] = p
         except Exception:
@@ -261,20 +268,24 @@ def _project_rows(X, oracle):
     return out
 
 
-def _project_chunk(X):
-    return _project_rows(X, _WORKER_ORACLE)
+def _project_chunk(task):
+    X, starts, max_steps = task
+    return _project_rows(X, _WORKER_ORACLE, starts, max_steps)
 
 
-def project_claims(X, oracle, *, case=None, workers=None):
+def project_claims(X, oracle, *, case=None, workers=None, starts=None, max_steps=None):
     """Project every claim row onto the true mechanism.  With ``case`` (and more than one worker) the rows are split
     across CPU processes, each building its own oracle; results are identical to the serial loop."""
     import os
     X = np.asarray(X, float)
     workers = (os.cpu_count() or 1) if workers is None else int(workers)
     if case is None or workers <= 1 or len(X) < 2 * workers:
-        return _project_rows(X, oracle)
+        return _project_rows(X, oracle, starts, max_steps)
     from concurrent.futures import ProcessPoolExecutor
-    chunks = np.array_split(X, workers * 4)
+    n_split = workers * 4
+    chunks = list(zip(np.array_split(X, n_split),
+                      np.array_split(np.asarray(starts, float), n_split) if starts is not None else [None] * n_split,
+                      [max_steps] * n_split))
     # one BLAS thread per worker: the oracle's dense solves would otherwise oversubscribe the cores
     keys = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS")
     saved = {k: os.environ.get(k) for k in keys}
@@ -291,7 +302,16 @@ def project_claims(X, oracle, *, case=None, workers=None):
     return np.concatenate(parts, axis=0)
 
 
-def label_states(M, oracle, states, eps, dev, *, case=None, workers=None):
+def _nearest_starts(claims, start_pool, start_weigh):
+    """Each claim's nearest start pose, measured in ``start_weigh``'s coordinates."""
+    from scipy.spatial import cKDTree
+    weigh = start_weigh or (lambda rows: rows)
+    _d, idx = cKDTree(np.asarray(weigh(start_pool), float)).query(np.asarray(weigh(claims), float))
+    return np.asarray(start_pool, float)[idx]
+
+
+def label_states(M, oracle, states, eps, dev, *, case=None, workers=None, start_pool=None, start_weigh=None,
+                 max_steps=None):
     """M: per-chart models on ``dev``; states: list of (i, u).
     Returns (keep_idx, E[len(keep), K] per-chart claim errors, U_map[len(keep)][K] each chart's latent of the claim)."""
     K = len(M)
@@ -307,8 +327,9 @@ def label_states(M, oracle, states, eps, dev, *, case=None, workers=None):
             claims[i] = M[i].decode(U)
     # all claims projected in one (parallel) pass: the oracle is the cost
     order = list(by_chart)
-    q_all = project_claims(np.concatenate([claims[i].cpu().numpy() for i in order], axis=0), oracle,
-                           case=case, workers=workers)
+    X = np.concatenate([claims[i].cpu().numpy() for i in order], axis=0)
+    starts = None if start_pool is None else _nearest_starts(X, start_pool, start_weigh)
+    q_all = project_claims(X, oracle, case=case, workers=workers, starts=starts, max_steps=max_steps)
     splits = np.cumsum([len(by_chart[i]) for i in order])[:-1]
     projected = dict(zip(order, np.split(q_all, splits)))
     for i, ids in by_chart.items():
@@ -327,36 +348,83 @@ def label_states(M, oracle, states, eps, dev, *, case=None, workers=None):
     return keep, E[keep], [U_map[n] for n in keep]
 
 
+# ---- stage checkpoints -------------------------------------------------------------------------------------------
+# A router build is ~1 h of oracle labels on a contact case.  Each stage is saved to ``checkpoint_dir`` when it
+# finishes and loaded instead of recomputed on restart; ``meta.json`` fingerprints the inputs so a stale directory
+# is refused, never silently reused.
+
+def _ck_save(path, obj):
+    tmp = path + ".tmp"
+    torch.save(obj, tmp)
+    os.replace(tmp, path)                 # atomic: a kill mid-write never leaves a truncated checkpoint
+
+
+def _ck_load(path):
+    return torch.load(path, map_location="cpu", weights_only=False) if os.path.isfile(path) else None
+
+
+def _fingerprint(models, q_all, settings):
+    h = hashlib.sha256()
+    for m in models:
+        for k, v in sorted(m.state_dict().items()):
+            h.update(k.encode()); h.update(v.detach().cpu().double().numpy().tobytes())
+    h.update(np.ascontiguousarray(q_all, float).tobytes())
+    h.update(json.dumps(settings, sort_keys=True).encode())
+    return h.hexdigest()
+
+
+def _ck_open(checkpoint_dir, models, q_all, settings, log):
+    if checkpoint_dir is None:
+        return None
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    meta = {"fingerprint": _fingerprint(models, q_all, settings), "settings": settings}
+    path = os.path.join(checkpoint_dir, "meta.json")
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            old = json.load(f)
+        if old.get("fingerprint") != meta["fingerprint"]:
+            raise RuntimeError(f"{checkpoint_dir}: checkpoints belong to different charts/dataset/settings "
+                               f"({old.get('settings')} vs {settings}); delete the directory to start fresh")
+        log(f"router: resuming from checkpoints in {checkpoint_dir}")
+    else:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    return checkpoint_dir
+
+
+def label_states_chunked(M, oracle, states, eps, dev, *, case=None, workers=None, ck=None, chunk=4000, log=print,
+                         start_pool=None, start_weigh=None, max_steps=None):
+    """``label_states`` in chunks of ``chunk`` states, each saved to ``ck`` as it finishes.  Rows are labelled
+    independently, so the result equals one ``label_states`` call."""
+    keeps, Es, Us = [], [], []
+    n_chunks = (len(states) + chunk - 1) // chunk
+    for c in range(n_chunks):
+        lo = c * chunk
+        path = None if ck is None else os.path.join(ck, f"labels_{c:03d}.pt")
+        got = None if path is None else _ck_load(path)
+        if got is None:
+            t0 = time.time()
+            keep, E, U_map = label_states(M, oracle, states[lo:lo + chunk], eps, dev, case=case, workers=workers,
+                                          start_pool=start_pool, start_weigh=start_weigh, max_steps=max_steps)
+            got = {"keep": keep + lo, "E": E, "U_map": U_map}
+            if path is not None:
+                _ck_save(path, got)
+            log(f"router: labels chunk {c + 1}/{n_chunks} [{time.time() - t0:.0f}s]")
+        keeps.append(np.asarray(got["keep"], int)); Es.append(got["E"]); Us.extend(got["U_map"])
+    K = len(M)
+    return (np.concatenate(keeps) if keeps else np.zeros(0, int),
+            np.concatenate(Es, axis=0) if Es else np.zeros((0, K)), Us)
+
+
 def noise_floor(q_all, dev, M, n=3000, seed=0):
     q = q_all[np.random.default_rng(seed).choice(len(q_all), min(n, len(q_all)), replace=False)]
     r = projection_errors(M, torch.as_tensor(q, device=dev))
     return float(r.min(1).values.median())
 
 
-def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed=11, device="cuda", log=print,
-                 mass_fields=None, potential_fields=None, bodies=None, case=None, workers=None):
-    """Train the router net from in-memory chart models.  Returns (payload, report).
-
-    payload = {"kind", "state", "dmax", "K", "sc", "eps"} -- everything ``adv_router.AdvRouter`` needs.  ``oracle`` is a
-    build-time label source only (``check_data_validity._build_oracle(spec)``).  With the chart's learned
-    ``mass_fields`` / ``potential_fields`` and the case ``bodies`` (masses, inertia, com, up, gravity), each chart's
-    score also pays for its dynamics mismatch: s_k = -log(e_k + eps) - delta_M - log(1 + delta_V) (see
-    ``dynamics_mismatch``); without them the labels are pose-only."""
-    t_start = time.time(); started_at = datetime.datetime.now().isoformat(timespec="seconds")
-    timing = {}
-    K = len(models)
-    dev = torch.device(device)
-    M = [copy.deepcopy(m).to(dev) for m in models]
-    q_all = np.asarray(q_all, float)
-    t0 = time.time()
-    eps = noise_floor(q_all, dev, M)
-    timing["noise_floor_seconds"] = time.time() - t0
-    log(f"router: eps (median best-chart projection error over the dataset): {eps:.4g}")
-    A_anchor = [np.asarray(a, float) for a in anchors]
-    sc = [np.maximum(a.std(0), 1e-4) for a in A_anchor]
-    dmax = max(len(s) for s in sc)
-    rng = np.random.default_rng(seed)
-
+def _sample_states(models, M, A_anchor, sc, q_all, n_per, rng, dev, K, timing, log,
+                   mass_fields, potential_fields, bodies, case, exit_rollouts):
+    """The four router state sets (territory, overlap, wide, exit); returns (states, (n_a, n_b, n_c, n_d))."""
     states = territory_states(A_anchor, sc, n_per, rng)
     n_a = len(states)
     qs = q_all[rng.choice(len(q_all), min(4000, len(q_all)), replace=False)]
@@ -376,13 +444,66 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
     if mass_fields is not None and potential_fields is not None and bodies is not None and case is not None:
         t0 = time.time()                             # (d) exit states: where each chart's own dynamics leave its anchors
         cpu_models = [copy.deepcopy(m).cpu().double().eval() for m in models]
-        ex = exit_states(cpu_models, mass_fields, potential_fields, A_anchor, sc, case, list(bodies["names"]), rng)
+        ex = exit_states(cpu_models, mass_fields, potential_fields, A_anchor, sc, case, list(bodies["names"]), rng,
+                         n_roll=int(exit_rollouts))
         states.extend(ex); n_d = len(ex)
         timing["exit_states_seconds"] = time.time() - t0
         log(f"router: {n_d} exit states from each chart's own learned dynamics [{timing['exit_states_seconds']:.0f}s]")
 
+    return states, (n_a, n_b, n_c, n_d)
+
+
+def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed=11, device="cuda", log=print,
+                 mass_fields=None, potential_fields=None, bodies=None, case=None, workers=None,
+                 exit_rollouts=200, checkpoint_dir=None, label_chunk=4000, ckpt_every=250,
+                 warm_start=False, start_weigh=None, label_max_steps=None):
+    """Train the router net from in-memory chart models.  Returns (payload, report).
+
+    payload = {"kind", "state", "dmax", "K", "sc", "eps"} -- everything ``adv_router.AdvRouter`` needs.  ``oracle`` is a
+    build-time label source only (``check_data_validity._build_oracle(spec)``).  With the chart's learned
+    ``mass_fields`` / ``potential_fields`` and the case ``bodies`` (masses, inertia, com, up, gravity), each chart's
+    score also pays for its dynamics mismatch: s_k = -log(e_k + eps) - delta_M - log(1 + delta_V) (see
+    ``dynamics_mismatch``); without them the labels are pose-only.
+
+    ``checkpoint_dir``: save each stage (states, label chunks, dynamics labels, training every ``ckpt_every``
+    epochs) there and resume from whatever is already saved."""
+    t_start = time.time(); started_at = datetime.datetime.now().isoformat(timespec="seconds")
+    timing = {}
+    K = len(models)
+    dev = torch.device(device)
+    M = [copy.deepcopy(m).to(dev) for m in models]
+    q_all = np.asarray(q_all, float)
     t0 = time.time()
-    keep, E, U_map = label_states(M, oracle, states, eps, dev, case=case, workers=workers)
+    eps = noise_floor(q_all, dev, M)
+    timing["noise_floor_seconds"] = time.time() - t0
+    log(f"router: eps (median best-chart projection error over the dataset): {eps:.4g}")
+    A_anchor = [np.asarray(a, float) for a in anchors]
+    sc = [np.maximum(a.std(0), 1e-4) for a in A_anchor]
+    dmax = max(len(s) for s in sc)
+    rng = np.random.default_rng(seed)
+    use_dyn = mass_fields is not None and potential_fields is not None and bodies is not None
+    ck = _ck_open(checkpoint_dir, models, q_all,
+                  {"n_per": int(n_per), "epochs": int(epochs), "seed": int(seed), "exit_rollouts": int(exit_rollouts),
+                   "label_chunk": int(label_chunk), "dynamics": bool(use_dyn), "case": case}, log)
+    saved = None if ck is None else _ck_load(os.path.join(ck, "states.pt"))
+    if saved is not None:
+        states, (n_a, n_b, n_c, n_d) = saved["states"], saved["counts"]
+        rng.bit_generator.state = saved["rng"]
+        log(f"router: loaded {len(states)} states from checkpoint")
+    else:
+        states, (n_a, n_b, n_c, n_d) = _sample_states(models, M, A_anchor, sc, q_all, n_per, rng, dev, K, timing, log,
+                                                      mass_fields, potential_fields, bodies, case, exit_rollouts)
+        if ck is not None:
+            _ck_save(os.path.join(ck, "states.pt"),
+                     {"states": states, "counts": (n_a, n_b, n_c, n_d), "rng": rng.bit_generator.state})
+
+    t0 = time.time()
+    # Warm start: each claim is projected from its nearest dataset pose (in ``start_weigh``'s metric), so
+    # the oracle walks only the claim's own distance from the data, within ``label_max_steps``.
+    keep, E, U_map = label_states_chunked(M, oracle, states, eps, dev, case=case, workers=workers, ck=ck,
+                                          chunk=int(label_chunk), log=log,
+                                          start_pool=q_all if warm_start else None, start_weigh=start_weigh,
+                                          max_steps=label_max_steps)
     timing["labels_seconds"] = time.time() - t0
     log(f"router: labelled {len(keep)} of {len(states)} states ({n_a} territory, {n_b} overlap, {n_c} wide, {n_d} exit) [{timing['labels_seconds']:.0f}s]")
     kind = np.array([0] * n_a + [1] * n_b + [2] * n_c + [3] * n_d)[keep]
@@ -390,10 +511,13 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
     S = len(st)
 
     # Dynamics mismatch of every chart's learned fields at the latent where it would hold this claim.
-    use_dyn = mass_fields is not None and potential_fields is not None and bodies is not None
     dM, dV = np.zeros_like(E), np.zeros_like(E)
     g_ref = None
-    if use_dyn:
+    saved = None if ck is None or not use_dyn else _ck_load(os.path.join(ck, "dynamics.pt"))
+    if saved is not None:
+        dM, dV, g_ref = saved["dM"], saved["dV"], saved["g_ref"]
+        log("router: loaded dynamics labels from checkpoint")
+    elif use_dyn:
         t0 = time.time()
         cpu = [copy.deepcopy(m).cpu().double().eval() for m in models]
         ref = dynamics_mismatch(cpu, mass_fields, potential_fields, bodies, A_anchor)
@@ -411,6 +535,8 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
                 dV[:, k] = per[k][:, 1] / (per[k][:, 2] + g_ref)
         timing["dynamics_labels_seconds"] = time.time() - t0
         log(f"router: dynamics labels (mass + force mismatch vs the fields' teacher) [{timing['dynamics_labels_seconds']:.0f}s]")
+        if ck is not None:
+            _ck_save(os.path.join(ck, "dynamics.pt"), {"dM": dM, "dV": dV, "g_ref": g_ref})
 
     # Score targets: every chart's claim error, s_k ~ -log(e_k + eps) - delta_M - log(1 + delta_V).  A(i->j) = s_j - s_i.
     Y = np.clip(-np.log(E + eps) - dM - np.log1p(dV), -A_CLIP, A_CLIP)
@@ -445,13 +571,25 @@ def train_router(models, anchors, q_all, oracle, *, n_per=300, epochs=4000, seed
     opt = torch.optim.Adam(net.parameters(), 1e-3, weight_decay=1e-6)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs)
     t0 = time.time()
-    for _ in range(epochs):
+    start = 0
+    train_path = None if ck is None else os.path.join(ck, "train.pt")
+    saved = None if train_path is None else _ck_load(train_path)
+    if saved is not None:
+        net.load_state_dict(saved["net"]); opt.load_state_dict(saved["opt"]); sched.load_state_dict(saved["sched"])
+        start = int(saved["epoch"])
+        log(f"router: resuming training at epoch {start}/{epochs}")
+    for ep in range(start, epochs):
         opt.zero_grad()
         s_all = net(Xt)
         fit = (Wt * ((s_all[tr] - Yt[tr]) ** 2).mean(1)).sum()
         cons = (Wc[ctr] * ((s_all[src_t[ctr]] - net(Xc[ctr])) ** 2).mean(1)).mean()
         (fit + cons).backward()
         opt.step(); sched.step()
+        done = ep + 1
+        if train_path is not None and (done % int(ckpt_every) == 0 or done == epochs):
+            _ck_save(train_path, {"net": net.state_dict(), "opt": opt.state_dict(), "sched": sched.state_dict(),
+                                  "epoch": done})
+            log(f"router: training epoch {done}/{epochs} [{time.time() - t0:.0f}s]")
     timing["train_seconds"] = time.time() - t0
     with torch.no_grad():
         P = net(Xt).cpu().numpy()

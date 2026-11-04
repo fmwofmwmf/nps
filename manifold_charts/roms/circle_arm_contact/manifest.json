@@ -1,0 +1,73 @@
+{
+  "format": "patch_rom_v2",
+  "case": "circle_arm_contact",
+  "label": "non-passing atlas (coverage, distortion) staged on the user request to see whether it fails",
+  "n_bodies": 8,
+  "body_order": [
+    "arm",
+    "pink",
+    "blue",
+    "yellow",
+    "coupling_A",
+    "coupling_B",
+    "output_A",
+    "output_B"
+  ],
+  "latent_dim": 2,
+  "width": 96,
+  "n_patches": 6,
+  "control_schema": [
+    {
+      "name": "arm crank torque",
+      "kind": "joint_torque",
+      "target": "arm_hinge",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    },
+    {
+      "name": "circle motor torque",
+      "kind": "joint_torque",
+      "target": "circle_hinge",
+      "lo": -40.0,
+      "hi": 40.0,
+      "gain": 1.0,
+      "unit": "N\u00b7m"
+    }
+  ],
+  "actuator_maps": [
+    {
+      "name": "arm crank torque",
+      "kind": "joint_torque",
+      "target": "arm_hinge",
+      "status": "analytic"
+    },
+    {
+      "name": "circle motor torque",
+      "kind": "joint_torque",
+      "target": "circle_hinge",
+      "status": "analytic"
+    }
+  ],
+  "artifact": "patch_atlas.pt",
+  "build_report": "patch_atlas_report.json",
+  "rollout_report": null,
+  "source": {
+    "work_dir": "C:\\Users\\fmwof\\Desktop\\computersigns\\learning\\libuipc-samples\\manifold_charts\\work\\circle_arm_contact_rom",
+    "artifact_sha256": "a0a151c0b69e51df045ab60947520d26af29e51ba2e8d07478e6e473dfc847bd",
+    "build_report_sha256": "678f313df4e23bf389e54d63cac68a5f6ed6b1a2db28aea482a60a51d1f9dcce"
+  },
+  "gates": {
+    "build_status": "incomplete",
+    "build_all_pass": false,
+    "n_uncovered": 18,
+    "latent_gauge": true,
+    "paper_baseline": false,
+    "rollout": null,
+    "rollout_required": false,
+    "control_maps_ok": true
+  },
+  "rom_mode_ready": false,
+  "staged_at": "2026-11-04T19:03:10.591070+00:00"
+}

@@ -39,7 +39,7 @@ ARTIFACT = "certified_graph.npz"
 
 
 def certified_edges(q, edges, oracle, k=16, audit=400, log=print,
-                    distance_matrix=None):
+                    distance_matrix=None, metric=None):
     """The explorer's tree, plus every short chord that stays on ONE sheet.
 
     Returns `(edges, report)`.  `edges` contains the original tree links
@@ -58,6 +58,11 @@ def certified_edges(q, edges, oracle, k=16, audit=400, log=print,
     Half the audit therefore goes to the chords whose ratio sits closest to the
     cut, and half stays uniform so a systematic error away from the threshold
     still has a way of showing up.
+
+    ``metric`` maps rows of packed poses or pose differences into the coordinates
+    the explorer measured in (the mass metric's weighed coordinates, say);
+    neighbours, lengths and residuals are then taken there.  An oracle with
+    ``residuals`` answers all midpoints in one batch.
     """
     q = np.asarray(q, float)
     # Do not retain the explorer's continuation tree: all topology below is
@@ -74,14 +79,25 @@ def certified_edges(q, edges, oracle, k=16, audit=400, log=print,
             "audit_agreement_marginal": 1.0, "knn_k": int(k),
         }
 
+    measured = q if metric is None else np.asarray(metric(q), float)
+
     def ratio(pairs):
         mid = 0.5 * (q[pairs[:, 0]] + q[pairs[:, 1]])
-        length = np.linalg.norm(q[pairs[:, 0]] - q[pairs[:, 1]], axis=1)
-        res = np.array([np.linalg.norm(oracle.residual(m), np.inf) for m in mid])
+        length = np.linalg.norm(measured[pairs[:, 0]] - measured[pairs[:, 1]], axis=1)
+        batched = getattr(oracle, "residuals", None)
+        vectors = np.asarray(batched(list(mid)) if batched is not None
+                             else [oracle.residual(m) for m in mid], float)
+        if metric is not None:
+            finite = np.isfinite(vectors).all(axis=1)
+            weighed = np.full_like(vectors, np.inf)
+            if finite.any():
+                weighed[finite] = np.asarray(metric(vectors[finite]), float)
+            vectors = weighed
+        res = np.linalg.norm(vectors, np.inf, axis=1)
         return res / np.maximum(length ** 2, 1e-12), length
 
     if distance_matrix is None:
-        tree = cKDTree(q)
+        tree = cKDTree(measured)
         _, idx = tree.query(q, k=min(k + 1, len(q)))
     else:
         distances = np.asarray(distance_matrix, float)

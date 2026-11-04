@@ -858,9 +858,9 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1792594814.323988,
-    "seen": 1792594832.9361036,
-    "ast_hash": "3790f69a17d0cd159752cf49534a1c9b",
+    "mtime": 1793765782.0691838,
+    "seen": 1793773252.4367383,
+    "ast_hash": "68540b1eb5b961ed1d7ea401d3fccf62",
     "semantic_hash": ""
   },
   "graphify-out/memory/query_20260731_235741_fixed_support_micro_atlas_pipeline_ran_end_to_end.md": {
@@ -1578,9 +1578,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/scripts/pipeline/run_native_case.py": {
-    "mtime": 1792716747.1821625,
-    "seen": 1792716762.8958957,
-    "ast_hash": "96d06d1c77154662f576c3e89a77f955",
+    "mtime": 1793739098.7410946,
+    "seen": 1793751058.960587,
+    "ast_hash": "3e20370ac809301278a9fc37e95d8cca",
     "semantic_hash": ""
   },
   "manifold_charts/systems.json": {
@@ -1656,9 +1656,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/charts/competitive_cae.py": {
-    "mtime": 1793574097.4222274,
-    "seen": 1793576557.5479562,
-    "ast_hash": "c45e3292779b592439c384eece70f84f",
+    "mtime": 1793751168.2383125,
+    "seen": 1793761910.5622668,
+    "ast_hash": "e3d6a4605a1e08cbc928c79138a627e4",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/charts/latent_support.py": {
@@ -1686,9 +1686,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/charts/validity.py": {
-    "mtime": 1792082815.3537734,
-    "seen": 1792083013.6634505,
-    "ast_hash": "c65b64be530d110636ece0bec439b4b4",
+    "mtime": 1793761728.3779962,
+    "seen": 1793761910.5622668,
+    "ast_hash": "06392fe780e76687f4c1a17b3e1866be",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/__init__.py": {
@@ -1704,9 +1704,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/adv_labels.py": {
-    "mtime": 1793638981.142752,
-    "seen": 1793639003.0686731,
-    "ast_hash": "38c4dc98d191369ce340d2b48d220324",
+    "mtime": 1793809625.9697096,
+    "seen": 1793810096.26941,
+    "ast_hash": "0a8a34cac7d1dfebb93e9c5b31a16152",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/adv_router.py": {
@@ -1722,9 +1722,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/learned.py": {
-    "mtime": 1793039843.4013164,
-    "seen": 1793073993.4065204,
-    "ast_hash": "b6d3de0f2f56b194c4da807323f59c70",
+    "mtime": 1793763202.6615102,
+    "seen": 1793763694.6918762,
+    "ast_hash": "411f28d39ec3720a2bd97a9486d64145",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/loader.py": {
@@ -1746,15 +1746,15 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/position_runtime.py": {
-    "mtime": 1792082745.9170947,
-    "seen": 1792083013.6634505,
-    "ast_hash": "070faaf11816f4d2448413a6c46c0222",
+    "mtime": 1793727384.2845008,
+    "seen": 1793727435.003239,
+    "ast_hash": "6e6bd2d9ab721155cb63dc6c23330629",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/router_build.py": {
-    "mtime": 1792786050.7515006,
-    "seen": 1792786104.6760461,
-    "ast_hash": "c359a07c8637a8756ea8c7ab6d9b8a15",
+    "mtime": 1793809625.9697096,
+    "seen": 1793810096.2705007,
+    "ast_hash": "4324a843e8a1fc86fd65efd064676d7d",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/rom/routing_test_tracks.py": {
@@ -1806,9 +1806,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/sample/physical_advancing_front.py": {
-    "mtime": 1793120717.4628973,
-    "seen": 1793121062.5048442,
-    "ast_hash": "9a07f1eedb033d97ff630674bf39be81",
+    "mtime": 1793756570.3250923,
+    "seen": 1793761910.566809,
+    "ast_hash": "a87a800db531a5c8ea75226528dee19b",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/sample/quotient.py": {
@@ -1818,15 +1818,15 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/sample/sample_graph.py": {
-    "mtime": 1788949060.577097,
-    "seen": 1792083013.6634505,
-    "ast_hash": "6655b9212e72f01307dfb399bc80ab4e",
+    "mtime": 1793760925.0294514,
+    "seen": 1793761910.566809,
+    "ast_hash": "80ffb71bc41adea99bbfdf44b4d71752",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/sample/sampling.py": {
-    "mtime": 1792931164.472202,
-    "seen": 1793073993.4090438,
-    "ast_hash": "4f0fbdebc7a6b176438c7c7abe15761d",
+    "mtime": 1793760925.030454,
+    "seen": 1793761910.566809,
+    "ast_hash": "c8747bc12d43b8a9d674f7d067bfcd66",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/simulate/__init__.py": {
@@ -1860,9 +1860,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/simulate/oracle_base.py": {
-    "mtime": 1792597965.1163163,
-    "seen": 1792599857.708874,
-    "ast_hash": "f3a2fe1e09ba7a2067feda9b7a84751e",
+    "mtime": 1793653152.8716607,
+    "seen": 1793653688.7632668,
+    "ast_hash": "9fcffd27ce4abe5db2a44658acc7cb2f",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/simulate/projection_oracle.py": {
@@ -1884,9 +1884,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/spec/case_spec.py": {
-    "mtime": 1793124944.04356,
-    "seen": 1793125846.763588,
-    "ast_hash": "70999fe7e293e393dcd979c8084fbcf7",
+    "mtime": 1793750487.722571,
+    "seen": 1793751058.9424667,
+    "ast_hash": "7c957c753c16ced8c9397c07f9cdc8ad",
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/spec/coordinates.py": {
@@ -1938,9 +1938,9 @@
     "semantic_hash": ""
   },
   "manifold_charts/atlas_rom/simulate/oracle_eval.py": {
-    "mtime": 1792083420.3725438,
-    "seen": 1792084274.1754663,
-    "ast_hash": "0a7abfe9fe3fb73e4eff1d09d7d3e0e2",
+    "mtime": 1793764605.909469,
+    "seen": 1793764745.6175609,
+    "ast_hash": "68bfeee4f96cf85375bc2ef15219ec0f",
     "semantic_hash": ""
   },
   "manifold_charts/viewers/check_data_validity.py": {
@@ -3009,6 +3009,72 @@
     "mtime": 1793341333.0372539,
     "seen": 1793341346.6261246,
     "ast_hash": "de93d183d8057e9ea7b86f7f37affc72",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/rotate_contact.py": {
+    "mtime": 1793657729.2564192,
+    "seen": 1793658092.388572,
+    "ast_hash": "594157c9540c4c8f692bf6d4c8898277",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/simulate/superdex_oracle.py": {
+    "mtime": 1793809625.9682016,
+    "seen": 1793810096.273512,
+    "ast_hash": "1641ac992d5df96add5036f27d875cff",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/tests/test_superdex_oracle.py": {
+    "mtime": 1793809638.3426433,
+    "seen": 1793810096.277032,
+    "ast_hash": "73db3b0273f8190b280cb94b4bf9f085",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/tests/test_tangent_rank_rule.py": {
+    "mtime": 1793657729.311904,
+    "seen": 1793658092.3966131,
+    "ast_hash": "5390e558ed0722dbdf3b1f3e70772c73",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/assets/circle_arm/circle_arm.py": {
+    "mtime": 1793741339.4065342,
+    "seen": 1793751058.9268599,
+    "ast_hash": "4aab9696c448f7b85dce9a103b2032b8",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/assets/circle_arm/export_sim_meshes.py": {
+    "mtime": 1793737837.644844,
+    "seen": 1793738858.7987914,
+    "ast_hash": "d576b43117b3a2e0f75cbe401aa07de6",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/circle_arm_contact.py": {
+    "mtime": 1793750732.2134442,
+    "seen": 1793751058.9278626,
+    "ast_hash": "f9c6ca3a0cfe510870cc8f2cf2051174",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/sample/mass_metric.py": {
+    "mtime": 1793750568.438205,
+    "seen": 1793751058.939956,
+    "ast_hash": "8569f22704c816a1eaa5caaca5ac9898",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/tests/test_mass_metric.py": {
+    "mtime": 1793761011.3826377,
+    "seen": 1793761910.5718305,
+    "ast_hash": "7816a81e080e27a1b8b68368da1c8a5a",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/tests/test_contact_validity.py": {
+    "mtime": 1793762220.1778772,
+    "seen": 1793762234.6937256,
+    "ast_hash": "09aec248557514ab665c1eed877e7295",
+    "semantic_hash": ""
+  },
+  "manifold_charts/atlas_rom/cases/ball_joint_arm.py": {
+    "mtime": 1793806586.0377214,
+    "seen": 1793806594.5208113,
+    "ast_hash": "d94649400d67c312e83b6ff2300fa8e7",
     "semantic_hash": ""
   }
 }
